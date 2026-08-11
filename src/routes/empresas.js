@@ -1,0 +1,27 @@
+import { Router } from 'express';
+import { autenticar } from '../middleware/autenticar.js';
+import { permitirRoles, permitirRolesOPermiso } from '../middleware/permitirRoles.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import {
+    obtenerEmpresaActual,
+    actualizarConfiguracion,
+    saludFinanciera,
+    obtenerConfigSifen,
+    actualizarConfigSifen,
+    obtenerLogo,
+    actualizarLogo,
+} from '../controllers/empresasController.js';
+
+const router = Router();
+
+router.use(autenticar);
+
+router.get('/actual', asyncHandler(obtenerEmpresaActual));
+router.patch('/actual', permitirRoles('dueno'), asyncHandler(actualizarConfiguracion));
+router.get('/salud-financiera', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(saludFinanciera));
+router.get('/sifen', asyncHandler(obtenerConfigSifen));
+router.patch('/sifen', permitirRoles('dueno'), asyncHandler(actualizarConfigSifen));
+router.get('/logo', asyncHandler(obtenerLogo));
+router.patch('/logo', permitirRoles('dueno'), asyncHandler(actualizarLogo));
+
+export default router;
