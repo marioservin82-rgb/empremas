@@ -25,7 +25,7 @@ export default function Registro() {
     setError("");
     setCargando(true);
     try {
-      const resp = await fetch("http://localhost:3001/api/auth/registro", {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/auth/registro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

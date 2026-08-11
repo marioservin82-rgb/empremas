@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:3001";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 // Mismo patron que lib/api.js, pero con su propia clave de localStorage
 // (empremas_admin_token, nunca empremas_token) - asi una sesion de tenant

@@ -38,7 +38,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
   // que no puede ser un <a href> directo - se pide el PDF ya autenticado.
   async function pedirKude() {
     const token = localStorage.getItem("empremas_token");
-    const resp = await fetch(`http://localhost:3001/api/ventas/${ventaId}/kude`, {
+    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/ventas/${ventaId}/kude`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) throw new Error("No se pudo descargar la factura");
