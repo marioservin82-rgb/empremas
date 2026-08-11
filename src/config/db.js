@@ -1,8 +1,13 @@
 import pg from 'pg';
 import 'dotenv/config';
 
+// La base local no soporta/necesita SSL, pero Render Postgres (y la mayoria
+// de los hosting en la nube) lo exigen para conexiones externas.
+const esLocal = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '');
+
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
+    ssl: esLocal ? false : { rejectUnauthorized: false },
 });
 
 // Toda operacion de una empresa pasa por aca: primero le dice a Postgres
