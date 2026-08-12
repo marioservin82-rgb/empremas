@@ -12,6 +12,15 @@ const INICIALIZAR = Buffer.from([ESC, 0x40]);
 const CORTE = Buffer.from([GS, 0x56, 0x00]);
 const SALTO_LINEA = Buffer.from([0x0a]);
 
+// ESC M n - tipo de letra. La mayoria de las termicas traen dos fuentes
+// grabadas: Fuente A (la que usa por defecto, mas grande/ancha) y Fuente B
+// (mas chica y compacta, pensada para tickets con mucho detalle). El
+// tamaño (GS ! de mas abajo) escala la fuente que este activa - no cambia
+// cual es. Mario reportó que en tamaño normal igual salía "grande": era la
+// Fuente A. Con la Fuente B de base, el mismo tamaño "normal" imprime mas
+// chico.
+const FUENTE_B = Buffer.from([ESC, 0x4d, 0x01]);
+
 // GS ! n - tamaño de letra. Sin este comando la impresora usa su fuente
 // mas chica por defecto (lo que Mario vio como "sale muy chica") - se deja
 // todo el ticket en doble alto (mismo ancho, asi no se rompen los
@@ -56,7 +65,7 @@ function textoBuffer(texto) {
 // legible, por el ticket HTML), y solo el nombre del negocio y el total en
 // 'alto' para que resalten.
 function armarBuffer(lineas, { cortar = true } = {}) {
-    const partes = [INICIALIZAR, TAMANO_NORMAL];
+    const partes = [INICIALIZAR, FUENTE_B, TAMANO_NORMAL];
     let alineacionActual = 'izquierda';
     let negritaActual = false;
     let tamanoActual = 'normal';
