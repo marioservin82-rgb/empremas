@@ -235,7 +235,7 @@ export default function ConfiguracionImpresora() {
         <div className="flex justify-center rounded-2xl bg-slate-100 p-6">
           <div
             className="w-[80mm] rounded-xl bg-white p-[3mm] text-base text-slate-800 shadow"
-            style={{ zoom: Number(escala) / 100, fontFamily: '"Times New Roman", Times, serif' }}
+            style={{ zoom: Number(escala) / 100, fontFamily: "Arial, Helvetica, sans-serif" }}
           >
             <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
             <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>

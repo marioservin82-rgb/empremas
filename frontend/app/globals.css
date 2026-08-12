@@ -25,14 +25,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Tickets/recibos/presupuestos/reportes imprimibles van en Times New
-   Roman (pedido explicito) - tanto en la vista previa en pantalla como
-   en lo que sale impreso, para que sean iguales. Sin @layer a proposito:
-   asi gana por encima de utilidades de Tailwind como font-mono sin
-   depender del orden de las clases en cada componente. */
+/* Tickets/recibos/presupuestos/reportes imprimibles van en Arial (pedido
+   explicito, mas legible que la Times New Roman de antes) - tanto en la
+   vista previa en pantalla como en lo que sale impreso, para que sean
+   iguales. Sin @layer a proposito: asi gana por encima de utilidades de
+   Tailwind como font-mono sin depender del orden de las clases en cada
+   componente. */
 .recibo-imprimible,
 .reporte-imprimible {
-  font-family: "Times New Roman", Times, serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Al imprimir, solo se ve el recibo (pensado para rollo de impresora
