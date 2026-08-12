@@ -21,7 +21,7 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
   lineas.push(SEPARADOR);
   for (const i of presupuesto.items) {
     lineas.push(
-      { texto: `${i.cantidad} x ${i.producto_nombre}` },
+      { texto: `${i.cantidad} ${i.unidad_medida ?? ""} x ${i.producto_nombre}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}` }
     );
   }
@@ -105,7 +105,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         {presupuesto.items.map((i) => (
           <div key={i.id} className="mb-2">
             <p>
-              {i.cantidad} x {i.producto_nombre}
+              {i.cantidad} {i.unidad_medida} x {i.producto_nombre}
             </p>
             <div className="flex justify-between text-sm text-slate-600">
               <span>Gs {formatoGs.format(i.precio_unitario)} c/u</span>

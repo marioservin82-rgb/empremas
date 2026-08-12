@@ -328,6 +328,7 @@ export default function Vender() {
           nombre: i.nombre,
           cantidad: i.cantidad,
           precioUnitario: precioDe(i, tipoPago),
+          unidadMedida: i.unidadMedida,
         })),
       });
     } catch (err) {

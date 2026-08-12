@@ -111,6 +111,7 @@ export default function DetalleVenta() {
     nombre: i.producto_nombre,
     cantidad: Number(i.cantidad),
     precioUnitario: Number(i.precio_unitario),
+    unidadMedida: i.unidad_medida,
   }));
 
   const mensajeWhatsapp = `Hola ${cliente.nombre}, te paso el comprobante de tu compra en ${empresaInfo.razon_social} por Gs ${formatoGs.format(venta.total)}. (Adjunto la imagen del comprobante)`;
