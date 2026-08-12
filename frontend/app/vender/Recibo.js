@@ -273,7 +273,7 @@ const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   const fecha = new Date(venta.creado_en);
   const lineas = [
-    { texto: empresa?.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: empresa?.razon_social, negrita: true, alineacion: "centro" },
     { texto: `RUC ${empresa?.ruc}`, negrita: true, alineacion: "centro" },
   ];
   if (empresa?.direccion) lineas.push({ texto: empresa.direccion, negrita: true, alineacion: "centro" });
@@ -299,7 +299,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   }
   lineas.push(
     SEPARADOR,
-    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true, tamano: "alto" },
+    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true },
     SEPARADOR,
     { texto: `CDC: ${venta.de_cdc}`, negrita: true },
     { texto: "Factura Electrónica — documento tributario legal", negrita: true, alineacion: "centro" },
@@ -315,7 +315,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
 function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   const fecha = new Date(venta.creadoEn);
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
     { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
   ];
   if (empresa.direccion) lineas.push({ texto: empresa.direccion, negrita: true, alineacion: "centro" });
@@ -344,7 +344,7 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
       }
     );
   }
-  lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true, tamano: "alto" });
+  lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true });
   for (const p of venta.pagos ?? []) {
     lineas.push({ texto: `${FORMAS_PAGO_ETIQUETA[p.formaPago]}: Gs ${formatoGs.format(p.monto)}`, negrita: true });
   }

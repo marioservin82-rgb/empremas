@@ -9,7 +9,7 @@ const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 function lineasPresupuesto(empresa, presupuesto, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
     { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
     { texto: "PRESUPUESTO", negrita: true, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, negrita: true, alineacion: "centro" },
@@ -27,7 +27,7 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
   }
   lineas.push(
     SEPARADOR,
-    { texto: `Total: Gs ${formatoGs.format(presupuesto.total)}`, negrita: true, tamano: "alto" },
+    { texto: `Total: Gs ${formatoGs.format(presupuesto.total)}`, negrita: true },
     SEPARADOR,
     {
       texto: `Presupuesto válido hasta el ${new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}`,

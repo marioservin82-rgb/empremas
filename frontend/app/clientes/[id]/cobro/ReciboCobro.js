@@ -17,7 +17,7 @@ const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
     { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, negrita: true, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, negrita: true, alineacion: "centro" },
@@ -26,7 +26,7 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   ];
   if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}`, negrita: true });
   if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}`, negrita: true });
-  lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true, tamano: "alto" }, SEPARADOR);
+  lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true }, SEPARADOR);
   for (const p of cobro.pagos) {
     lineas.push({ texto: `${ETIQUETA_FORMA_PAGO[p.formaPago]}: Gs ${formatoGs.format(p.monto)}`, negrita: true });
   }
