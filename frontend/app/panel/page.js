@@ -95,6 +95,11 @@ export default function Panel() {
             </Link>
           )}
           {yo?.rol === "dueno" && (
+            <Link href="/configuracion/perfil-empresa" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              Mi Empresa
+            </Link>
+          )}
+          {yo?.rol === "dueno" && (
             <Link href="/configuracion/sifen" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Facturación electrónica
             </Link>
@@ -109,6 +114,9 @@ export default function Panel() {
               Mi PIN
             </Link>
           )}
+          <Link href="/ayuda" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+            Ayuda
+          </Link>
           <button onClick={salir} className="text-sm font-medium text-slate-500 hover:text-slate-700">
             Salir
           </button>

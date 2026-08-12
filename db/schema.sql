@@ -62,6 +62,16 @@ CREATE TABLE empresas (
     -- desde /configuracion/impresora, aplicado como CSS zoom sobre el
     -- ticket (ver Recibo.js/ReciboCobro.js/PresupuestoImprimible.js).
     ticket_escala           INTEGER NOT NULL DEFAULT 100 CHECK (ticket_escala BETWEEN 50 AND 300),
+    -- Perfil de empresa: contacto y trazabilidad de datos fiscales. El
+    -- certificado SIFEN no se guarda como archivo (Sifende firma con el
+    -- que cada comercio carga directo en su propio panel, no con el
+    -- nuestro) - solo vencimiento/nota para que el dueno lleve registro.
+    email                       TEXT,
+    direccion_atencion         TEXT,
+    sifen_cert_vencimiento     DATE,
+    sifen_cert_nota             TEXT,
+    datos_fiscales_modificado_en   TIMESTAMPTZ,
+    datos_fiscales_modificado_por  UUID REFERENCES usuarios(id),
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -660,6 +670,16 @@ CREATE TABLE pagos_plataforma (
     periodo_hasta   DATE NOT NULL,
     notas           TEXT,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Configuracion global de la plataforma (una sola fila siempre). Hoy solo
+-- el numero de soporte de EMPREMAS (no del comercio cliente), mostrado en
+-- el boton flotante de WhatsApp y en el login - editable desde el panel
+-- de super-admin sin tocar codigo.
+CREATE TABLE configuracion_plataforma (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    whatsapp_soporte    TEXT,
+    actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- =====================================================================

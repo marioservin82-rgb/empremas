@@ -121,6 +121,33 @@ export async function actualizarEmpresa(req, res) {
     res.json(resultado.rows[0]);
 }
 
+// Configuracion global de la plataforma (numero de soporte de EMPREMAS,
+// mostrado a todos los tenants). Tabla de una sola fila - GET trae esa
+// fila (o null si todavia no existe ninguna) y PATCH la actualiza si
+// existe o la crea si es la primera vez que se guarda.
+export async function obtenerConfiguracion(req, res) {
+    const resultado = await pool.query(`SELECT whatsapp_soporte FROM configuracion_plataforma LIMIT 1`);
+    res.json({ whatsappSoporte: resultado.rows[0]?.whatsapp_soporte ?? null });
+}
+
+export async function actualizarConfiguracion(req, res) {
+    const { whatsappSoporte } = req.body;
+
+    const existente = await pool.query(`SELECT id FROM configuracion_plataforma LIMIT 1`);
+    const resultado = existente.rows[0]
+        ? await pool.query(
+              `UPDATE configuracion_plataforma SET whatsapp_soporte = $2, actualizado_en = now()
+               WHERE id = $1 RETURNING whatsapp_soporte`,
+              [existente.rows[0].id, whatsappSoporte || null]
+          )
+        : await pool.query(
+              `INSERT INTO configuracion_plataforma (whatsapp_soporte) VALUES ($1) RETURNING whatsapp_soporte`,
+              [whatsappSoporte || null]
+          );
+
+    res.json({ whatsappSoporte: resultado.rows[0].whatsapp_soporte });
+}
+
 // Registra un pago y, de paso, actualiza vence_en al periodo cubierto y
 // reactiva la cuenta si estaba en mora/suspendida - pagar es la señal
 // mas clara de que hay que devolverle el acceso.

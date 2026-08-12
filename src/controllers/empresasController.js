@@ -6,7 +6,9 @@ export async function obtenerEmpresaActual(req, res) {
 
     const resultado = await pool.query(
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
-                permitir_venta_sin_stock, limite_sucursales, vence_en, ticket_escala
+                permitir_venta_sin_stock, limite_sucursales, vence_en, ticket_escala,
+                email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
+                datos_fiscales_modificado_en
          FROM empresas WHERE id = $1`,
         [empresaId]
     );
@@ -102,20 +104,50 @@ export async function actualizarConfigSifen(req, res) {
 }
 
 export async function actualizarConfiguracion(req, res) {
-    const { empresaId } = req.usuario;
-    const { permitirVentaSinStock, ticketEscala } = req.body;
+    const { empresaId, usuarioId } = req.usuario;
+    const {
+        permitirVentaSinStock, ticketEscala,
+        razonSocial, ruc, direccion, direccionAtencion, telefono, email,
+        sifenCertVencimiento, sifenCertNota,
+    } = req.body;
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
         return res.status(400).json({ error: 'La escala del ticket debe estar entre 50% y 300%' });
     }
+    if (razonSocial !== undefined && !razonSocial?.trim()) {
+        return res.status(400).json({ error: 'La razón social no puede quedar vacía' });
+    }
+    if (ruc !== undefined && !ruc?.trim()) {
+        return res.status(400).json({ error: 'El RUC no puede quedar vacío' });
+    }
 
+    // Si razon_social o ruc cambian de verdad (no solo se re-envia el mismo
+    // valor), queda registrado quien y cuando - son los dos datos fiscales
+    // que se imprimen en cada documento SIFEN, por eso la trazabilidad.
     const resultado = await pool.query(
         `UPDATE empresas SET
             permitir_venta_sin_stock = COALESCE($2, permitir_venta_sin_stock),
-            ticket_escala = COALESCE($3, ticket_escala)
+            ticket_escala = COALESCE($3, ticket_escala),
+            razon_social = COALESCE($4, razon_social),
+            ruc = COALESCE($5, ruc),
+            direccion = COALESCE($6, direccion),
+            direccion_atencion = COALESCE($7, direccion_atencion),
+            telefono = COALESCE($8, telefono),
+            email = COALESCE($9, email),
+            sifen_cert_vencimiento = COALESCE($10, sifen_cert_vencimiento),
+            sifen_cert_nota = COALESCE($11, sifen_cert_nota),
+            datos_fiscales_modificado_en = CASE
+                WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
+                THEN now() ELSE datos_fiscales_modificado_en END,
+            datos_fiscales_modificado_por = CASE
+                WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
+                THEN $12 ELSE datos_fiscales_modificado_por END
          WHERE id = $1
-         RETURNING razon_social, ruc, timbrado, permitir_venta_sin_stock, ticket_escala`,
-        [empresaId, permitirVentaSinStock, ticketEscala]
+         RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
+                   permitir_venta_sin_stock, ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
+                   datos_fiscales_modificado_en`,
+        [empresaId, permitirVentaSinStock, ticketEscala, razonSocial, ruc, direccion,
+            direccionAtencion, telefono, email, sifenCertVencimiento, sifenCertNota, usuarioId]
     );
 
     res.json(resultado.rows[0]);
