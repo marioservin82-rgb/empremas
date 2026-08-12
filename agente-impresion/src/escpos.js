@@ -56,24 +56,23 @@ function textoBuffer(texto) {
 
 // lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha', tamano: 'normal'|'alto'|'grande' }]
 //
-// Tamaño por defecto 'normal': ESC/POS solo permite multiplos enteros de
-// tamaño (1x, 2x, 3x...), no hay un "1.5x" intermedio - probado con Mario:
-// doble alto en todo el ticket (la primera vuelta) salía "muy grande", sin
-// ningun comando salía "muy chica". Como no hay una escala intermedia real,
-// se resuelve con jerarquia en vez de una escala global: todo el cuerpo en
-// tamaño normal + negrita (lo que ya sabíamos que a Mario le resulta bien
-// legible, por el ticket HTML), y solo el nombre del negocio y el total en
-// 'alto' para que resalten.
+// Tamaño por defecto 'alto': con la Fuente A (la que usaba antes de
+// FUENTE_B de arriba) doble alto salía "muy grande" y tamaño normal salía
+// "muy chico". Con la Fuente B (mas compacta) de base, Mario probo tamaño
+// normal, dijo que se leia bien pero que se podia agrandar "un poquito" -
+// como ESC/POS no tiene una escala intermedia (solo 1x, 2x, 3x...), el
+// siguiente escalon es doble alto, que con esta fuente de base ya no es
+// tan grande como antes.
 function armarBuffer(lineas, { cortar = true } = {}) {
-    const partes = [INICIALIZAR, FUENTE_B, TAMANO_NORMAL];
+    const partes = [INICIALIZAR, FUENTE_B, TAMANO_ALTO];
     let alineacionActual = 'izquierda';
     let negritaActual = false;
-    let tamanoActual = 'normal';
+    let tamanoActual = 'alto';
 
     for (const linea of lineas) {
         const quiereAlineacion = linea.alineacion || 'izquierda';
         const quiereNegrita = !!linea.negrita;
-        const quiereTamano = linea.tamano || 'normal';
+        const quiereTamano = linea.tamano || 'alto';
 
         if (quiereAlineacion !== alineacionActual) {
             partes.push(alinear(quiereAlineacion));
