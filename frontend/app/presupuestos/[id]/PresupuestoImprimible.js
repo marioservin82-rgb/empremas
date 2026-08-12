@@ -10,19 +10,19 @@ const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 function lineasPresupuesto(empresa, presupuesto, fecha) {
   const lineas = [
     { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
-    { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
-    { texto: "PRESUPUESTO", negrita: true, alineacion: "centro" },
-    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, negrita: true, alineacion: "centro" },
+    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
+    { texto: "PRESUPUESTO", alineacion: "centro" },
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
     SEPARADOR,
   ];
   if (presupuesto.cliente_nombre) lineas.push({ texto: `Cliente: ${presupuesto.cliente_nombre}`, negrita: true });
-  if (presupuesto.cliente_documento) lineas.push({ texto: `RUC/CI: ${presupuesto.cliente_documento}`, negrita: true });
-  if (presupuesto.cliente_celular) lineas.push({ texto: `Cel: ${presupuesto.cliente_celular}`, negrita: true });
+  if (presupuesto.cliente_documento) lineas.push({ texto: `RUC/CI: ${presupuesto.cliente_documento}` });
+  if (presupuesto.cliente_celular) lineas.push({ texto: `Cel: ${presupuesto.cliente_celular}` });
   lineas.push(SEPARADOR);
   for (const i of presupuesto.items) {
     lineas.push(
-      { texto: `${i.cantidad} x ${i.producto_nombre}`, negrita: true },
-      { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}`, negrita: true }
+      { texto: `${i.cantidad} x ${i.producto_nombre}` },
+      { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}` }
     );
   }
   lineas.push(
@@ -31,10 +31,9 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
     SEPARADOR,
     {
       texto: `Presupuesto válido hasta el ${new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}`,
-      negrita: true,
       alineacion: "centro",
     },
-    { texto: "Precios sujetos a stock disponible", negrita: true, alineacion: "centro" },
+    { texto: "Precios sujetos a stock disponible", alineacion: "centro" },
     SEPARADOR,
     FIRMA
   );
