@@ -1,4 +1,5 @@
-import { consultaDeEmpresa } from '../config/db.js';
+import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
+import { ErrorNegocio } from '../utils/errorNegocio.js';
 
 function conSaldoDisponible(cliente) {
     return {
@@ -89,35 +90,137 @@ export async function extractoCliente(req, res) {
         [id, ...valoresFecha]
     );
 
-    res.json({ cliente: conSaldoDisponible(cliente.rows[0]), ventas: ventas.rows, cobros: cobros.rows });
+    const ajustesSaldo = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, saldo_anterior, saldo_nuevo, diferencia, motivo, creado_en
+         FROM ajustes_saldo_cliente WHERE cliente_id = $1 ${whereFecha} ORDER BY creado_en DESC LIMIT 200`,
+        [id, ...valoresFecha]
+    );
+
+    res.json({
+        cliente: conSaldoDisponible(cliente.rows[0]),
+        ventas: ventas.rows,
+        cobros: cobros.rows,
+        ajustesSaldo: ajustesSaldo.rows,
+    });
 }
 
 export async function crearCliente(req, res) {
-    const { empresaId } = req.usuario;
-    const { nombre, documento, telefono, celular, email, direccion, lineaCredito } = req.body;
+    const { empresaId, usuarioId } = req.usuario;
+    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial } = req.body;
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
     }
+    if (saldoInicial !== undefined && !(Number(saldoInicial) >= 0)) {
+        return res.status(400).json({ error: 'El saldo inicial debe ser 0 o mayor' });
+    }
+
+    // Si viene saldoInicial (migracion de un cliente que ya debia antes de
+    // pasarse a EMPREMAS), se crea el cliente Y se deja registrado el
+    // ajuste en el mismo request - asi el saldo con el que arranca queda
+    // igual de auditado que cualquier otro ajuste posterior.
+    const cliente = await transaccionDeEmpresa(empresaId, async (db) => {
+        const insertado = await db.query(
+            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), COALESCE($9, 0))
+             RETURNING *`,
+            [
+                empresaId,
+                nombre,
+                documento || null,
+                telefono || null,
+                celular || null,
+                email || null,
+                direccion || null,
+                lineaCredito,
+                saldoInicial,
+            ]
+        );
+        const nuevoCliente = insertado.rows[0];
+
+        if (Number(saldoInicial) > 0) {
+            await db.query(
+                `INSERT INTO ajustes_saldo_cliente (empresa_id, cliente_id, usuario_id, saldo_anterior, saldo_nuevo, diferencia, motivo)
+                 VALUES ($1, $2, $3, 0, $4, $4, 'Saldo inicial (migración)')`,
+                [empresaId, nuevoCliente.id, usuarioId, saldoInicial]
+            );
+        }
+
+        return nuevoCliente;
+    });
+
+    res.status(201).json(conSaldoDisponible(cliente));
+}
+
+// Ajuste manual de saldo (mismo espiritu que ajustarInventario en
+// productosController.js): corrige clientes.saldo a un valor puntual, con
+// motivo obligatorio, dejando rastro en ajustes_saldo_cliente. Pensado
+// para migrar deuda de un sistema anterior o corregir un error de carga.
+export async function ajustarSaldo(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { id } = req.params;
+    const { saldoNuevo, motivo } = req.body;
+
+    if (!(Number(saldoNuevo) >= 0)) {
+        return res.status(400).json({ error: 'El saldo nuevo debe ser 0 o mayor' });
+    }
+    if (!motivo || !motivo.trim()) {
+        return res.status(400).json({ error: 'El motivo es obligatorio' });
+    }
+
+    try {
+        const ajuste = await transaccionDeEmpresa(empresaId, async (db) => {
+            const clienteResultado = await db.query(`SELECT nombre, saldo FROM clientes WHERE id = $1 FOR UPDATE`, [id]);
+            const cliente = clienteResultado.rows[0];
+            if (!cliente) {
+                throw new ErrorNegocio('El cliente no existe');
+            }
+
+            const saldoAnterior = Number(cliente.saldo);
+            const diferencia = Number(saldoNuevo) - saldoAnterior;
+
+            await db.query(`UPDATE clientes SET saldo = $2 WHERE id = $1`, [id, saldoNuevo]);
+
+            const ajusteInsertado = await db.query(
+                `INSERT INTO ajustes_saldo_cliente (empresa_id, cliente_id, usuario_id, saldo_anterior, saldo_nuevo, diferencia, motivo)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id, creado_en`,
+                [empresaId, id, usuarioId, saldoAnterior, saldoNuevo, diferencia, motivo.trim()]
+            );
+
+            return {
+                id: ajusteInsertado.rows[0].id,
+                creadoEn: ajusteInsertado.rows[0].creado_en,
+                clienteId: id,
+                clienteNombre: cliente.nombre,
+                saldoAnterior,
+                saldoNuevo: Number(saldoNuevo),
+                diferencia,
+                motivo: motivo.trim(),
+            };
+        });
+
+        res.status(201).json(ajuste);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
+}
+
+export async function historialAjustesSaldo(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0))
-         RETURNING *`,
-        [
-            empresaId,
-            nombre,
-            documento || null,
-            telefono || null,
-            celular || null,
-            email || null,
-            direccion || null,
-            lineaCredito,
-        ]
+        `SELECT * FROM ajustes_saldo_cliente WHERE cliente_id = $1 ORDER BY creado_en DESC LIMIT 100`,
+        [id]
     );
 
-    res.status(201).json(conSaldoDisponible(resultado.rows[0]));
+    res.json(resultado.rows);
 }
 
 export async function actualizarCliente(req, res) {

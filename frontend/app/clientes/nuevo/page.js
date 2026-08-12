@@ -13,6 +13,7 @@ const vacio = {
   email: "",
   direccion: "",
   lineaCredito: "",
+  saldoInicial: "",
 };
 
 export default function NuevoCliente() {
@@ -35,6 +36,7 @@ export default function NuevoCliente() {
         body: JSON.stringify({
           ...form,
           lineaCredito: Number(form.lineaCredito) || 0,
+          saldoInicial: Number(form.saldoInicial) || 0,
         }),
       });
       router.push("/clientes");
@@ -82,6 +84,10 @@ export default function NuevoCliente() {
 
           <label className={etiqueta}>Línea de crédito (Gs)</label>
           <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />
+
+          <label className={etiqueta}>Saldo inicial (Gs)</label>
+          <input type="number" min="0" value={form.saldoInicial} onChange={actualizar("saldoInicial")} className={campo} placeholder="0" />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">Si ya te debía algo antes de pasarte a EMPREMAS, cargalo acá.</p>
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

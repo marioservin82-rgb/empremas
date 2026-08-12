@@ -114,7 +114,7 @@ export default function ExtractoCliente() {
     );
   }
 
-  const { cliente, ventas, cobros } = datos;
+  const { cliente, ventas, cobros, ajustesSaldo } = datos;
   const textoPeriodo = hayFiltros
     ? `Período: ${desde ? fecha(desde) : "…"} – ${hasta ? fecha(hasta) : "…"}`
     : "Historial completo";
@@ -130,6 +130,12 @@ export default function ExtractoCliente() {
             <h1 className="text-2xl font-bold text-blue-900">Extracto de {cliente.nombre}</h1>
           </div>
           <div className="flex gap-2">
+            <Link
+              href={`/clientes/${id}/ajustar-saldo`}
+              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
+            >
+              Ajustar saldo
+            </Link>
             <button
               onClick={() => window.print()}
               className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
@@ -257,7 +263,7 @@ export default function ExtractoCliente() {
             )}
           </div>
 
-          <div>
+          <div className="mb-4">
             <h2 className="mb-3 font-semibold text-slate-700">Cobros</h2>
             {cobros.length === 0 ? (
               <p className="text-sm text-slate-400">Sin cobros en este período.</p>
@@ -274,6 +280,25 @@ export default function ExtractoCliente() {
               </div>
             )}
           </div>
+
+          {ajustesSaldo && ajustesSaldo.length > 0 && (
+            <div>
+              <h2 className="mb-3 font-semibold text-slate-700">Ajustes de saldo</h2>
+              <div className="flex flex-col divide-y divide-slate-100">
+                {ajustesSaldo.map((a) => (
+                  <div key={a.id} className="py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">{fecha(a.creado_en)}</span>
+                      <span className="font-semibold text-slate-700">
+                        Gs {formatoGs.format(a.saldo_anterior)} → Gs {formatoGs.format(a.saldo_nuevo)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">{a.motivo}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

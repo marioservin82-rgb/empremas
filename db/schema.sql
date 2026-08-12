@@ -311,6 +311,30 @@ ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY clientes_aislamiento ON clientes
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
+-- Ajuste de saldo de cliente: mismo espiritu que ajustes_inventario (mas
+-- abajo) pero para clientes.saldo - permite migrar un cliente con deuda
+-- ya existente de otro sistema, o corregir un saldo mal cargado, siempre
+-- con motivo obligatorio y dejando rastro de quien y cuando.
+CREATE TABLE ajustes_saldo_cliente (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    cliente_id      UUID NOT NULL REFERENCES clientes(id),
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    saldo_anterior  NUMERIC(14,2) NOT NULL,
+    saldo_nuevo     NUMERIC(14,2) NOT NULL,
+    diferencia      NUMERIC(14,2) NOT NULL,
+    motivo          TEXT NOT NULL,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_ajustes_saldo_cliente_empresa ON ajustes_saldo_cliente (empresa_id);
+CREATE INDEX idx_ajustes_saldo_cliente_cliente ON ajustes_saldo_cliente (empresa_id, cliente_id);
+
+ALTER TABLE ajustes_saldo_cliente ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ajustes_saldo_cliente_aislamiento ON ajustes_saldo_cliente
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- Ventas (punto 3 del MVP: POS). tipo_pago define tanto que lista de
 -- precio del producto se usa (contado/credito/mayorista) como si afecta
 -- el saldo del cliente: solo 'credito' es fiado, contado y mayorista se
@@ -494,6 +518,28 @@ CREATE INDEX idx_proveedores_documento ON proveedores (empresa_id, documento);
 ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY proveedores_aislamiento ON proveedores
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Ajuste de saldo de proveedor: mismo espiritu que ajustes_saldo_cliente,
+-- para proveedores.saldo (deuda por pagar).
+CREATE TABLE ajustes_saldo_proveedor (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    proveedor_id    UUID NOT NULL REFERENCES proveedores(id),
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    saldo_anterior  NUMERIC(14,2) NOT NULL,
+    saldo_nuevo     NUMERIC(14,2) NOT NULL,
+    diferencia      NUMERIC(14,2) NOT NULL,
+    motivo          TEXT NOT NULL,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_ajustes_saldo_proveedor_empresa ON ajustes_saldo_proveedor (empresa_id);
+CREATE INDEX idx_ajustes_saldo_proveedor_proveedor ON ajustes_saldo_proveedor (empresa_id, proveedor_id);
+
+ALTER TABLE ajustes_saldo_proveedor ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ajustes_saldo_proveedor_aislamiento ON ajustes_saldo_proveedor
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 -- 'contado' = ya se pago (lleva compra_pagos). 'credito' = queda a deber,

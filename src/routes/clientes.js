@@ -8,6 +8,8 @@ import {
     crearCliente,
     actualizarCliente,
     extractoCliente,
+    ajustarSaldo,
+    historialAjustesSaldo,
 } from '../controllers/clientesController.js';
 import { facturasPendientes, crearCobro, listarCobros } from '../controllers/cobrosController.js';
 
@@ -23,9 +25,11 @@ router.get('/:id', asyncHandler(obtenerCliente));
 router.get('/:id/facturas-pendientes', asyncHandler(facturasPendientes));
 router.get('/:id/cobros', asyncHandler(listarCobros));
 router.get('/:id/extracto', asyncHandler(extractoCliente));
+router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(historialAjustesSaldo));
 
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(crearCliente));
 router.patch('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(actualizarCliente));
+router.post('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(ajustarSaldo));
 // Cobrar es una tarea de caja diaria: cualquier rol logueado puede
 // registrar un cobro, igual que puede vender.
 router.post('/:id/cobros', asyncHandler(crearCobro));

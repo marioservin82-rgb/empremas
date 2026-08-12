@@ -38,22 +38,107 @@ export async function obtenerProveedor(req, res) {
 }
 
 export async function crearProveedor(req, res) {
-    const { empresaId } = req.usuario;
-    const { nombre, documento, telefono, email, direccion } = req.body;
+    const { empresaId, usuarioId } = req.usuario;
+    const { nombre, documento, telefono, email, direccion, saldoInicial } = req.body;
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
     }
+    if (saldoInicial !== undefined && !(Number(saldoInicial) >= 0)) {
+        return res.status(400).json({ error: 'El saldo inicial debe ser 0 o mayor' });
+    }
+
+    // Mismo motivo que crearCliente: si viene saldoInicial (migracion de un
+    // proveedor al que ya le debiamos antes de EMPREMAS), queda registrado
+    // como un ajuste dentro del mismo request.
+    const proveedor = await transaccionDeEmpresa(empresaId, async (db) => {
+        const insertado = await db.query(
+            `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo)
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 0))
+             RETURNING *`,
+            [empresaId, nombre, documento || null, telefono || null, email || null, direccion || null, saldoInicial]
+        );
+        const nuevoProveedor = insertado.rows[0];
+
+        if (Number(saldoInicial) > 0) {
+            await db.query(
+                `INSERT INTO ajustes_saldo_proveedor (empresa_id, proveedor_id, usuario_id, saldo_anterior, saldo_nuevo, diferencia, motivo)
+                 VALUES ($1, $2, $3, 0, $4, $4, 'Saldo inicial (migración)')`,
+                [empresaId, nuevoProveedor.id, usuarioId, saldoInicial]
+            );
+        }
+
+        return nuevoProveedor;
+    });
+
+    res.status(201).json(proveedor);
+}
+
+// Ajuste manual de saldo, simetrico a clientesController.ajustarSaldo.
+export async function ajustarSaldo(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { id } = req.params;
+    const { saldoNuevo, motivo } = req.body;
+
+    if (!(Number(saldoNuevo) >= 0)) {
+        return res.status(400).json({ error: 'El saldo nuevo debe ser 0 o mayor' });
+    }
+    if (!motivo || !motivo.trim()) {
+        return res.status(400).json({ error: 'El motivo es obligatorio' });
+    }
+
+    try {
+        const ajuste = await transaccionDeEmpresa(empresaId, async (db) => {
+            const proveedorResultado = await db.query(`SELECT nombre, saldo FROM proveedores WHERE id = $1 FOR UPDATE`, [id]);
+            const proveedor = proveedorResultado.rows[0];
+            if (!proveedor) {
+                throw new ErrorNegocio('El proveedor no existe');
+            }
+
+            const saldoAnterior = Number(proveedor.saldo);
+            const diferencia = Number(saldoNuevo) - saldoAnterior;
+
+            await db.query(`UPDATE proveedores SET saldo = $2 WHERE id = $1`, [id, saldoNuevo]);
+
+            const ajusteInsertado = await db.query(
+                `INSERT INTO ajustes_saldo_proveedor (empresa_id, proveedor_id, usuario_id, saldo_anterior, saldo_nuevo, diferencia, motivo)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id, creado_en`,
+                [empresaId, id, usuarioId, saldoAnterior, saldoNuevo, diferencia, motivo.trim()]
+            );
+
+            return {
+                id: ajusteInsertado.rows[0].id,
+                creadoEn: ajusteInsertado.rows[0].creado_en,
+                proveedorId: id,
+                proveedorNombre: proveedor.nombre,
+                saldoAnterior,
+                saldoNuevo: Number(saldoNuevo),
+                diferencia,
+                motivo: motivo.trim(),
+            };
+        });
+
+        res.status(201).json(ajuste);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
+}
+
+export async function historialAjustesSaldo(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [empresaId, nombre, documento || null, telefono || null, email || null, direccion || null]
+        `SELECT * FROM ajustes_saldo_proveedor WHERE proveedor_id = $1 ORDER BY creado_en DESC LIMIT 100`,
+        [id]
     );
 
-    res.status(201).json(resultado.rows[0]);
+    res.json(resultado.rows);
 }
 
 export async function actualizarProveedor(req, res) {
@@ -132,7 +217,19 @@ export async function extractoProveedor(req, res) {
         [id, ...valoresPagos]
     );
 
-    res.json({ proveedor: proveedor.rows[0], compras: compras.rows, pagos: pagos.rows });
+    const ajustesSaldo = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, saldo_anterior, saldo_nuevo, diferencia, motivo, creado_en
+         FROM ajustes_saldo_proveedor WHERE proveedor_id = $1 ${whereCompras} ORDER BY creado_en DESC LIMIT 200`,
+        [id, ...valoresCompras]
+    );
+
+    res.json({
+        proveedor: proveedor.rows[0],
+        compras: compras.rows,
+        pagos: pagos.rows,
+        ajustesSaldo: ajustesSaldo.rows,
+    });
 }
 
 // Pago a proveedor, admite pagos parciales (no hace falta cancelar toda

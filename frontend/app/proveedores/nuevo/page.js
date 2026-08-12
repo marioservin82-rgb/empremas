@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
-const vacio = { nombre: "", documento: "", telefono: "", email: "", direccion: "" };
+const vacio = { nombre: "", documento: "", telefono: "", email: "", direccion: "", saldoInicial: "" };
 
 export default function NuevoProveedor() {
   const router = useRouter();
@@ -22,7 +22,10 @@ export default function NuevoProveedor() {
     setError("");
     setGuardando(true);
     try {
-      await apiFetch("/api/proveedores", { method: "POST", body: JSON.stringify(form) });
+      await apiFetch("/api/proveedores", {
+        method: "POST",
+        body: JSON.stringify({ ...form, saldoInicial: Number(form.saldoInicial) || 0 }),
+      });
       router.push("/proveedores");
     } catch (err) {
       setError(err.message);
@@ -59,6 +62,10 @@ export default function NuevoProveedor() {
 
           <label className={etiqueta}>Dirección</label>
           <input value={form.direccion} onChange={actualizar("direccion")} className={campo} placeholder="Opcional" />
+
+          <label className={etiqueta}>Saldo inicial (Gs)</label>
+          <input type="number" min="0" value={form.saldoInicial} onChange={actualizar("saldoInicial")} className={campo} placeholder="0" />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">Si ya le debías algo antes de pasarte a EMPREMAS, cargalo acá.</p>
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
