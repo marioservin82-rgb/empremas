@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
+// Ver mismo comentario en Recibo.js: sin esto, una cantidad entera sale
+// como "1.000" (se lee "mil" en formato paraguayo, no "uno").
+const formatoCantidad = new Intl.NumberFormat("es-PY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 const SEPARADOR = { texto: "--------------------------------" };
 const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
@@ -21,7 +24,7 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
   lineas.push(SEPARADOR);
   for (const i of presupuesto.items) {
     lineas.push(
-      { texto: `${i.cantidad} ${i.unidad_medida ?? ""} x ${i.producto_nombre}`.replace(/\s+/g, " ") },
+      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidad_medida ?? ""} x ${i.producto_nombre}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}` }
     );
   }
@@ -105,7 +108,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         {presupuesto.items.map((i) => (
           <div key={i.id} className="mb-2">
             <p>
-              {i.cantidad} {i.unidad_medida} x {i.producto_nombre}
+              {formatoCantidad.format(Number(i.cantidad))} {i.unidad_medida} x {i.producto_nombre}
             </p>
             <div className="flex justify-between text-sm text-slate-600">
               <span>Gs {formatoGs.format(i.precio_unitario)} c/u</span>

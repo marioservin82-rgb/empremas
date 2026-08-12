@@ -5,6 +5,12 @@ import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
+// Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
+// columna es NUMERIC(14,3), para poder vender 0,5 kg) - en formato
+// paraguayo el punto es separador de miles, asi que "1.000" se lee como
+// "mil", no "uno". Con minimumFractionDigits:0 los enteros salen limpios
+// (1, 2, 3...) y los fraccionarios (0,5 kg) salen con coma, no punto.
+const formatoCantidad = new Intl.NumberFormat("es-PY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 
 const FORMAS_PAGO_ETIQUETA = {
   efectivo: "Efectivo",
@@ -290,7 +296,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
     lineas.push(
-      { texto: `${i.cantidad} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
+      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
     );
   }
@@ -333,7 +339,7 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   lineas.push(SEPARADOR);
   for (const i of items) {
     lineas.push(
-      { texto: `${i.cantidad} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
+      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
     );
   }
@@ -441,7 +447,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         {items?.map((i) => (
           <div key={i.productoId} className="mb-2">
             <p>
-              {i.cantidad} {i.unidadMedida} x {i.nombre}
+              {formatoCantidad.format(Number(i.cantidad))} {i.unidadMedida} x {i.nombre}
             </p>
             <div className="flex justify-between text-sm">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
@@ -597,7 +603,7 @@ export default function Recibo({
         {items.map((i) => (
           <div key={i.productoId} className="mb-2">
             <p>
-              {i.cantidad} {i.unidadMedida} x {i.nombre}
+              {formatoCantidad.format(Number(i.cantidad))} {i.unidadMedida} x {i.nombre}
             </p>
             <div className="flex justify-between text-sm text-slate-600">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
