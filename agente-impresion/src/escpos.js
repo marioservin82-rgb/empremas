@@ -46,16 +46,25 @@ function textoBuffer(texto) {
 }
 
 // lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha', tamano: 'normal'|'alto'|'grande' }]
+//
+// Tamaño por defecto 'normal': ESC/POS solo permite multiplos enteros de
+// tamaño (1x, 2x, 3x...), no hay un "1.5x" intermedio - probado con Mario:
+// doble alto en todo el ticket (la primera vuelta) salía "muy grande", sin
+// ningun comando salía "muy chica". Como no hay una escala intermedia real,
+// se resuelve con jerarquia en vez de una escala global: todo el cuerpo en
+// tamaño normal + negrita (lo que ya sabíamos que a Mario le resulta bien
+// legible, por el ticket HTML), y solo el nombre del negocio y el total en
+// 'alto' para que resalten.
 function armarBuffer(lineas, { cortar = true } = {}) {
-    const partes = [INICIALIZAR, TAMANO_ALTO];
+    const partes = [INICIALIZAR, TAMANO_NORMAL];
     let alineacionActual = 'izquierda';
     let negritaActual = false;
-    let tamanoActual = 'alto';
+    let tamanoActual = 'normal';
 
     for (const linea of lineas) {
         const quiereAlineacion = linea.alineacion || 'izquierda';
         const quiereNegrita = !!linea.negrita;
-        const quiereTamano = linea.tamano || 'alto';
+        const quiereTamano = linea.tamano || 'normal';
 
         if (quiereAlineacion !== alineacionActual) {
             partes.push(alinear(quiereAlineacion));
@@ -72,12 +81,12 @@ function armarBuffer(lineas, { cortar = true } = {}) {
         partes.push(textoBuffer(linea.texto ?? ''));
     }
 
-    // Mas espacio en blanco antes del corte que lo estrictamente necesario:
-    // Mario reportó que la guillotina cortaba pegada al texto - con solo 3
-    // saltos de linea el corte le entraba encima del final del ticket en su
-    // impresora real.
+    // Espacio antes del corte: la linea de firma (agregada en cada ticket,
+    // ver Recibo.js/ReciboCobro.js/PresupuestoImprimible.js) ya deja algo
+    // de aire de por si - estos saltos son el margen extra para que la
+    // guillotina no corte pegada al texto.
     partes.push(TAMANO_NORMAL);
-    for (let i = 0; i < 6; i += 1) partes.push(SALTO_LINEA);
+    for (let i = 0; i < 4; i += 1) partes.push(SALTO_LINEA);
     if (cortar) partes.push(CORTE);
 
     return Buffer.concat(partes);

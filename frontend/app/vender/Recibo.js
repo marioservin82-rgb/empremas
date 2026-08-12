@@ -262,6 +262,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
 }
 
 const SEPARADOR = { texto: "--------------------------------" };
+const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 // Version en texto plano del ticket de Factura Legal, para el agente de
 // impresion (ver frontend/lib/agenteImpresion.js) - mismas lineas que el
@@ -272,33 +273,38 @@ const SEPARADOR = { texto: "--------------------------------" };
 function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   const fecha = new Date(venta.creado_en);
   const lineas = [
-    { texto: empresa?.razon_social, negrita: true, alineacion: "centro" },
-    { texto: `RUC ${empresa?.ruc}`, alineacion: "centro" },
+    { texto: empresa?.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: `RUC ${empresa?.ruc}`, negrita: true, alineacion: "centro" },
   ];
-  if (empresa?.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
-  if (empresa?.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
+  if (empresa?.direccion) lineas.push({ texto: empresa.direccion, negrita: true, alineacion: "centro" });
+  if (empresa?.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, negrita: true, alineacion: "centro" });
   lineas.push(
     { texto: "FACTURA ELECTRÓNICA", negrita: true, alineacion: "centro" },
-    { texto: `N° ${venta.de_numero_formateado}`, alineacion: "centro" },
-    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
+    { texto: `N° ${venta.de_numero_formateado}`, negrita: true, alineacion: "centro" },
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, negrita: true, alineacion: "centro" },
     SEPARADOR,
-    { texto: `Cliente: ${cliente?.nombre}` }
+    { texto: `Cliente: ${cliente?.nombre}`, negrita: true }
   );
-  if (cliente?.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
-  if (cliente?.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
+  if (cliente?.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}`, negrita: true });
+  if (cliente?.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}`, negrita: true });
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
     lineas.push(
-      { texto: `${i.cantidad} x ${i.nombre}` },
-      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+      { texto: `${i.cantidad} x ${i.nombre}`, negrita: true },
+      {
+        texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}`,
+        negrita: true,
+      }
     );
   }
   lineas.push(
     SEPARADOR,
-    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true },
+    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true, tamano: "alto" },
     SEPARADOR,
-    { texto: `CDC: ${venta.de_cdc}` },
-    { texto: "Factura Electrónica — documento tributario legal", alineacion: "centro" }
+    { texto: `CDC: ${venta.de_cdc}`, negrita: true },
+    { texto: "Factura Electrónica — documento tributario legal", negrita: true, alineacion: "centro" },
+    SEPARADOR,
+    FIRMA
   );
   return lineas;
 }
@@ -309,54 +315,67 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
 function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   const fecha = new Date(venta.creadoEn);
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
-    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
   ];
-  if (empresa.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
-  if (empresa.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
-  lineas.push({ texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" });
-  if (venta.numeroTicket != null) lineas.push({ texto: `N° ${venta.numeroTicket}`, alineacion: "centro" });
+  if (empresa.direccion) lineas.push({ texto: empresa.direccion, negrita: true, alineacion: "centro" });
+  if (empresa.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, negrita: true, alineacion: "centro" });
+  lineas.push({
+    texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`,
+    negrita: true,
+    alineacion: "centro",
+  });
+  if (venta.numeroTicket != null) lineas.push({ texto: `N° ${venta.numeroTicket}`, negrita: true, alineacion: "centro" });
   lineas.push(SEPARADOR, { texto: `Cliente: ${cliente.nombre}`, negrita: true });
-  if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
-  if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
-  if (cliente.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
+  if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}`, negrita: true });
+  if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}`, negrita: true });
+  if (cliente.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}`, negrita: true });
   lineas.push({ texto: `Condición: ${ETIQUETA_TIPO_PAGO[venta.tipoPago]}`, negrita: true });
   if (venta.tipoPago === "credito" && empresa.plazo_credito_dias) {
-    lineas.push({ texto: `Plazo: ${empresa.plazo_credito_dias} días` });
+    lineas.push({ texto: `Plazo: ${empresa.plazo_credito_dias} días`, negrita: true });
   }
   lineas.push(SEPARADOR);
   for (const i of items) {
     lineas.push(
-      { texto: `${i.cantidad} x ${i.nombre}` },
-      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+      { texto: `${i.cantidad} x ${i.nombre}`, negrita: true },
+      {
+        texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}`,
+        negrita: true,
+      }
     );
   }
-  lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true });
+  lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true, tamano: "alto" });
   for (const p of venta.pagos ?? []) {
-    lineas.push({ texto: `${FORMAS_PAGO_ETIQUETA[p.formaPago]}: Gs ${formatoGs.format(p.monto)}` });
+    lineas.push({ texto: `${FORMAS_PAGO_ETIQUETA[p.formaPago]}: Gs ${formatoGs.format(p.monto)}`, negrita: true });
   }
-  if (venta.vuelto > 0) lineas.push({ texto: `Vuelto: Gs ${formatoGs.format(venta.vuelto)}` });
+  if (venta.vuelto > 0) lineas.push({ texto: `Vuelto: Gs ${formatoGs.format(venta.vuelto)}`, negrita: true });
   if (venta.tipoPago === "credito") {
     lineas.push(
       { texto: venta.saldoPendiente > 0 ? "FIADO — queda a cuenta del cliente" : "Cubierto en el momento", negrita: true },
       SEPARADOR
     );
-    if (entregaInicial > 0) lineas.push({ texto: `Entrega inicial: Gs ${formatoGs.format(entregaInicial)}` });
-    lineas.push({ texto: `Saldo financiado (esta compra): Gs ${formatoGs.format(venta.saldoPendiente)}` });
+    if (entregaInicial > 0) lineas.push({ texto: `Entrega inicial: Gs ${formatoGs.format(entregaInicial)}`, negrita: true });
+    lineas.push({ texto: `Saldo financiado (esta compra): Gs ${formatoGs.format(venta.saldoPendiente)}`, negrita: true });
     if (venta.vencimiento) {
       lineas.push({
         texto: `Vencimiento: ${new Date(`${venta.vencimiento.slice(0, 10)}T00:00:00`).toLocaleDateString("es-PY")}`,
+        negrita: true,
       });
     }
     if (venta.clienteSaldo != null) {
       lineas.push(
         SEPARADOR,
-        { texto: `Saldo total adeudado: Gs ${formatoGs.format(venta.clienteSaldo)}` },
-        { texto: `Crédito disponible: Gs ${formatoGs.format(venta.clienteSaldoDisponible)}` }
+        { texto: `Saldo total adeudado: Gs ${formatoGs.format(venta.clienteSaldo)}`, negrita: true },
+        { texto: `Crédito disponible: Gs ${formatoGs.format(venta.clienteSaldoDisponible)}`, negrita: true }
       );
     }
   }
-  lineas.push(SEPARADOR, { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" });
+  lineas.push(
+    SEPARADOR,
+    { texto: "Comprobante interno — no es factura electrónica", negrita: true, alineacion: "centro" },
+    SEPARADOR,
+    FIRMA
+  );
   return lineas;
 }
 

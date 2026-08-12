@@ -13,29 +13,36 @@ const ETIQUETA_FORMA_PAGO = {
 };
 
 const SEPARADOR = { texto: "--------------------------------" };
+const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
-    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro", tamano: "alto" },
+    { texto: `RUC ${empresa.ruc}`, negrita: true, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, negrita: true, alineacion: "centro" },
-    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, negrita: true, alineacion: "centro" },
     SEPARADOR,
     { texto: `Cliente: ${cliente.nombre}`, negrita: true },
   ];
-  if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
-  if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
-  lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true }, SEPARADOR);
+  if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}`, negrita: true });
+  if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}`, negrita: true });
+  lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true, tamano: "alto" }, SEPARADOR);
   for (const p of cobro.pagos) {
-    lineas.push({ texto: `${ETIQUETA_FORMA_PAGO[p.formaPago]}: Gs ${formatoGs.format(p.monto)}` });
+    lineas.push({ texto: `${ETIQUETA_FORMA_PAGO[p.formaPago]}: Gs ${formatoGs.format(p.monto)}`, negrita: true });
   }
-  lineas.push(SEPARADOR, { texto: "Aplicado a:" });
+  lineas.push(SEPARADOR, { texto: "Aplicado a:", negrita: true });
   for (const a of cobro.aplicaciones) {
     lineas.push({
       texto: `${a.numeroFacturaLegal ? `Factura ${a.numeroFacturaLegal}` : `Ticket N° ${a.numeroTicket}`}   Gs ${formatoGs.format(a.montoAplicado)}`,
+      negrita: true,
     });
   }
-  lineas.push(SEPARADOR, { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" });
+  lineas.push(
+    SEPARADOR,
+    { texto: "Comprobante interno — no es factura electrónica", negrita: true, alineacion: "centro" },
+    SEPARADOR,
+    FIRMA
+  );
   return lineas;
 }
 
