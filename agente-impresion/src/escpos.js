@@ -12,6 +12,20 @@ const INICIALIZAR = Buffer.from([ESC, 0x40]);
 const CORTE = Buffer.from([GS, 0x56, 0x00]);
 const SALTO_LINEA = Buffer.from([0x0a]);
 
+// GS ! n - tamaño de letra. Sin este comando la impresora usa su fuente
+// mas chica por defecto (lo que Mario vio como "sale muy chica") - se deja
+// todo el ticket en doble alto (mismo ancho, asi no se rompen los
+// renglones largos con precio) salvo que una linea pida otra cosa.
+const TAMANO_NORMAL = Buffer.from([GS, 0x21, 0x00]);
+const TAMANO_ALTO = Buffer.from([GS, 0x21, 0x01]);
+const TAMANO_GRANDE = Buffer.from([GS, 0x21, 0x11]);
+
+function tamano(nivel) {
+    if (nivel === 'grande') return TAMANO_GRANDE;
+    if (nivel === 'normal') return TAMANO_NORMAL;
+    return TAMANO_ALTO;
+}
+
 function negrita(activar) {
     return Buffer.from([ESC, 0x45, activar ? 1 : 0]);
 }
@@ -31,15 +45,17 @@ function textoBuffer(texto) {
     return Buffer.from(`${texto}\n`, 'latin1');
 }
 
-// lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha' }]
+// lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha', tamano: 'normal'|'alto'|'grande' }]
 function armarBuffer(lineas, { cortar = true } = {}) {
-    const partes = [INICIALIZAR];
+    const partes = [INICIALIZAR, TAMANO_ALTO];
     let alineacionActual = 'izquierda';
     let negritaActual = false;
+    let tamanoActual = 'alto';
 
     for (const linea of lineas) {
         const quiereAlineacion = linea.alineacion || 'izquierda';
         const quiereNegrita = !!linea.negrita;
+        const quiereTamano = linea.tamano || 'alto';
 
         if (quiereAlineacion !== alineacionActual) {
             partes.push(alinear(quiereAlineacion));
@@ -49,10 +65,19 @@ function armarBuffer(lineas, { cortar = true } = {}) {
             partes.push(negrita(quiereNegrita));
             negritaActual = quiereNegrita;
         }
+        if (quiereTamano !== tamanoActual) {
+            partes.push(tamano(quiereTamano));
+            tamanoActual = quiereTamano;
+        }
         partes.push(textoBuffer(linea.texto ?? ''));
     }
 
-    partes.push(SALTO_LINEA, SALTO_LINEA, SALTO_LINEA);
+    // Mas espacio en blanco antes del corte que lo estrictamente necesario:
+    // Mario reportó que la guillotina cortaba pegada al texto - con solo 3
+    // saltos de linea el corte le entraba encima del final del ticket en su
+    // impresora real.
+    partes.push(TAMANO_NORMAL);
+    for (let i = 0; i < 6; i += 1) partes.push(SALTO_LINEA);
     if (cortar) partes.push(CORTE);
 
     return Buffer.concat(partes);
