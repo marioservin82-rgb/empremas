@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { imprimirTicket } from "@/lib/agenteImpresion";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -260,6 +261,105 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
   );
 }
 
+const SEPARADOR = { texto: "--------------------------------" };
+
+// Version en texto plano del ticket de Factura Legal, para el agente de
+// impresion (ver frontend/lib/agenteImpresion.js) - mismas lineas que el
+// JSX de abajo, pero como array {texto, negrita, alineacion} en vez de
+// HTML. El QR queda afuera (no todas las impresoras entienden el comando
+// ESC/POS de QR nativo) - se imprime el CDC como texto, igual que ya se
+// ve debajo del QR en la version HTML.
+function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
+  const fecha = new Date(venta.creado_en);
+  const lineas = [
+    { texto: empresa?.razon_social, negrita: true, alineacion: "centro" },
+    { texto: `RUC ${empresa?.ruc}`, alineacion: "centro" },
+  ];
+  if (empresa?.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
+  if (empresa?.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
+  lineas.push(
+    { texto: "FACTURA ELECTRÓNICA", negrita: true, alineacion: "centro" },
+    { texto: `N° ${venta.de_numero_formateado}`, alineacion: "centro" },
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
+    SEPARADOR,
+    { texto: `Cliente: ${cliente?.nombre}` }
+  );
+  if (cliente?.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
+  if (cliente?.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
+  lineas.push(SEPARADOR);
+  for (const i of items ?? []) {
+    lineas.push(
+      { texto: `${i.cantidad} x ${i.nombre}` },
+      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+    );
+  }
+  lineas.push(
+    SEPARADOR,
+    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true },
+    SEPARADOR,
+    { texto: `CDC: ${venta.de_cdc}` },
+    { texto: "Factura Electrónica — documento tributario legal", alineacion: "centro" }
+  );
+  return lineas;
+}
+
+// Version en texto plano del ticket comun (ticket_comun) - mismo criterio
+// que lineasTicketFacturaLegal, calcado del JSX del componente Recibo de
+// mas abajo.
+function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
+  const fecha = new Date(venta.creadoEn);
+  const lineas = [
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
+  ];
+  if (empresa.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
+  if (empresa.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
+  lineas.push({ texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" });
+  if (venta.numeroTicket != null) lineas.push({ texto: `N° ${venta.numeroTicket}`, alineacion: "centro" });
+  lineas.push(SEPARADOR, { texto: `Cliente: ${cliente.nombre}`, negrita: true });
+  if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
+  if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
+  if (cliente.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
+  lineas.push({ texto: `Condición: ${ETIQUETA_TIPO_PAGO[venta.tipoPago]}`, negrita: true });
+  if (venta.tipoPago === "credito" && empresa.plazo_credito_dias) {
+    lineas.push({ texto: `Plazo: ${empresa.plazo_credito_dias} días` });
+  }
+  lineas.push(SEPARADOR);
+  for (const i of items) {
+    lineas.push(
+      { texto: `${i.cantidad} x ${i.nombre}` },
+      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+    );
+  }
+  lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true });
+  for (const p of venta.pagos ?? []) {
+    lineas.push({ texto: `${FORMAS_PAGO_ETIQUETA[p.formaPago]}: Gs ${formatoGs.format(p.monto)}` });
+  }
+  if (venta.vuelto > 0) lineas.push({ texto: `Vuelto: Gs ${formatoGs.format(venta.vuelto)}` });
+  if (venta.tipoPago === "credito") {
+    lineas.push(
+      { texto: venta.saldoPendiente > 0 ? "FIADO — queda a cuenta del cliente" : "Cubierto en el momento", negrita: true },
+      SEPARADOR
+    );
+    if (entregaInicial > 0) lineas.push({ texto: `Entrega inicial: Gs ${formatoGs.format(entregaInicial)}` });
+    lineas.push({ texto: `Saldo financiado (esta compra): Gs ${formatoGs.format(venta.saldoPendiente)}` });
+    if (venta.vencimiento) {
+      lineas.push({
+        texto: `Vencimiento: ${new Date(`${venta.vencimiento.slice(0, 10)}T00:00:00`).toLocaleDateString("es-PY")}`,
+      });
+    }
+    if (venta.clienteSaldo != null) {
+      lineas.push(
+        SEPARADOR,
+        { texto: `Saldo total adeudado: Gs ${formatoGs.format(venta.clienteSaldo)}` },
+        { texto: `Crédito disponible: Gs ${formatoGs.format(venta.clienteSaldoDisponible)}` }
+      );
+    }
+  }
+  lineas.push(SEPARADOR, { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" });
+  return lineas;
+}
+
 // Copia de mostrador en 80mm de una Factura Legal ya aprobada - el
 // documento oficial ante SIFEN sigue siendo el KuDE (PDF), esto es una
 // version propia con los mismos datos (numero de factura y CDC
@@ -297,7 +397,9 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
     yaImprimio.current = true;
-    window.print();
+    imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items), () =>
+      window.print()
+    );
   }, [autoImprimir]);
 
   return (
@@ -356,7 +458,11 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
       </div>
 
       <button
-        onClick={() => window.print()}
+        onClick={() =>
+          imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items), () =>
+            window.print()
+          )
+        }
         className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
       >
         Imprimir
@@ -430,7 +536,15 @@ export default function Recibo({
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
     yaImprimio.current = true;
-    window.print();
+    if (esA4) {
+      window.print();
+    } else {
+      imprimirTicket(
+        empresa.impresora_agente_nombre,
+        lineasTicketComun(empresa, cliente, venta, items, entregaInicial),
+        () => window.print()
+      );
+    }
   }, [autoImprimir]);
 
   return (
@@ -532,7 +646,15 @@ export default function Recibo({
 
       <div className="flex gap-2">
         <button
-          onClick={() => window.print()}
+          onClick={() =>
+            esA4
+              ? window.print()
+              : imprimirTicket(
+                  empresa.impresora_agente_nombre,
+                  lineasTicketComun(empresa, cliente, venta, items, entregaInicial),
+                  () => window.print()
+                )
+          }
           className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
         >
           Imprimir

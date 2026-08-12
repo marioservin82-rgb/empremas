@@ -1,8 +1,38 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { imprimirTicket } from "@/lib/agenteImpresion";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
+const SEPARADOR = { texto: "--------------------------------" };
+
+function lineasPresupuesto(empresa, presupuesto, fecha) {
+  const lineas = [
+    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
+    { texto: "PRESUPUESTO", negrita: true, alineacion: "centro" },
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
+    SEPARADOR,
+  ];
+  if (presupuesto.cliente_nombre) lineas.push({ texto: `Cliente: ${presupuesto.cliente_nombre}`, negrita: true });
+  if (presupuesto.cliente_documento) lineas.push({ texto: `RUC/CI: ${presupuesto.cliente_documento}` });
+  if (presupuesto.cliente_celular) lineas.push({ texto: `Cel: ${presupuesto.cliente_celular}` });
+  lineas.push(SEPARADOR);
+  for (const i of presupuesto.items) {
+    lineas.push(
+      { texto: `${i.cantidad} x ${i.producto_nombre}` },
+      { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}` }
+    );
+  }
+  lineas.push(
+    SEPARADOR,
+    { texto: `Total: Gs ${formatoGs.format(presupuesto.total)}`, negrita: true },
+    SEPARADOR,
+    { texto: `Presupuesto válido hasta el ${new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}`, alineacion: "centro" },
+    { texto: "Precios sujetos a stock disponible", alineacion: "centro" }
+  );
+  return lineas;
+}
 
 export default function PresupuestoImprimible({ empresa, presupuesto, accionesExtra }) {
   const recuadroRef = useRef(null);
@@ -95,7 +125,13 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
 
       <div className="flex flex-wrap justify-center gap-2">
         <button
-          onClick={() => window.print()}
+          onClick={() =>
+            esA4
+              ? window.print()
+              : imprimirTicket(empresa.impresora_agente_nombre, lineasPresupuesto(empresa, presupuesto, fecha), () =>
+                  window.print()
+                )
+          }
           className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
         >
           Imprimir

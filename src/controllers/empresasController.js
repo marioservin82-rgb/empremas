@@ -8,7 +8,7 @@ export async function obtenerEmpresaActual(req, res) {
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
                 permitir_venta_sin_stock, limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
-                datos_fiscales_modificado_en
+                datos_fiscales_modificado_en, impresora_agente_nombre
          FROM empresas WHERE id = $1`,
         [empresaId]
     );
@@ -108,7 +108,7 @@ export async function actualizarConfiguracion(req, res) {
     const {
         permitirVentaSinStock, ticketEscala,
         razonSocial, ruc, direccion, direccionAtencion, telefono, email,
-        sifenCertVencimiento, sifenCertNota,
+        sifenCertVencimiento, sifenCertNota, impresoraAgenteNombre,
     } = req.body;
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
@@ -136,6 +136,7 @@ export async function actualizarConfiguracion(req, res) {
             email = COALESCE($9, email),
             sifen_cert_vencimiento = COALESCE($10, sifen_cert_vencimiento),
             sifen_cert_nota = COALESCE($11, sifen_cert_nota),
+            impresora_agente_nombre = COALESCE($13, impresora_agente_nombre),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -145,9 +146,10 @@ export async function actualizarConfiguracion(req, res) {
          WHERE id = $1
          RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
-                   datos_fiscales_modificado_en`,
+                   datos_fiscales_modificado_en, impresora_agente_nombre`,
         [empresaId, permitirVentaSinStock, ticketEscala, razonSocial, ruc, direccion,
-            direccionAtencion, telefono, email, sifenCertVencimiento, sifenCertNota, usuarioId]
+            direccionAtencion, telefono, email, sifenCertVencimiento, sifenCertNota, usuarioId,
+            impresoraAgenteNombre]
     );
 
     res.json(resultado.rows[0]);

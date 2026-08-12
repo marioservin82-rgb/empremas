@@ -72,6 +72,10 @@ CREATE TABLE empresas (
     sifen_cert_nota             TEXT,
     datos_fiscales_modificado_en   TIMESTAMPTZ,
     datos_fiscales_modificado_por  UUID REFERENCES usuarios(id),
+    -- Nombre de la impresora de Windows a usar por el agente de impresion
+    -- local (ver /agente-impresion) - null = agente no configurado, sigue
+    -- imprimiendo con window.print() como siempre.
+    impresora_agente_nombre        TEXT,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
