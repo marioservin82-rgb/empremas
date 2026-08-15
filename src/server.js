@@ -14,6 +14,7 @@ import usuariosRoutes from './routes/usuarios.js';
 import sucursalesRoutes from './routes/sucursales.js';
 import adminRoutes from './routes/admin.js';
 import configuracionRoutes from './routes/configuracion.js';
+import gastosRoutes from './routes/gastos.js';
 
 const app = express();
 app.use(cors());
@@ -39,6 +40,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/sucursales', sucursalesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/gastos', gastosRoutes);
 
 app.use((error, req, res, next) => {
     console.error(error);

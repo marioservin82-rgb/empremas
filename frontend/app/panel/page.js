@@ -109,6 +109,11 @@ export default function Panel() {
               Impresora
             </Link>
           )}
+          {yo?.rol === "dueno" && (
+            <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              Gastos
+            </Link>
+          )}
           {esSupervisor && (
             <Link href="/perfil/pin" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Mi PIN
@@ -160,7 +165,18 @@ export default function Panel() {
       )}
 
       <div className="grid w-full max-w-3xl grid-cols-2 gap-5">
-        {botones.map((b) => {
+        {(yo?.rol === "dueno"
+          ? [
+              ...botones,
+              {
+                nombre: "Consumo interno",
+                icono: "🏠",
+                color: "bg-purple-700 hover:bg-purple-800",
+                href: "/gastos/salida-stock?motivo=consumo_interno",
+              },
+            ]
+          : botones
+        ).map((b) => {
           const clases = `flex flex-col items-center justify-center gap-3 rounded-2xl ${b.color} px-6 py-14 text-white shadow-lg transition active:scale-[0.98]`;
           return b.href ? (
             <Link key={b.nombre} href={b.href} className={clases}>

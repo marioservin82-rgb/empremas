@@ -1,0 +1,79 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { apiFetch } from "@/lib/api";
+
+const opciones = [
+  {
+    nombre: "Balance del mes",
+    descripcion: "¿Este mes ganaste o perdiste? El número grande, de un vistazo",
+    href: "/gastos/balance",
+    color: "bg-blue-700 hover:bg-blue-800",
+  },
+  {
+    nombre: "Gastos",
+    descripcion: "Ver y cargar gastos puntuales (servicios, personal, vehículo, equipos...)",
+    href: "/gastos/nuevo",
+    color: "bg-amber-600 hover:bg-amber-700",
+  },
+  {
+    nombre: "Gastos recurrentes",
+    descripcion: "Agua, luz, internet, software — se precargan solos cada mes",
+    href: "/gastos/recurrentes",
+    color: "bg-emerald-700 hover:bg-emerald-800",
+  },
+  {
+    nombre: "Préstamos",
+    descripcion: "Saldo pendiente, cuota mensual y próximo vencimiento",
+    href: "/gastos/prestamos",
+    color: "bg-slate-700 hover:bg-slate-800",
+  },
+];
+
+export default function Gastos() {
+  const router = useRouter();
+  const [listo, setListo] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem("empremas_token")) {
+      router.push("/");
+      return;
+    }
+    apiFetch("/api/usuarios/yo")
+      .then((u) => {
+        if (u.rol !== "dueno") router.push("/panel");
+        else setListo(true);
+      })
+      .catch(() => router.push("/panel"));
+  }, [router]);
+
+  if (!listo) return null;
+
+  return (
+    <main className="flex flex-1 flex-col items-center p-6">
+      <div className="w-full max-w-2xl">
+        <div className="py-6">
+          <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+            ← Volver
+          </Link>
+          <h1 className="text-2xl font-bold text-blue-900">Gastos del negocio</h1>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {opciones.map((o) => (
+            <Link
+              key={o.href}
+              href={o.href}
+              className={`rounded-2xl p-5 text-white shadow-lg transition ${o.color}`}
+            >
+              <p className="text-lg font-bold">{o.nombre}</p>
+              <p className="text-sm text-white/80">{o.descripcion}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}

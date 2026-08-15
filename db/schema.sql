@@ -767,3 +767,119 @@ CREATE POLICY documentos_electronicos_aislamiento ON documentos_electronicos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 CREATE INDEX idx_pagos_plataforma_empresa ON pagos_plataforma (empresa_id);
+
+-- =====================================================================
+-- Gastos del negocio y balance mensual. Modulo dueno-only (rentabilidad
+-- es mas sensible que liquidez): resultado_operativo = ingresos (ventas
+-- contado + cobros de fiado) - gastos operativos - mercaderia repuesta
+-- (pagos_proveedor, no se duplica aca) - consumo interno - merma.
+-- Prestamos e inversion en equipos se muestran aparte, sin afectar ese
+-- resultado (ver obtenerBalanceMensual en gastosController.js).
+-- =====================================================================
+
+CREATE TYPE categoria_gasto AS ENUM (
+    'servicios_fijos', 'software_suscripciones', 'personal',
+    'vehiculo_transporte', 'equipos_inversion', 'otros'
+);
+
+-- Plantilla de gasto recurrente (agua, luz, internet, software...). No
+-- hay scheduler en este proyecto - se "precarga" de forma perezosa: al
+-- abrir el balance de un mes, si todavia no existe un gasto generado
+-- desde esta plantilla para ese mes, se crea uno con monto_aproximado.
+CREATE TABLE gastos_recurrentes (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    categoria           categoria_gasto NOT NULL,
+    descripcion         TEXT NOT NULL,
+    monto_aproximado    NUMERIC(14,2) NOT NULL,
+    activo              BOOLEAN NOT NULL DEFAULT true,
+    usuario_id          UUID NOT NULL REFERENCES usuarios(id),
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_gastos_recurrentes_empresa ON gastos_recurrentes (empresa_id);
+
+ALTER TABLE gastos_recurrentes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY gastos_recurrentes_aislamiento ON gastos_recurrentes
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Gasto puntual. 'equipos_inversion' es la unica categoria que el balance
+-- mensual excluye del resultado operativo (es inversion, no gasto
+-- corriente) - se muestra aparte.
+CREATE TABLE gastos (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    categoria           categoria_gasto NOT NULL,
+    descripcion         TEXT NOT NULL,
+    monto               NUMERIC(14,2) NOT NULL,
+    fecha_gasto         DATE NOT NULL DEFAULT CURRENT_DATE,
+    -- Si nace de una plantilla, queda linkeado para no volver a generarlo
+    -- ese mes - pero es una fila independiente y editable, no una
+    -- referencia viva a la plantilla.
+    recurrente_id       UUID REFERENCES gastos_recurrentes(id),
+    usuario_id          UUID NOT NULL REFERENCES usuarios(id),
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_gastos_empresa ON gastos (empresa_id);
+CREATE INDEX idx_gastos_empresa_fecha ON gastos (empresa_id, fecha_gasto);
+
+ALTER TABLE gastos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY gastos_aislamiento ON gastos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Prestamo bancario: informativo, nunca entra en el resultado operativo
+-- del balance mensual (ver comentario arriba). saldo_pendiente se ajusta
+-- a mano al registrar el pago de cada cuota, no hay tabla de historial
+-- de pagos separada.
+CREATE TABLE prestamos (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    monto_recibido      NUMERIC(14,2) NOT NULL,
+    saldo_pendiente     NUMERIC(14,2) NOT NULL,
+    cuota_mensual       NUMERIC(14,2) NOT NULL,
+    tasa_interes        NUMERIC(5,2),
+    proximo_vencimiento DATE,
+    activo              BOOLEAN NOT NULL DEFAULT true,
+    usuario_id          UUID NOT NULL REFERENCES usuarios(id),
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_prestamos_empresa ON prestamos (empresa_id);
+
+ALTER TABLE prestamos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY prestamos_aislamiento ON prestamos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TYPE motivo_salida_stock AS ENUM ('consumo_interno', 'merma_vencimiento', 'rotura_robo');
+
+-- Baja de stock que NO es una venta: consumo interno (familia/personal se
+-- lleva mercaderia) o merma (vencimiento/descomposicion/rotura/robo).
+-- Se valoriza a costo (nunca a precio de venta) - costo_unitario es una
+-- foto de productos.precio_costo al momento del retiro, para que un
+-- cambio de costo posterior no altere reportes de meses ya cerrados.
+CREATE TABLE salidas_stock (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    producto_id     UUID NOT NULL REFERENCES productos(id),
+    sucursal_id     UUID NOT NULL REFERENCES sucursales(id),
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    motivo          motivo_salida_stock NOT NULL,
+    cantidad        NUMERIC(14,3) NOT NULL,
+    costo_unitario  NUMERIC(14,2) NOT NULL,
+    nota            TEXT,
+    fecha           DATE NOT NULL DEFAULT CURRENT_DATE,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_salidas_stock_empresa ON salidas_stock (empresa_id);
+CREATE INDEX idx_salidas_stock_empresa_fecha ON salidas_stock (empresa_id, fecha);
+CREATE INDEX idx_salidas_stock_producto ON salidas_stock (empresa_id, producto_id);
+
+ALTER TABLE salidas_stock ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY salidas_stock_aislamiento ON salidas_stock
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
