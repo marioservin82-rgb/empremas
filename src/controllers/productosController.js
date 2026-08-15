@@ -185,6 +185,9 @@ export async function crearProducto(req, res) {
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
     }
+    if (!(Number(precioContado) > 0)) {
+        return res.status(400).json({ error: 'El precio contado (precio de venta) es obligatorio y debe ser mayor a 0' });
+    }
 
     const producto = await transaccionDeEmpresa(empresaId, async (cliente) => {
         const productoInsertado = await cliente.query(

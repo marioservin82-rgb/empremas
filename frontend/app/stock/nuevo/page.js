@@ -27,9 +27,23 @@ export default function NuevoProducto() {
     return (e) => setForm({ ...form, [campo]: e.target.value });
   }
 
+  // El lector de código de barras "escribe" el código y manda un Enter,
+  // que sin esto dispara el submit del form apenas se escanea (antes de
+  // cargar precio y stock). Frenamos ese Enter y pasamos el foco solo.
+  function evitarEnvioPorLectorDeCodigo(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.target.form?.elements?.namedItem("precioContado")?.focus();
+    }
+  }
+
   async function enviar(e) {
     e.preventDefault();
     setError("");
+    if (!(Number(form.precioContado) > 0)) {
+      setError("El precio contado (precio de venta) es obligatorio y debe ser mayor a 0");
+      return;
+    }
     setGuardando(true);
     try {
       await apiFetch("/api/productos", {
@@ -70,7 +84,13 @@ export default function NuevoProducto() {
           <input required value={form.nombre} onChange={actualizar("nombre")} className={campo} placeholder="Tornillo autoperforante 2 pulg" />
 
           <label className={etiqueta}>Código de barras</label>
-          <input value={form.codigoBarras} onChange={actualizar("codigoBarras")} className={campo} placeholder="Opcional" />
+          <input
+            value={form.codigoBarras}
+            onChange={actualizar("codigoBarras")}
+            onKeyDown={evitarEnvioPorLectorDeCodigo}
+            className={campo}
+            placeholder="Opcional (podés escanear acá)"
+          />
 
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} placeholder="unidad, kilo, metro, caja..." />
@@ -79,7 +99,16 @@ export default function NuevoProducto() {
           <input type="number" min="0" value={form.precioCosto} onChange={actualizar("precioCosto")} className={campo} placeholder="0" />
 
           <label className={etiqueta}>Precio contado (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioContado} onChange={actualizar("precioContado")} className={campo} placeholder="0" />
+          <input
+            required
+            name="precioContado"
+            type="number"
+            min="1"
+            value={form.precioContado}
+            onChange={actualizar("precioContado")}
+            className={campo}
+            placeholder="0"
+          />
 
           <label className={etiqueta}>Precio crédito (Gs, IVA incluido)</label>
           <input type="number" min="0" value={form.precioCredito} onChange={actualizar("precioCredito")} className={campo} placeholder="0" />
