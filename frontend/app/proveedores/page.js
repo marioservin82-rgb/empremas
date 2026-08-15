@@ -53,7 +53,7 @@ export default function Proveedores() {
             <Link href="/stock" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver a Stock
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Proveedores</h1>
+            <h1 className="text-2xl font-bold text-blue-900">Compras</h1>
           </div>
           <div className="flex gap-2">
             <Link

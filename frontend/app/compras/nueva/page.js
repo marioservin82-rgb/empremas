@@ -33,6 +33,11 @@ export default function NuevaCompra() {
   const [busquedaProveedor, setBusquedaProveedor] = useState("");
   const [resultadosProveedor, setResultadosProveedor] = useState([]);
   const [proveedor, setProveedor] = useState(null);
+  const [creandoProveedorRapido, setCreandoProveedorRapido] = useState(false);
+  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState("");
+  const [nuevoProveedorDocumento, setNuevoProveedorDocumento] = useState("");
+  const [nuevoProveedorTelefono, setNuevoProveedorTelefono] = useState("");
+  const [creandoProveedor, setCreandoProveedor] = useState(false);
 
   const [fechaCompra, setFechaCompra] = useState(hoyISO());
   const [timbrado, setTimbrado] = useState("");
@@ -41,6 +46,12 @@ export default function NuevaCompra() {
   const [busquedaProducto, setBusquedaProducto] = useState("");
   const [resultadosProducto, setResultadosProducto] = useState([]);
   const [carrito, setCarrito] = useState([]);
+  const [creandoProductoRapido, setCreandoProductoRapido] = useState(false);
+  const [nuevoProductoNombre, setNuevoProductoNombre] = useState("");
+  const [nuevoProductoCodigoBarras, setNuevoProductoCodigoBarras] = useState("");
+  const [nuevoProductoUnidadMedida, setNuevoProductoUnidadMedida] = useState("unidad");
+  const [nuevoProductoPrecioContado, setNuevoProductoPrecioContado] = useState("");
+  const [creandoProducto, setCreandoProducto] = useState(false);
 
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
@@ -86,6 +97,35 @@ export default function NuevaCompra() {
     setResultadosProveedor([]);
     setBusquedaProveedor("");
     setExito("");
+    setCreandoProveedorRapido(false);
+  }
+
+  function abrirProveedorRapido() {
+    setCreandoProveedorRapido(true);
+    setNuevoProveedorNombre(busquedaProveedor);
+    setNuevoProveedorDocumento("");
+    setNuevoProveedorTelefono("");
+  }
+
+  async function crearProveedorRapido(e) {
+    e.preventDefault();
+    setError("");
+    setCreandoProveedor(true);
+    try {
+      const nuevo = await apiFetch("/api/proveedores", {
+        method: "POST",
+        body: JSON.stringify({
+          nombre: nuevoProveedorNombre,
+          documento: nuevoProveedorDocumento || undefined,
+          telefono: nuevoProveedorTelefono || undefined,
+        }),
+      });
+      seleccionarProveedor(nuevo);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreandoProveedor(false);
+    }
   }
 
   async function ejecutarBusquedaProducto(q) {
@@ -130,6 +170,46 @@ export default function NuevaCompra() {
     });
     setResultadosProducto([]);
     setBusquedaProducto("");
+  }
+
+  function abrirProductoRapido() {
+    setCreandoProductoRapido(true);
+    setNuevoProductoNombre(busquedaProducto);
+    setNuevoProductoCodigoBarras("");
+    setNuevoProductoUnidadMedida("unidad");
+    setNuevoProductoPrecioContado("");
+  }
+
+  // Igual que en Nuevo producto: el lector de codigo de barras manda un
+  // Enter al terminar de escanear, que sin esto enviaria el form entero.
+  function evitarEnvioPorLectorDeCodigo(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.target.form?.elements?.namedItem("nuevoProductoPrecioContado")?.focus();
+    }
+  }
+
+  async function crearProductoRapido(e) {
+    e.preventDefault();
+    setError("");
+    setCreandoProducto(true);
+    try {
+      const nuevo = await apiFetch("/api/productos", {
+        method: "POST",
+        body: JSON.stringify({
+          nombre: nuevoProductoNombre,
+          codigoBarras: nuevoProductoCodigoBarras || undefined,
+          unidadMedida: nuevoProductoUnidadMedida,
+          precioContado: Number(nuevoProductoPrecioContado) || 0,
+        }),
+      });
+      agregarAlCarrito(nuevo);
+      setCreandoProductoRapido(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreandoProducto(false);
+    }
   }
 
   function actualizarItem(productoId, campo, valor) {
@@ -247,6 +327,61 @@ export default function NuevaCompra() {
                 ))}
               </div>
             )}
+
+            {creandoProveedorRapido ? (
+              <form onSubmit={crearProveedorRapido} className="mt-3 rounded-xl border border-slate-200 p-4">
+                <p className="mb-3 font-semibold text-slate-700">Proveedor nuevo</p>
+                <label className="mb-1 block text-xs text-slate-400">Nombre / Razón social</label>
+                <input
+                  required
+                  autoFocus
+                  value={nuevoProveedorNombre}
+                  onChange={(e) => setNuevoProveedorNombre(e.target.value)}
+                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                />
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-400">RUC (opcional)</label>
+                    <input
+                      value={nuevoProveedorDocumento}
+                      onChange={(e) => setNuevoProveedorDocumento(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-400">Teléfono (opcional)</label>
+                    <input
+                      value={nuevoProveedorTelefono}
+                      onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreandoProveedorRapido(false)}
+                    className="rounded-xl bg-slate-100 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creandoProveedor}
+                    className="flex-1 rounded-xl bg-emerald-700 py-2 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                  >
+                    {creandoProveedor ? "Creando..." : "Crear y usar este proveedor"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                onClick={abrirProveedorRapido}
+                className="mt-3 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                + Crear proveedor nuevo
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -316,6 +451,74 @@ export default function NuevaCompra() {
                     </button>
                   ))}
                 </div>
+              )}
+
+              {creandoProductoRapido ? (
+                <form onSubmit={crearProductoRapido} className="mb-4 rounded-xl border border-slate-200 p-4">
+                  <p className="mb-3 font-semibold text-slate-700">Producto nuevo</p>
+                  <label className="mb-1 block text-xs text-slate-400">Nombre</label>
+                  <input
+                    required
+                    autoFocus
+                    value={nuevoProductoNombre}
+                    onChange={(e) => setNuevoProductoNombre(e.target.value)}
+                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                  />
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Código de barras</label>
+                      <input
+                        value={nuevoProductoCodigoBarras}
+                        onChange={(e) => setNuevoProductoCodigoBarras(e.target.value)}
+                        onKeyDown={evitarEnvioPorLectorDeCodigo}
+                        placeholder="Opcional (podés escanear acá)"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Unidad de medida</label>
+                      <input
+                        value={nuevoProductoUnidadMedida}
+                        onChange={(e) => setNuevoProductoUnidadMedida(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+                  <label className="mb-1 block text-xs text-slate-400">Precio de venta contado (Gs)</label>
+                  <input
+                    required
+                    name="nuevoProductoPrecioContado"
+                    type="number"
+                    min="1"
+                    value={nuevoProductoPrecioContado}
+                    onChange={(e) => setNuevoProductoPrecioContado(e.target.value)}
+                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                    placeholder="0"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreandoProductoRapido(false)}
+                      className="rounded-xl bg-slate-100 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-200"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creandoProducto}
+                      className="flex-1 rounded-xl bg-emerald-700 py-2 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                      {creandoProducto ? "Creando..." : "Crear y agregar a la compra"}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={abrirProductoRapido}
+                  className="mb-4 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+                >
+                  + Crear producto nuevo
+                </button>
               )}
 
               {carrito.length === 0 ? (

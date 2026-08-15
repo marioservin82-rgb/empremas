@@ -88,7 +88,7 @@ export default function Stock() {
               href="/proveedores"
               className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
             >
-              Proveedores
+              Compras
             </Link>
             <Link
               href="/stock/inventario"
