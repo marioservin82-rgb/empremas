@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -13,7 +13,19 @@ const MOTIVOS = [
   { valor: "rotura_robo", etiqueta: "Rotura o robo", color: "bg-red-600" },
 ];
 
+// useSearchParams() exige un limite de Suspense arriba (si no, Next.js
+// rechaza el build de produccion con "should be wrapped in a suspense
+// boundary") - por eso el default export es solo el wrapper, y toda la
+// pantalla real vive en SalidaStockContenido.
 export default function SalidaStock() {
+  return (
+    <Suspense fallback={null}>
+      <SalidaStockContenido />
+    </Suspense>
+  );
+}
+
+function SalidaStockContenido() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
