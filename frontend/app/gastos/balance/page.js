@@ -16,38 +16,42 @@ const ETIQUETA_CATEGORIA = {
   otros: "Otros gastos",
 };
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-
-function mesActual() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function etiquetaMes(mes) {
-  const [anio, mesNum] = mes.split("-").map(Number);
-  return `${MESES[mesNum - 1]} ${anio}`;
-}
-
-function sumarMes(mes, delta) {
-  const [anio, mesNum] = mes.split("-").map(Number);
-  const fecha = new Date(anio, mesNum - 1 + delta, 1);
+function mesActual(offsetMeses = 0) {
+  const d = new Date();
+  const fecha = new Date(d.getFullYear(), d.getMonth() + offsetMeses, 1);
   return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function primerDiaDelMes(offsetMeses = 0) {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + offsetMeses, 1).toISOString().slice(0, 10);
+}
+
+function ultimoDiaDelMes(offsetMeses = 0) {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + offsetMeses + 1, 0).toISOString().slice(0, 10);
+}
+
+const ETIQUETA_PERIODO = {
+  este_mes: "Este mes",
+  mes_pasado: "El mes pasado",
+  rango: "En este período",
+};
+
 export default function BalanceMensual() {
   const router = useRouter();
-  const [mes, setMes] = useState(mesActual());
+  const [desde, setDesde] = useState(primerDiaDelMes());
+  const [hasta, setHasta] = useState(ultimoDiaDelMes());
+  const [periodoActivo, setPeriodoActivo] = useState("este_mes");
   const [balance, setBalance] = useState(null);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
 
-  const cargar = useCallback(async (mesElegido) => {
+  const cargar = useCallback(async (query) => {
     setCargando(true);
     setError("");
     try {
-      setBalance(await apiFetch(`/api/gastos/balance?mes=${mesElegido}`));
+      setBalance(await apiFetch(`/api/gastos/balance?${query}`));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -60,14 +64,20 @@ export default function BalanceMensual() {
       router.push("/");
       return;
     }
-    cargar(mes);
+    cargar(`mes=${mesActual()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  function cambiarMes(delta) {
-    const nuevoMes = sumarMes(mes, delta);
-    setMes(nuevoMes);
-    cargar(nuevoMes);
+  function elegirMes(nombre, offsetMeses) {
+    setPeriodoActivo(nombre);
+    setDesde(primerDiaDelMes(offsetMeses));
+    setHasta(ultimoDiaDelMes(offsetMeses));
+    cargar(`mes=${mesActual(offsetMeses)}`);
+  }
+
+  function consultarRango() {
+    setPeriodoActivo("rango");
+    cargar(`desde=${desde}&hasta=${hasta}`);
   }
 
   const gano = balance && Number(balance.resultadoOperativo) >= 0;
@@ -82,14 +92,50 @@ export default function BalanceMensual() {
           <h1 className="text-2xl font-bold text-blue-900">Balance del mes</h1>
         </div>
 
-        <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-3 shadow shadow-slate-200">
-          <button onClick={() => cambiarMes(-1)} className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100">
-            ←
-          </button>
-          <p className="font-semibold text-slate-700">{etiquetaMes(mes)}</p>
-          <button onClick={() => cambiarMes(1)} className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100">
-            →
-          </button>
+        <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+          <p className="mb-2 text-sm font-medium text-slate-500">Período</p>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {[
+              { valor: "este_mes", etiqueta: "Este mes", offset: 0 },
+              { valor: "mes_pasado", etiqueta: "Mes pasado", offset: -1 },
+            ].map((p) => (
+              <button
+                key={p.valor}
+                onClick={() => elegirMes(p.valor, p.offset)}
+                className={`rounded-xl py-2 font-semibold transition ${
+                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {p.etiqueta}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Desde</label>
+              <input
+                type="date"
+                value={desde}
+                onChange={(e) => setDesde(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Hasta</label>
+              <input
+                type="date"
+                value={hasta}
+                onChange={(e) => setHasta(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+            <button
+              onClick={consultarRango}
+              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+            >
+              Consultar
+            </button>
+          </div>
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -105,7 +151,7 @@ export default function BalanceMensual() {
                 }`}
               >
                 <p className="text-sm font-semibold text-white/80">
-                  {gano ? "Este mes ganaste" : "Este mes perdiste"}
+                  {ETIQUETA_PERIODO[periodoActivo] || "En este período"} {gano ? "ganaste" : "perdiste"}
                 </p>
                 <p className="mt-1 text-4xl font-extrabold text-white">
                   Gs {formatoGs.format(Math.abs(balance.resultadoOperativo))}
@@ -159,7 +205,7 @@ export default function BalanceMensual() {
 
                   {balance.inversionEquipos > 0 && (
                     <div className="flex justify-between py-1 text-sm">
-                      <span className="text-slate-500">Inversión en equipos este mes</span>
+                      <span className="text-slate-500">Inversión en equipos en el período</span>
                       <span className="font-semibold text-slate-700">Gs {formatoGs.format(balance.inversionEquipos)}</span>
                     </div>
                   )}

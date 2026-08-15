@@ -273,8 +273,16 @@ function rangoDelMes(mes) {
 
 export async function obtenerBalanceMensual(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { desde, hasta } = rangoDelMes(req.query.mes);
+    // Un periodo personalizado (desde/hasta) no dispara la precarga de
+    // recurrentes: esa precarga es un concepto mensual (un gasto por mes),
+    // y generarla para una ventana arbitraria duplicaria gastos cada vez
+    // que se elige un rango distinto dentro del mismo mes.
+    const rangoPersonalizado = Boolean(req.query.desde && req.query.hasta);
+    const { desde, hasta } = rangoPersonalizado
+        ? { desde: req.query.desde, hasta: req.query.hasta }
+        : rangoDelMes(req.query.mes);
 
+    if (!rangoPersonalizado) {
     await transaccionDeEmpresa(empresaId, async (cliente) => {
         // Precarga perezosa: cada plantilla activa que todavia no tenga un
         // gasto generado para este mes, se crea ahora con el monto
@@ -297,6 +305,7 @@ export async function obtenerBalanceMensual(req, res) {
             );
         }
     });
+    }
 
     const whereFecha = (columna) => `${columna} >= $1::date AND ${columna} < ($2::date + INTERVAL '1 day')`;
 
