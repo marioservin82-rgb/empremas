@@ -66,6 +66,16 @@ export default function Vender() {
   const [cliente, setCliente] = useState(null);
   const [buscandoClienteOpcional, setBuscandoClienteOpcional] = useState(false);
 
+  // Alta rápida de cliente sin salir de Vender - para cuando el cliente
+  // todavía no está cargado y no tiene sentido mandar al cajero a otra
+  // pantalla en medio de una venta.
+  const [creandoClienteRapido, setCreandoClienteRapido] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
+  const [nuevoClienteDocumento, setNuevoClienteDocumento] = useState("");
+  const [nuevoClienteCelular, setNuevoClienteCelular] = useState("");
+  const [nuevoClienteLineaCredito, setNuevoClienteLineaCredito] = useState("");
+  const [creandoCliente, setCreandoCliente] = useState(false);
+
   const [busquedaProducto, setBusquedaProducto] = useState("");
   const [resultadosProducto, setResultadosProducto] = useState([]);
   const [carrito, setCarrito] = useState([]);
@@ -200,11 +210,43 @@ export default function Vender() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busquedaClienteDebounced]);
 
+  function abrirClienteRapido() {
+    setCreandoClienteRapido(true);
+    setNuevoClienteNombre(busquedaCliente);
+    setNuevoClienteDocumento("");
+    setNuevoClienteCelular("");
+    setNuevoClienteLineaCredito("");
+  }
+
+  async function crearClienteRapido(e) {
+    e.preventDefault();
+    setError("");
+    setCreandoCliente(true);
+    try {
+      const nuevoCliente = await apiFetch("/api/clientes", {
+        method: "POST",
+        body: JSON.stringify({
+          nombre: nuevoClienteNombre,
+          documento: nuevoClienteDocumento || undefined,
+          celular: nuevoClienteCelular || undefined,
+          lineaCredito: Number(nuevoClienteLineaCredito) || 0,
+        }),
+      });
+      setCreandoClienteRapido(false);
+      seleccionarCliente(nuevoCliente);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreandoCliente(false);
+    }
+  }
+
   function seleccionarCliente(c) {
     setCliente(c);
     setResultadosCliente([]);
     setBusquedaCliente("");
     setBuscandoClienteOpcional(false);
+    setCreandoClienteRapido(false);
   }
 
   async function ejecutarBusquedaProducto(q) {
@@ -457,6 +499,62 @@ export default function Vender() {
                 ))}
               </div>
             )}
+
+            {creandoClienteRapido ? (
+              <form onSubmit={crearClienteRapido} className="mt-3 rounded-xl border border-slate-200 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
+                <input
+                  required
+                  value={nuevoClienteNombre}
+                  onChange={(e) => setNuevoClienteNombre(e.target.value)}
+                  placeholder="Nombre y apellido"
+                  autoFocus
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+                <div className="mb-2 flex gap-2">
+                  <input
+                    value={nuevoClienteDocumento}
+                    onChange={(e) => setNuevoClienteDocumento(e.target.value)}
+                    placeholder="Cédula/RUC (opcional)"
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                  <input
+                    value={nuevoClienteCelular}
+                    onChange={(e) => setNuevoClienteCelular(e.target.value)}
+                    placeholder="Celular (opcional)"
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={nuevoClienteLineaCredito}
+                  onChange={(e) => setNuevoClienteLineaCredito(e.target.value)}
+                  placeholder="Línea de crédito (Gs)"
+                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreandoClienteRapido(false)}
+                    className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creandoCliente}
+                    className="flex-1 rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                  >
+                    {creandoCliente ? "Creando..." : "Crear y usar este cliente"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-900">
+                + Crear cliente nuevo
+              </button>
+            )}
           </div>
         )}
 
@@ -590,6 +688,54 @@ export default function Vender() {
                               </button>
                             ))}
                           </div>
+                        )}
+
+                        {creandoClienteRapido ? (
+                          <form onSubmit={crearClienteRapido} className="mt-3 rounded-xl border border-slate-200 p-3">
+                            <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
+                            <input
+                              required
+                              value={nuevoClienteNombre}
+                              onChange={(e) => setNuevoClienteNombre(e.target.value)}
+                              placeholder="Nombre y apellido"
+                              autoFocus
+                              className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            />
+                            <div className="mb-2 flex gap-2">
+                              <input
+                                value={nuevoClienteDocumento}
+                                onChange={(e) => setNuevoClienteDocumento(e.target.value)}
+                                placeholder="Cédula/RUC (opcional)"
+                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                              />
+                              <input
+                                value={nuevoClienteCelular}
+                                onChange={(e) => setNuevoClienteCelular(e.target.value)}
+                                placeholder="Celular (opcional)"
+                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setCreandoClienteRapido(false)}
+                                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={creandoCliente}
+                                className="flex-1 rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                              >
+                                {creandoCliente ? "Creando..." : "Crear y usar este cliente"}
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-900">
+                            + Crear cliente nuevo
+                          </button>
                         )}
                       </div>
                     ) : (
