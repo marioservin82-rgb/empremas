@@ -164,33 +164,39 @@ export default function Panel() {
         </div>
       )}
 
-      <div className="grid w-full max-w-3xl grid-cols-2 gap-5">
-        {(yo?.rol === "dueno"
-          ? [
-              ...botones,
-              {
-                nombre: "Consumo interno",
-                icono: "🏠",
-                color: "bg-purple-700 hover:bg-purple-800",
-                href: "/gastos/salida-stock?motivo=consumo_interno",
-              },
-            ]
-          : botones
-        ).map((b) => {
-          const clases = `flex flex-col items-center justify-center gap-3 rounded-2xl ${b.color} px-6 py-14 text-white shadow-lg transition active:scale-[0.98]`;
-          return b.href ? (
-            <Link key={b.nombre} href={b.href} className={clases}>
-              <span className="text-5xl">{b.icono}</span>
-              <span className="text-2xl font-bold">{b.nombre}</span>
-            </Link>
-          ) : (
-            <button key={b.nombre} className={clases}>
-              <span className="text-5xl">{b.icono}</span>
-              <span className="text-2xl font-bold">{b.nombre}</span>
-            </button>
-          );
-        })}
-      </div>
+      {(() => {
+        const items =
+          yo?.rol === "dueno"
+            ? [
+                ...botones,
+                {
+                  nombre: "Consumo interno",
+                  icono: "🏠",
+                  color: "bg-purple-700 hover:bg-purple-800",
+                  href: "/gastos/salida-stock?motivo=consumo_interno",
+                },
+              ]
+            : botones;
+        const columnas = items.length > 4 ? "grid-cols-3" : "grid-cols-2";
+        return (
+          <div className={`grid w-full max-w-3xl ${columnas} gap-4`}>
+            {items.map((b) => {
+              const clases = `flex flex-col items-center justify-center gap-2 rounded-2xl ${b.color} px-3 py-7 text-white shadow-lg transition active:scale-[0.98]`;
+              return b.href ? (
+                <Link key={b.nombre} href={b.href} className={clases}>
+                  <span className="text-3xl">{b.icono}</span>
+                  <span className="text-center text-base font-bold">{b.nombre}</span>
+                </Link>
+              ) : (
+                <button key={b.nombre} className={clases}>
+                  <span className="text-3xl">{b.icono}</span>
+                  <span className="text-center text-base font-bold">{b.nombre}</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
     </main>
   );
 }
