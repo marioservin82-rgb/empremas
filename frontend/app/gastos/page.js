@@ -10,7 +10,7 @@ const opciones = [
     nombre: "Balance del mes",
     descripcion: "¿Este mes ganaste o perdiste? El número grande, de un vistazo",
     href: "/gastos/balance",
-    color: "bg-blue-700 hover:bg-blue-800",
+    color: "bg-brand hover:bg-brand-light",
   },
   {
     nombre: "Gastos",
@@ -22,7 +22,7 @@ const opciones = [
     nombre: "Gastos recurrentes",
     descripcion: "Agua, luz, internet, software — se precargan solos cada mes",
     href: "/gastos/recurrentes",
-    color: "bg-emerald-700 hover:bg-emerald-800",
+    color: "bg-brand hover:bg-brand-light",
   },
   {
     nombre: "Préstamos",
@@ -58,7 +58,7 @@ export default function Gastos() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Gastos del negocio</h1>
+          <h1 className="text-2xl font-bold text-navy">Gastos del negocio</h1>
         </div>
 
         <div className="flex flex-col gap-3">

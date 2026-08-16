@@ -56,7 +56,7 @@ export default function MiPin() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Mi PIN de autorización</h1>
+          <h1 className="text-2xl font-bold text-navy">Mi PIN de autorización</h1>
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
@@ -77,7 +77,7 @@ export default function MiPin() {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
             inputMode="numeric"
             type="password"
-            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg tracking-widest outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg tracking-widest outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
 
           <label className="mb-1 block text-sm font-medium text-slate-500">Confirmar PIN</label>
@@ -86,7 +86,7 @@ export default function MiPin() {
             onChange={(e) => setConfirmarPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
             inputMode="numeric"
             type="password"
-            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg tracking-widest outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg tracking-widest outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -95,7 +95,7 @@ export default function MiPin() {
           <button
             onClick={guardar}
             disabled={enviando}
-            className="w-full rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {enviando ? "Guardando..." : "Guardar PIN"}
           </button>

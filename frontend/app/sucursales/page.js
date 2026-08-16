@@ -75,12 +75,12 @@ export default function Sucursales() {
             <Link href="/empleados" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Sucursales</h1>
+            <h1 className="text-2xl font-bold text-navy">Sucursales</h1>
           </div>
           {!creando && (
             <button
               onClick={() => setCreando(true)}
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               + Agregar sucursal
             </button>
@@ -94,20 +94,20 @@ export default function Sucursales() {
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               placeholder="Ej: Sucursal Villa Hayes"
-              className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
             <label className="mb-1 block text-sm font-medium text-slate-700">Dirección (opcional)</label>
             <input
               value={direccion}
               onChange={(e) => setDireccion(e.target.value)}
-              className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
             <label className="mb-1 block text-sm font-medium text-slate-700">Punto de expedición (opcional)</label>
             <input
               value={puntoExpedicion}
               onChange={(e) => setPuntoExpedicion(e.target.value)}
               placeholder="Para SIFEN, más adelante"
-              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
             <div className="flex gap-2">
               <button
@@ -119,7 +119,7 @@ export default function Sucursales() {
               <button
                 onClick={crear}
                 disabled={guardando}
-                className="flex-1 rounded-xl bg-blue-700 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
               >
                 {guardando ? "Guardando..." : "Guardar"}
               </button>

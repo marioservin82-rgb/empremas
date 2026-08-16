@@ -65,7 +65,7 @@ export default function EditarProducto() {
     }
   }
 
-  const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
+  const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
   const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
   if (error && !form) {
@@ -91,7 +91,7 @@ export default function EditarProducto() {
           <Link href="/stock" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-blue-900">Editar producto</h1>
+          <h1 className="mt-2 text-2xl font-bold text-navy">Editar producto</h1>
         </div>
 
         <form onSubmit={enviar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
@@ -126,7 +126,7 @@ export default function EditarProducto() {
           <label className={etiqueta}>Stock actual</label>
           <div className="mb-1 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
             <span className="font-semibold text-slate-700">{form.stock}</span>
-            <Link href="/stock/inventario/ajuste" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+            <Link href="/stock/inventario/ajuste" className="text-sm font-semibold text-navy hover:text-brand">
               Ajustar
             </Link>
           </div>
@@ -142,7 +142,7 @@ export default function EditarProducto() {
           <button
             type="submit"
             disabled={guardando}
-            className="w-full rounded-xl bg-blue-700 py-3 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {guardando ? "Guardando..." : "Guardar cambios"}
           </button>

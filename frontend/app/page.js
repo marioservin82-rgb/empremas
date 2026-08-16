@@ -36,7 +36,7 @@ export default function Login() {
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-4xl font-extrabold text-blue-900">EMPREMAS</h1>
+          <h1 className="text-4xl font-extrabold text-navy">EMPREMAS</h1>
           <p className="mt-2 text-slate-500">Tu negocio, ordenado y al día</p>
         </div>
 
@@ -54,7 +54,7 @@ export default function Login() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             placeholder="tu@email.com"
           />
 
@@ -68,7 +68,7 @@ export default function Login() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             placeholder="••••••••"
           />
 
@@ -81,7 +81,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full rounded-xl bg-blue-700 py-3 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {cargando ? "Entrando..." : "Entrar"}
           </button>
@@ -89,7 +89,7 @@ export default function Login() {
 
         <p className="mt-6 text-center text-slate-500">
           ¿Todavía no tenés cuenta?{" "}
-          <Link href="/registro" className="font-semibold text-blue-700">
+          <Link href="/registro" className="font-semibold text-navy">
             Registrá tu empresa
           </Link>
         </p>

@@ -30,12 +30,12 @@ export default function InventarioCantidades() {
             <Link href="/stock/inventario" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Inventario de cantidades</h1>
+            <h1 className="text-2xl font-bold text-navy">Inventario de cantidades</h1>
           </div>
           {productos && (
             <button
               onClick={() => window.print()}
-              className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               Imprimir
             </button>

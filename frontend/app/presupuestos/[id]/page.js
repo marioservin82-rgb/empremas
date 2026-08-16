@@ -99,7 +99,7 @@ export default function DetallePresupuesto() {
           <Link href="/presupuestos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">
+          <h1 className="text-2xl font-bold text-navy">
             {presupuesto.cliente_nombre || "Presupuesto sin cliente"}
           </h1>
           <p className="text-sm text-slate-400">
@@ -151,7 +151,7 @@ export default function DetallePresupuesto() {
         <button
           onClick={convertirAVenta}
           disabled={convirtiendo}
-          className="w-full rounded-xl bg-emerald-700 py-4 text-xl font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+          className="w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
         >
           {convirtiendo ? "Preparando..." : "Convertir a venta"}
         </button>

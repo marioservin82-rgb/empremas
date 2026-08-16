@@ -60,7 +60,7 @@ export default function Clientes() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Fiado / Crédito</h1>
+            <h1 className="text-2xl font-bold text-navy">Fiado / Crédito</h1>
           </div>
           <Link
             href="/clientes/nuevo"
@@ -147,7 +147,7 @@ export default function Clientes() {
                       </Link>
                       <Link
                         href={`/clientes/${c.id}/editar`}
-                        className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+                        className="text-sm font-semibold text-navy hover:text-brand"
                       >
                         Editar
                       </Link>

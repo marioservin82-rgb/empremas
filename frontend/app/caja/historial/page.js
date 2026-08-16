@@ -36,7 +36,7 @@ export default function HistorialTurnos() {
           <Link href="/caja" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Historial de turnos</h1>
+          <h1 className="text-2xl font-bold text-navy">Historial de turnos</h1>
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

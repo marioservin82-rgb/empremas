@@ -31,7 +31,7 @@ export default function Ayuda() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Ayuda / Soporte</h1>
+          <h1 className="text-2xl font-bold text-navy">Ayuda / Soporte</h1>
           <p className="mt-1 text-sm text-slate-500">
             Esto es soporte de EMPREMAS (la plataforma) — no la configuración de tu negocio.
           </p>
@@ -47,7 +47,7 @@ export default function Ayuda() {
                 href={link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block w-full rounded-xl bg-emerald-600 py-3 text-lg font-semibold text-white transition hover:bg-emerald-700"
+                className="inline-block w-full rounded-xl bg-emerald-600 py-3 text-lg font-semibold text-white transition hover:bg-brand"
               >
                 💬 Escribir a soporte
               </a>

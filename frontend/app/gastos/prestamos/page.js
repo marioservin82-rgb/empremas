@@ -87,7 +87,7 @@ export default function Prestamos() {
           <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Préstamos</h1>
+          <h1 className="text-2xl font-bold text-navy">Préstamos</h1>
           <p className="mt-1 text-sm text-slate-500">Informativo — no afecta el resultado operativo del balance.</p>
         </div>
 
@@ -124,7 +124,7 @@ export default function Prestamos() {
               <div key={p.id} className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
                 <div className="mb-2 flex justify-between">
                   <span className="text-sm text-slate-400">Saldo pendiente</span>
-                  <span className="text-xl font-extrabold text-blue-900">Gs {formatoGs.format(p.saldo_pendiente)}</span>
+                  <span className="text-xl font-extrabold text-navy">Gs {formatoGs.format(p.saldo_pendiente)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Cuota mensual</span>
@@ -139,7 +139,7 @@ export default function Prestamos() {
                 <button
                   onClick={() => pagarCuota(p.id)}
                   disabled={pagando === p.id || Number(p.saldo_pendiente) <= 0}
-                  className="mt-3 w-full rounded-xl bg-emerald-700 py-2 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                  className="mt-3 w-full rounded-xl bg-brand py-2 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
                 >
                   {Number(p.saldo_pendiente) <= 0
                     ? "Saldado"

@@ -126,7 +126,7 @@ export default function CobroCliente() {
             <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Cobro registrado</h1>
+            <h1 className="text-2xl font-bold text-navy">Cobro registrado</h1>
           </div>
           {empresaInfo && (
             <ReciboCobro empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
@@ -143,7 +143,7 @@ export default function CobroCliente() {
           <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Cobrar a {cliente.nombre}</h1>
+          <h1 className="text-2xl font-bold text-navy">Cobrar a {cliente.nombre}</h1>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 text-center shadow shadow-slate-200">
@@ -195,7 +195,7 @@ export default function CobroCliente() {
                 key={f.valor}
                 onClick={() => elegirFormaNuevoPago(f.valor)}
                 className={`rounded-xl py-3 font-semibold transition ${
-                  nuevoPagoForma === f.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  nuevoPagoForma === f.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {f.etiqueta}
@@ -210,13 +210,13 @@ export default function CobroCliente() {
                 min="0"
                 value={nuevoPagoMonto}
                 onChange={(e) => setNuevoPagoMonto(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 placeholder="0"
               />
               <button
                 onClick={agregarPago}
                 disabled={!(Number(nuevoPagoMonto) > 0)}
-                className="mt-3 w-full rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-50"
+                className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
               >
                 Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}
               </button>
@@ -226,7 +226,7 @@ export default function CobroCliente() {
           {pagos.length > 0 && (
             <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
               <p className="text-lg font-semibold text-slate-600">Total a cobrar</p>
-              <p className="text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(totalPagos)}</p>
+              <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(totalPagos)}</p>
             </div>
           )}
 
@@ -241,7 +241,7 @@ export default function CobroCliente() {
           <button
             onClick={confirmarCobro}
             disabled={enviando || !puedeConfirmar}
-            className="mt-4 w-full rounded-xl bg-emerald-700 py-4 text-xl font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+            className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {enviando ? "Guardando..." : "Confirmar cobro"}
           </button>

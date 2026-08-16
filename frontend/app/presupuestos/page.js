@@ -32,11 +32,11 @@ export default function Presupuestos() {
             <Link href="/vender" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver a Vender
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Presupuestos</h1>
+            <h1 className="text-2xl font-bold text-navy">Presupuestos</h1>
           </div>
           <Link
             href="/presupuestos/nuevo"
-            className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+            className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
           >
             + Nuevo presupuesto
           </Link>
@@ -64,7 +64,7 @@ export default function Presupuestos() {
                       {p.vencido && <span className="ml-2 font-semibold text-red-500">VENCIDO</span>}
                     </p>
                   </div>
-                  <p className="text-2xl font-extrabold text-blue-900">Gs {formatoGs.format(p.total)}</p>
+                  <p className="text-2xl font-extrabold text-navy">Gs {formatoGs.format(p.total)}</p>
                 </div>
               </Link>
             ))}

@@ -8,7 +8,7 @@ import { apiFetch } from "@/lib/api";
 const formatoGs = new Intl.NumberFormat("es-PY");
 
 const MOTIVOS = [
-  { valor: "consumo_interno", etiqueta: "Consumo interno", color: "bg-purple-700" },
+  { valor: "consumo_interno", etiqueta: "Consumo interno", color: "bg-navy" },
   { valor: "merma_vencimiento", etiqueta: "Merma por vencimiento", color: "bg-amber-600" },
   { valor: "rotura_robo", etiqueta: "Rotura o robo", color: "bg-red-600" },
 ];
@@ -96,7 +96,7 @@ function SalidaStockContenido() {
           <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-blue-900">Registrar salida de stock</h1>
+          <h1 className="mt-2 text-2xl font-bold text-navy">Registrar salida de stock</h1>
           <p className="mt-1 text-sm text-slate-500">
             Se descuenta a costo (no a precio de venta) y no genera ingreso.
           </p>

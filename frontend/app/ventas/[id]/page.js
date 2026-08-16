@@ -124,7 +124,7 @@ export default function DetalleVenta() {
           <Link href="/ventas" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver a Ventas
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Venta de {cliente.nombre}</h1>
+          <h1 className="text-2xl font-bold text-navy">Venta de {cliente.nombre}</h1>
         </div>
 
         {venta.anulada && (
@@ -143,7 +143,7 @@ export default function DetalleVenta() {
             <button
               onClick={() => setFormato("ticket_comun")}
               className={`rounded-xl px-5 py-2 font-semibold transition ${
-                formato === "ticket_comun" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+                formato === "ticket_comun" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
               }`}
             >
               Ticket
@@ -151,7 +151,7 @@ export default function DetalleVenta() {
             <button
               onClick={() => setFormato("a4")}
               className={`rounded-xl px-5 py-2 font-semibold transition ${
-                formato === "a4" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+                formato === "a4" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
               }`}
             >
               Hoja A4
@@ -202,7 +202,7 @@ export default function DetalleVenta() {
                   value={motivoAnulacion}
                   onChange={(e) => setMotivoAnulacion(e.target.value)}
                   placeholder="Ej: el cliente se arrepintió"
-                  className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
                 <label className="mb-1 block text-sm font-medium text-slate-500">
                   PIN de autorización (dueño/encargado)
@@ -212,7 +212,7 @@ export default function DetalleVenta() {
                   onChange={(e) => setPinAnulacion(e.target.value.replace(/\D/g, "").slice(0, 4))}
                   placeholder="Dejalo vacío si sos dueño/encargado"
                   inputMode="numeric"
-                  className="mb-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="mb-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
                 <p className="mb-3 text-xs text-slate-400">
                   Si sos cajero, pedile el PIN a un dueño o encargado.

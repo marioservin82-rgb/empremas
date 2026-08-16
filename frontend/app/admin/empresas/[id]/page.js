@@ -233,7 +233,7 @@ export default function AdminEmpresaDetalle() {
             <button
               type="submit"
               disabled={registrandoPago}
-              className="w-full rounded-xl bg-emerald-700 py-3 text-lg font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+              className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
             >
               {registrandoPago ? "Registrando..." : "Registrar pago"}
             </button>

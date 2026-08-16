@@ -95,10 +95,10 @@ export default function Caja() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="mt-2 text-2xl font-bold text-blue-900">Caja</h1>
+            <h1 className="mt-2 text-2xl font-bold text-navy">Caja</h1>
           </div>
           {puedeVerHistorial && (
-            <Link href="/caja/historial" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+            <Link href="/caja/historial" className="text-sm font-semibold text-navy hover:text-brand">
               Historial
             </Link>
           )}
@@ -119,7 +119,7 @@ export default function Caja() {
               {Number(resultadoCierre.diferencia) === 0 ? (
                 <p className="text-2xl font-extrabold text-emerald-600">Cuadra perfecto</p>
               ) : Number(resultadoCierre.diferencia) > 0 ? (
-                <p className="text-2xl font-extrabold text-blue-700">
+                <p className="text-2xl font-extrabold text-navy">
                   Sobran Gs {formatoGs.format(resultadoCierre.diferencia)}
                 </p>
               ) : (
@@ -130,7 +130,7 @@ export default function Caja() {
             </div>
             <button
               onClick={nuevoTurno}
-              className="mt-6 w-full rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800"
+              className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light"
             >
               Abrir nuevo turno
             </button>
@@ -145,13 +145,13 @@ export default function Caja() {
               value={montoInicial}
               onChange={(e) => setMontoInicial(e.target.value)}
               placeholder="0"
-              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
             {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button
               onClick={abrirCaja}
               disabled={enviando || montoInicial === ""}
-              className="w-full rounded-xl bg-emerald-700 py-3 text-lg font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+              className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
             >
               {enviando ? "Abriendo..." : "Abrir caja"}
             </button>
@@ -173,7 +173,7 @@ export default function Caja() {
               value={montoDeclarado}
               onChange={(e) => setMontoDeclarado(e.target.value)}
               placeholder="0"
-              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
             {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button

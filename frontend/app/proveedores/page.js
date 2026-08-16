@@ -53,18 +53,18 @@ export default function Proveedores() {
             <Link href="/stock" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver a Stock
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Compras</h1>
+            <h1 className="text-2xl font-bold text-navy">Compras</h1>
           </div>
           <div className="flex gap-2">
             <Link
               href="/compras/nueva"
-              className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               + Registrar compra
             </Link>
             <Link
               href="/proveedores/nuevo"
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               + Agregar proveedor
             </Link>
@@ -76,9 +76,9 @@ export default function Proveedores() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre o RUC..."
-            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
-          <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+          <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
             Buscar
           </button>
         </form>
@@ -126,7 +126,7 @@ export default function Proveedores() {
                   </Link>
                   <Link
                     href={`/proveedores/${p.id}/editar`}
-                    className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+                    className="text-sm font-semibold text-navy hover:text-brand"
                   >
                     Editar
                   </Link>

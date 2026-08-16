@@ -40,7 +40,7 @@ export default function Empleados() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Empleados</h1>
+            <h1 className="text-2xl font-bold text-navy">Empleados</h1>
           </div>
           <div className="flex gap-2">
             {multiSucursal && (
@@ -53,7 +53,7 @@ export default function Empleados() {
             )}
             <Link
               href="/empleados/nuevo"
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               + Agregar empleado
             </Link>
@@ -86,7 +86,7 @@ export default function Empleados() {
                   {u.rol !== "dueno" && (
                     <Link
                       href={`/empleados/${u.id}/editar`}
-                      className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+                      className="text-sm font-semibold text-navy hover:text-brand"
                     >
                       Editar
                     </Link>

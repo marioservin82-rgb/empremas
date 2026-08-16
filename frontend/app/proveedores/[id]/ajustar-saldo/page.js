@@ -74,7 +74,7 @@ export default function AjustarSaldoProveedor() {
           <Link href={`/proveedores/${id}/extracto`} className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-blue-900">Ajustar saldo</h1>
+          <h1 className="mt-2 text-2xl font-bold text-navy">Ajustar saldo</h1>
         </div>
 
         {exito && <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{exito}</p>}
@@ -89,7 +89,7 @@ export default function AjustarSaldoProveedor() {
             min="0"
             value={saldoNuevo}
             onChange={(e) => setSaldoNuevo(e.target.value)}
-            className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
           {saldoNuevo !== "" && diferencia !== 0 && (
             <p className={`mb-4 text-sm font-semibold ${diferencia > 0 ? "text-red-600" : "text-emerald-600"}`}>
@@ -103,7 +103,7 @@ export default function AjustarSaldoProveedor() {
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
             placeholder="Ej: migración de otro sistema, corrección de carga..."
-            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -111,7 +111,7 @@ export default function AjustarSaldoProveedor() {
           <button
             onClick={confirmar}
             disabled={enviando || !puedeConfirmar}
-            className="w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {enviando ? "Guardando..." : "Confirmar ajuste"}
           </button>

@@ -89,7 +89,7 @@ export default function BalanceMensual() {
           <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Balance del mes</h1>
+          <h1 className="text-2xl font-bold text-navy">Balance del mes</h1>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
@@ -103,7 +103,7 @@ export default function BalanceMensual() {
                 key={p.valor}
                 onClick={() => elegirMes(p.valor, p.offset)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -117,7 +117,7 @@ export default function BalanceMensual() {
                 type="date"
                 value={desde}
                 onChange={(e) => setDesde(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -126,12 +126,12 @@ export default function BalanceMensual() {
                 type="date"
                 value={hasta}
                 onChange={(e) => setHasta(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={consultarRango}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>

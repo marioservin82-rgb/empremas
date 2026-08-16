@@ -96,7 +96,7 @@ export default function NuevoGasto() {
           <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Nuevo gasto</h1>
+          <h1 className="text-2xl font-bold text-navy">Nuevo gasto</h1>
         </div>
 
         <form onSubmit={guardar} className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

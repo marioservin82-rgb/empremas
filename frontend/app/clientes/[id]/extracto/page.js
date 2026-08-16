@@ -127,7 +127,7 @@ export default function ExtractoCliente() {
             <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Extracto de {cliente.nombre}</h1>
+            <h1 className="text-2xl font-bold text-navy">Extracto de {cliente.nombre}</h1>
           </div>
           <div className="flex gap-2">
             <Link
@@ -138,13 +138,13 @@ export default function ExtractoCliente() {
             </Link>
             <button
               onClick={() => window.print()}
-              className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               Imprimir
             </button>
             <button
               onClick={descargarImagen}
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-navy px-5 py-3 font-semibold text-white hover:bg-navy-2"
             >
               Descargar imagen
             </button>
@@ -163,7 +163,7 @@ export default function ExtractoCliente() {
                 key={p.valor}
                 onClick={() => elegirPeriodo(p.valor)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -181,7 +181,7 @@ export default function ExtractoCliente() {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -193,12 +193,12 @@ export default function ExtractoCliente() {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={() => cargar({ desde, hasta })}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>
@@ -226,11 +226,11 @@ export default function ExtractoCliente() {
           <div className="mb-4 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
               <p className="text-sm text-slate-400">Debe hoy</p>
-              <p className="text-2xl font-extrabold text-amber-600">Gs {formatoGs.format(cliente.saldo)}</p>
+              <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.saldo)}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
               <p className="text-sm text-slate-400">Crédito disponible</p>
-              <p className="text-2xl font-extrabold text-emerald-600">
+              <p className="text-2xl font-extrabold text-ink">
                 Gs {formatoGs.format(cliente.saldo_disponible)}
               </p>
             </div>
@@ -254,7 +254,7 @@ export default function ExtractoCliente() {
                     <div className="text-right">
                       <p className="font-semibold text-slate-800">Gs {formatoGs.format(v.total)}</p>
                       {v.tipo_pago === "credito" && Number(v.saldo_pendiente) > 0 && (
-                        <p className="text-xs text-amber-600">pendiente Gs {formatoGs.format(v.saldo_pendiente)}</p>
+                        <p className="text-xs font-semibold text-ink-muted">pendiente Gs {formatoGs.format(v.saldo_pendiente)}</p>
                       )}
                     </div>
                   </div>
@@ -274,7 +274,7 @@ export default function ExtractoCliente() {
                     <span className="text-slate-500">
                       Recibo N° {c.numero_recibo} · {fecha(c.creado_en)}
                     </span>
-                    <span className="font-semibold text-emerald-700">Gs {formatoGs.format(c.monto)}</span>
+                    <span className="font-semibold text-ink">Gs {formatoGs.format(c.monto)}</span>
                   </div>
                 ))}
               </div>

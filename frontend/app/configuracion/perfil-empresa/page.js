@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
-const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
+const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
 function estadoCertificado(vencimiento) {
@@ -169,7 +169,7 @@ export default function PerfilEmpresa() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Mi Empresa</h1>
+          <h1 className="text-2xl font-bold text-navy">Mi Empresa</h1>
           <p className="mt-1 text-sm text-slate-500">Datos fiscales, de contacto e identidad de tu comercio.</p>
         </div>
 
@@ -203,7 +203,7 @@ export default function PerfilEmpresa() {
                     </div>
                   ))}
                 </div>
-                <Link href="/sucursales" className="mt-2 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
+                <Link href="/sucursales" className="mt-2 inline-block text-sm font-semibold text-navy hover:text-brand">
                   Editar en Sucursales →
                 </Link>
               </div>
@@ -249,7 +249,7 @@ export default function PerfilEmpresa() {
           <button
             type="submit"
             disabled={guardando}
-            className="w-full rounded-xl bg-blue-700 py-3 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {guardando ? "Guardando..." : "Guardar"}
           </button>
@@ -276,7 +276,7 @@ export default function PerfilEmpresa() {
             <button
               onClick={guardarLogo}
               disabled={!logoNuevo || guardandoLogo}
-              className="flex-1 rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+              className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
             >
               {guardandoLogo ? "Guardando..." : "Guardar logo"}
             </button>

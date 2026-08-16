@@ -164,7 +164,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
           <button
             onClick={() => setFormatoTicket("ticket")}
             className={`rounded-xl px-5 py-2 font-semibold transition ${
-              formatoTicket === "ticket" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              formatoTicket === "ticket" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
             }`}
           >
             Ticket
@@ -172,7 +172,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
           <button
             onClick={() => setFormatoTicket("a4")}
             className={`rounded-xl px-5 py-2 font-semibold transition ${
-              formatoTicket === "a4" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              formatoTicket === "a4" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
             }`}
           >
             Hoja A4
@@ -182,7 +182,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
         {formatoTicket === "a4" ? (
           <div className="w-full rounded-2xl bg-white p-6 text-center shadow shadow-slate-200">
             <p className="text-sm text-slate-400">Factura Legal</p>
-            <p className="mt-1 text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(venta.total)}</p>
+            <p className="mt-1 text-3xl font-extrabold text-navy">Gs {formatoGs.format(venta.total)}</p>
             <p className={`mt-3 text-sm font-semibold ${aprobada ? "text-emerald-600" : "text-amber-600"}`}>
               {aprobada ? "✅ Aprobada por SIFEN" : "⏳ Pendiente de confirmación final"}
             </p>
@@ -198,7 +198,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
                   <button
                     onClick={imprimirKude}
                     disabled={imprimiendo}
-                    className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
                   >
                     {imprimiendo ? "Abriendo..." : "Imprimir factura"}
                   </button>
@@ -235,7 +235,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
     <div className="flex w-full max-w-sm flex-col items-center gap-4">
       <div className="w-full rounded-2xl bg-white p-6 text-center shadow shadow-slate-200">
         <p className="text-sm text-slate-400">Factura Legal</p>
-        <p className="mt-1 text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(venta.total)}</p>
+        <p className="mt-1 text-3xl font-extrabold text-navy">Gs {formatoGs.format(venta.total)}</p>
 
         {(estado === "pendiente" || estado === "en_lote" || estado === "enviado" || !estado) && (
           <p className="mt-3 text-sm font-semibold text-amber-600">Enviando a SIFEN...</p>
@@ -247,7 +247,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
             <button
               onClick={reintentar}
               disabled={reintentando}
-              className="mt-3 rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+              className="mt-3 rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
             >
               {reintentando ? "Reintentando..." : "Reintentar envío"}
             </button>
@@ -260,7 +260,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
           </>
         )}
       </div>
-      <button onClick={onNuevaVenta} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+      <button onClick={onNuevaVenta} className="text-sm font-semibold text-navy hover:text-brand">
         + Nueva venta
       </button>
     </div>
@@ -480,7 +480,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
             window.print()
           )
         }
-        className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+        className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
       >
         Imprimir
       </button>
@@ -535,9 +535,9 @@ export default function Recibo({
       <div className="flex flex-col items-center gap-4 py-6">
         <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow shadow-slate-200">
           <p className="text-sm text-slate-400">Venta registrada sin comprobante</p>
-          <p className="mt-2 text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(venta.total)}</p>
+          <p className="mt-2 text-3xl font-extrabold text-navy">Gs {formatoGs.format(venta.total)}</p>
         </div>
-        <button onClick={onNuevaVenta} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+        <button onClick={onNuevaVenta} className="text-sm font-semibold text-navy hover:text-brand">
           + Nueva venta
         </button>
       </div>
@@ -672,13 +672,13 @@ export default function Recibo({
                   () => window.print()
                 )
           }
-          className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Imprimir
         </button>
         <button
           onClick={descargarImagen}
-          className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Descargar imagen
         </button>
@@ -686,7 +686,7 @@ export default function Recibo({
       </div>
 
       {onNuevaVenta && (
-        <button onClick={onNuevaVenta} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+        <button onClick={onNuevaVenta} className="text-sm font-semibold text-navy hover:text-brand">
           {textoVolver}
         </button>
       )}

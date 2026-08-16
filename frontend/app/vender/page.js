@@ -405,7 +405,7 @@ export default function Vender() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Venta registrada</h1>
+            <h1 className="text-2xl font-bold text-navy">Venta registrada</h1>
           </div>
           {empresaInfo && (
             <Recibo
@@ -431,23 +431,23 @@ export default function Vender() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Vender</h1>
+            <h1 className="text-2xl font-bold text-navy">Vender</h1>
           </div>
           <div className="text-right">
             {carrito.length > 0 && (
               <Link
                 href="/stock"
-                className="block text-sm font-semibold text-blue-700 hover:text-blue-900"
+                className="block text-sm font-semibold text-navy hover:text-brand"
               >
                 Ir a Stock a corregir un precio
                 <br />
                 <span className="font-normal text-slate-400">tu carrito queda guardado</span>
               </Link>
             )}
-            <Link href="/presupuestos" className="block text-sm font-semibold text-blue-700 hover:text-blue-900">
+            <Link href="/presupuestos" className="block text-sm font-semibold text-navy hover:text-brand">
               Presupuestos
             </Link>
-            <Link href="/ventas" className="block text-sm font-semibold text-blue-700 hover:text-blue-900">
+            <Link href="/ventas" className="block text-sm font-semibold text-navy hover:text-brand">
               Ventas
             </Link>
           </div>
@@ -460,7 +460,7 @@ export default function Vender() {
               onClick={() => cambiarTipoPago(t.valor)}
               className={`flex-1 rounded-xl py-3 text-lg font-bold transition ${
                 tipoPago === t.valor
-                  ? "bg-blue-700 text-white"
+                  ? "bg-navy text-white"
                   : "bg-white text-slate-600 hover:bg-slate-100"
               }`}
             >
@@ -479,9 +479,9 @@ export default function Vender() {
                 value={busquedaCliente}
                 onChange={(e) => setBusquedaCliente(e.target.value)}
                 placeholder="Buscar por nombre, cédula o RUC..."
-                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
-              <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+              <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
                 Buscar
               </button>
             </form>
@@ -509,20 +509,20 @@ export default function Vender() {
                   onChange={(e) => setNuevoClienteNombre(e.target.value)}
                   placeholder="Nombre y apellido"
                   autoFocus
-                  className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
                 <div className="mb-2 flex gap-2">
                   <input
                     value={nuevoClienteDocumento}
                     onChange={(e) => setNuevoClienteDocumento(e.target.value)}
                     placeholder="Cédula/RUC (opcional)"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                   />
                   <input
                     value={nuevoClienteCelular}
                     onChange={(e) => setNuevoClienteCelular(e.target.value)}
                     placeholder="Celular (opcional)"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                   />
                 </div>
                 <input
@@ -531,7 +531,7 @@ export default function Vender() {
                   value={nuevoClienteLineaCredito}
                   onChange={(e) => setNuevoClienteLineaCredito(e.target.value)}
                   placeholder="Línea de crédito (Gs)"
-                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
                 <div className="flex gap-2">
                   <button
@@ -544,14 +544,14 @@ export default function Vender() {
                   <button
                     type="submit"
                     disabled={creandoCliente}
-                    className="flex-1 rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    className="flex-1 rounded-lg bg-brand py-2 text-sm font-semibold text-white hover:bg-brand-light disabled:opacity-60"
                   >
                     {creandoCliente ? "Creando..." : "Crear y usar este cliente"}
                   </button>
                 </div>
               </form>
             ) : (
-              <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-900">
+              <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-navy hover:text-brand">
                 + Crear cliente nuevo
               </button>
             )}
@@ -565,7 +565,7 @@ export default function Vender() {
                 <p className="text-lg font-bold text-slate-800">{cliente.nombre}</p>
                 <button
                   onClick={() => setCliente(null)}
-                  className="text-sm font-medium text-blue-700 hover:text-blue-900"
+                  className="text-sm font-medium text-navy hover:text-brand"
                 >
                   Cambiar cliente
                 </button>
@@ -587,9 +587,9 @@ export default function Vender() {
                 value={busquedaProducto}
                 onChange={(e) => setBusquedaProducto(e.target.value)}
                 placeholder="Buscar producto por nombre o código de barras..."
-                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
-              <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+              <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
                 Buscar
               </button>
             </form>
@@ -619,7 +619,7 @@ export default function Vender() {
                       <p className="font-semibold text-slate-800">{i.nombre}</p>
                       <p className="text-sm text-slate-400">
                         Gs {formatoGs.format(precioDe(i, tipoPago))} / {i.unidadMedida}
-                        {i.precioFijo != null && <span className="ml-1 text-blue-600">(precio cotizado)</span>}
+                        {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
                       </p>
                     </div>
                     <input
@@ -669,9 +669,9 @@ export default function Vender() {
                             onChange={(e) => setBusquedaCliente(e.target.value)}
                             placeholder="Buscar por nombre, cédula o RUC..."
                             autoFocus
-                            className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                           />
-                          <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+                          <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
                             Buscar
                           </button>
                         </form>
@@ -699,20 +699,20 @@ export default function Vender() {
                               onChange={(e) => setNuevoClienteNombre(e.target.value)}
                               placeholder="Nombre y apellido"
                               autoFocus
-                              className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                              className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                             />
                             <div className="mb-2 flex gap-2">
                               <input
                                 value={nuevoClienteDocumento}
                                 onChange={(e) => setNuevoClienteDocumento(e.target.value)}
                                 placeholder="Cédula/RUC (opcional)"
-                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               />
                               <input
                                 value={nuevoClienteCelular}
                                 onChange={(e) => setNuevoClienteCelular(e.target.value)}
                                 placeholder="Celular (opcional)"
-                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               />
                             </div>
                             <div className="flex gap-2">
@@ -726,14 +726,14 @@ export default function Vender() {
                               <button
                                 type="submit"
                                 disabled={creandoCliente}
-                                className="flex-1 rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                                className="flex-1 rounded-lg bg-brand py-2 text-sm font-semibold text-white hover:bg-brand-light disabled:opacity-60"
                               >
                                 {creandoCliente ? "Creando..." : "Crear y usar este cliente"}
                               </button>
                             </div>
                           </form>
                         ) : (
-                          <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-900">
+                          <button onClick={abrirClienteRapido} className="mt-3 text-sm font-semibold text-navy hover:text-brand">
                             + Crear cliente nuevo
                           </button>
                         )}
@@ -741,7 +741,7 @@ export default function Vender() {
                     ) : (
                       <button
                         onClick={() => setBuscandoClienteOpcional(true)}
-                        className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+                        className="text-sm font-semibold text-navy hover:text-brand"
                       >
                         + Asociar un cliente a esta venta (opcional)
                       </button>
@@ -801,7 +801,7 @@ export default function Vender() {
                               onClick={() => elegirFormaNuevoPago(f.valor)}
                               className={`flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 transition ${
                                 nuevoPagoForma === f.valor
-                                  ? "bg-blue-700 text-white"
+                                  ? "bg-navy text-white"
                                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                               }`}
                             >
@@ -821,7 +821,7 @@ export default function Vender() {
                               min="0"
                               value={nuevoPagoMonto}
                               onChange={(e) => setNuevoPagoMonto(e.target.value)}
-                              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               placeholder="0"
                             />
                             {excedeNoEfectivo && (
@@ -838,7 +838,7 @@ export default function Vender() {
                             <button
                               onClick={agregarPago}
                               disabled={!(Number(nuevoPagoMonto) > 0) || excedeNoEfectivo}
-                              className="mt-3 w-full rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-50"
+                              className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
                             >
                               Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}
                             </button>
@@ -865,7 +865,7 @@ export default function Vender() {
                         onClick={() => setTipoComprobante(t.valor)}
                         className={`flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 transition ${
                           tipoComprobante === t.valor
-                            ? "bg-blue-700 text-white"
+                            ? "bg-navy text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
@@ -881,7 +881,7 @@ export default function Vender() {
                         !sifenConfigurado
                           ? "cursor-not-allowed bg-slate-50 text-slate-300"
                           : tipoComprobante === "factura_legal"
-                          ? "bg-blue-700 text-white"
+                          ? "bg-navy text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
@@ -895,7 +895,7 @@ export default function Vender() {
 
                 <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
                   <p className="text-lg font-semibold text-slate-600">Total</p>
-                  <p className="text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(total)}</p>
+                  <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                 </div>
 
                 {error && (
@@ -904,7 +904,7 @@ export default function Vender() {
                 <button
                   onClick={confirmarVenta}
                   disabled={enviando || !puedeConfirmar}
-                  className="mt-4 w-full rounded-xl bg-emerald-700 py-4 text-xl font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                  className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
                 >
                   {enviando ? "Guardando..." : "Confirmar venta"}
                 </button>

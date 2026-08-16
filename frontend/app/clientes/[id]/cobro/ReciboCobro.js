@@ -110,19 +110,19 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
               window.print()
             )
           }
-          className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Imprimir
         </button>
         <button
           onClick={descargarImagen}
-          className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Descargar imagen
         </button>
       </div>
 
-      <button onClick={onNuevoCobro} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+      <button onClick={onNuevoCobro} className="text-sm font-semibold text-navy hover:text-brand">
         + Nuevo cobro
       </button>
     </div>

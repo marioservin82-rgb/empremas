@@ -76,7 +76,7 @@ export default function ReporteVentas() {
           <Link href="/ventas" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Reporte de ventas</h1>
+          <h1 className="text-2xl font-bold text-navy">Reporte de ventas</h1>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
@@ -91,7 +91,7 @@ export default function ReporteVentas() {
                 key={p.valor}
                 onClick={() => elegirPeriodo(p.valor)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -108,7 +108,7 @@ export default function ReporteVentas() {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -120,12 +120,12 @@ export default function ReporteVentas() {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={() => cargar(desde, hasta)}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>
@@ -141,15 +141,15 @@ export default function ReporteVentas() {
             <div className="mb-4 grid grid-cols-3 gap-3">
               <div className="rounded-2xl bg-white p-5 text-center shadow shadow-slate-200">
                 <p className="text-xs text-slate-400">Total vendido</p>
-                <p className="text-xl font-extrabold text-blue-900">Gs {formatoGs.format(reporte.totalVendido)}</p>
+                <p className="text-xl font-extrabold text-navy">Gs {formatoGs.format(reporte.totalVendido)}</p>
               </div>
               <div className="rounded-2xl bg-white p-5 text-center shadow shadow-slate-200">
                 <p className="text-xs text-slate-400">Ventas</p>
-                <p className="text-xl font-extrabold text-blue-900">{reporte.cantidadVentas}</p>
+                <p className="text-xl font-extrabold text-navy">{reporte.cantidadVentas}</p>
               </div>
               <div className="rounded-2xl bg-white p-5 text-center shadow shadow-slate-200">
                 <p className="text-xs text-slate-400">Ticket promedio</p>
-                <p className="text-xl font-extrabold text-blue-900">Gs {formatoGs.format(Math.round(reporte.ticketPromedio))}</p>
+                <p className="text-xl font-extrabold text-navy">Gs {formatoGs.format(Math.round(reporte.ticketPromedio))}</p>
               </div>
             </div>
 

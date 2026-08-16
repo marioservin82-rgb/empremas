@@ -65,7 +65,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         <button
           onClick={() => setFormato("ticket_comun")}
           className={`rounded-xl px-5 py-2 font-semibold transition ${
-            formato === "ticket_comun" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+            formato === "ticket_comun" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
           }`}
         >
           Ticket
@@ -73,7 +73,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         <button
           onClick={() => setFormato("a4")}
           className={`rounded-xl px-5 py-2 font-semibold transition ${
-            esA4 ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+            esA4 ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
           }`}
         >
           Hoja A4
@@ -141,13 +141,13 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
                   window.print()
                 )
           }
-          className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Imprimir
         </button>
         <button
           onClick={descargarImagen}
-          className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+          className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
         >
           Descargar imagen
         </button>

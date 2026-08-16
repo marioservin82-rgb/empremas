@@ -13,13 +13,13 @@ const opciones = [
     nombre: "Inventario valorizado",
     descripcion: "Cuánto vale todo el stock, a precio de costo y de venta",
     href: "/stock/inventario/valorizado",
-    color: "bg-blue-700 hover:bg-blue-800",
+    color: "bg-brand hover:bg-brand-light",
   },
   {
     nombre: "Inventario de cantidades",
     descripcion: "Lista de productos y cantidades, para imprimir",
     href: "/stock/inventario/cantidades",
-    color: "bg-emerald-700 hover:bg-emerald-800",
+    color: "bg-brand hover:bg-brand-light",
   },
 ];
 
@@ -31,7 +31,7 @@ export default function Inventario() {
           <Link href="/stock" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver a Stock
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Inventario</h1>
+          <h1 className="text-2xl font-bold text-navy">Inventario</h1>
         </div>
 
         <div className="flex flex-col gap-3">

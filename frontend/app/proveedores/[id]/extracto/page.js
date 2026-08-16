@@ -133,7 +133,7 @@ export default function ExtractoProveedor() {
             <Link href="/proveedores" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Extracto de {proveedor.nombre}</h1>
+            <h1 className="text-2xl font-bold text-navy">Extracto de {proveedor.nombre}</h1>
           </div>
           <div className="flex gap-2">
             <Link
@@ -144,13 +144,13 @@ export default function ExtractoProveedor() {
             </Link>
             <button
               onClick={() => window.print()}
-              className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               Imprimir
             </button>
             <button
               onClick={descargarImagen}
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-navy px-5 py-3 font-semibold text-white hover:bg-navy-2"
             >
               Descargar imagen
             </button>
@@ -169,7 +169,7 @@ export default function ExtractoProveedor() {
                 key={p.valor}
                 onClick={() => elegirPeriodo(p.valor)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -187,7 +187,7 @@ export default function ExtractoProveedor() {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -199,12 +199,12 @@ export default function ExtractoProveedor() {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={() => cargar({ desde, hasta })}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>
@@ -231,7 +231,7 @@ export default function ExtractoProveedor() {
 
           <div className="mb-4 rounded-2xl bg-slate-50 p-5 text-center">
             <p className="text-sm text-slate-400">Le debemos</p>
-            <p className="text-3xl font-extrabold text-amber-600">Gs {formatoGs.format(proveedor.saldo)}</p>
+            <p className="text-3xl font-extrabold text-ink">Gs {formatoGs.format(proveedor.saldo)}</p>
           </div>
 
           <div className="mb-4">
@@ -266,7 +266,7 @@ export default function ExtractoProveedor() {
                       <span className="text-slate-400">· {ETIQUETA_FORMA_PAGO[p.forma_pago]}</span>
                       {p.numero_recibo && <span className="text-slate-400"> · Recibo N° {p.numero_recibo}</span>}
                     </div>
-                    <span className="font-semibold text-emerald-700">Gs {formatoGs.format(p.monto)}</span>
+                    <span className="font-semibold text-ink">Gs {formatoGs.format(p.monto)}</span>
                   </div>
                 ))}
               </div>

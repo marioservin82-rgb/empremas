@@ -5,11 +5,31 @@
   --foreground: #171717;
 }
 
+/* Identidad de color oficial de EMPREMAS (navy + naranja + crema). El
+   verde/amarillo/rojo NO se definen aca a proposito: quedan reservados
+   exclusivamente para el semaforo de salud financiera (panel/page.js),
+   que usa sus propios tokens semaforo-*, y el resto de la app sigue
+   usando los verde/ambar/rojo por defecto de Tailwind para peligro y
+   advertencia funcional (eliminar, anular, error, pendiente) - eso no
+   es identidad de marca, no entra en esta paleta. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-sora);
+
+  --color-navy: #0B2545;
+  --color-navy-2: #123A63;
+  --color-brand: #F2660D;
+  --color-brand-light: #FF8A3D;
+  --color-cream: #FBF8F3;
+  --color-tint: #E9EFF7;
+  --color-ink: #1A2130;
+  --color-ink-muted: #5B6472;
+
+  --color-semaforo-ok: #2E9E5B;
+  --color-semaforo-warn: #F2B705;
+  --color-semaforo-danger: #E23636;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,17 +42,26 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
-/* Tickets/recibos/presupuestos/reportes imprimibles van en Arial (pedido
-   explicito, mas legible que la Times New Roman de antes) - tanto en la
-   vista previa en pantalla como en lo que sale impreso, para que sean
-   iguales. Sin @layer a proposito: asi gana por encima de utilidades de
-   Tailwind como font-mono sin depender del orden de las clases en cada
-   componente. */
+h1, h2, h3 {
+  font-family: var(--font-sora), sans-serif;
+}
+
+/* Tickets/recibos/presupuestos/reportes imprimibles van SIEMPRE en Arial,
+   sin excepcion (regla fija del proyecto: los impresos son blanco y
+   negro, sin la tipografia de marca) - tanto en la vista previa en
+   pantalla como en lo que sale impreso, para que sean iguales. El "*"
+   es necesario para blindarlos contra la regla h1/h2/h3 de arriba: un
+   selector de elemento directo (h1) le gana por especificidad a la
+   herencia del contenedor .recibo-imprimible si no se declara asi. Sin
+   @layer a proposito: asi gana por encima de utilidades de Tailwind como
+   font-mono sin depender del orden de las clases en cada componente. */
 .recibo-imprimible,
-.reporte-imprimible {
+.recibo-imprimible *,
+.reporte-imprimible,
+.reporte-imprimible * {
   font-family: Arial, Helvetica, sans-serif;
 }
 

@@ -78,7 +78,7 @@ export default function Stock() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Stock</h1>
+            <h1 className="text-2xl font-bold text-navy">Stock</h1>
             {sucursalActual && (
               <p className="text-sm text-slate-400">Mostrando stock de: {sucursalActual}</p>
             )}
@@ -92,7 +92,7 @@ export default function Stock() {
             </Link>
             <Link
               href="/stock/inventario"
-              className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               Inventario
             </Link>
@@ -104,7 +104,7 @@ export default function Stock() {
             </Link>
             <Link
               href="/stock/nuevo"
-              className="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >
               + Agregar producto
             </Link>
@@ -116,11 +116,11 @@ export default function Stock() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre o código de barras..."
-            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
           <button
             type="submit"
-            className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800"
+            className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light"
           >
             Buscar
           </button>
@@ -169,7 +169,7 @@ export default function Stock() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-extrabold text-blue-900">
+                    <p className="text-2xl font-extrabold text-navy">
                       {formatoGs.format(p.stock)}
                     </p>
                     <p className="text-sm text-slate-400">{p.unidad_medida}</p>
@@ -205,7 +205,7 @@ export default function Stock() {
                 <div className="mt-3 flex justify-end">
                   <Link
                     href={`/stock/${p.id}/editar`}
-                    className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+                    className="text-sm font-semibold text-navy hover:text-brand"
                   >
                     Editar
                   </Link>

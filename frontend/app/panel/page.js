@@ -8,16 +8,19 @@ import { apiFetch } from "@/lib/api";
 const formatoGs = new Intl.NumberFormat("es-PY");
 
 const botones = [
-  { nombre: "Vender", icono: "🛒", color: "bg-blue-700 hover:bg-blue-800", href: "/vender" },
-  { nombre: "Fiado / Crédito", icono: "📒", color: "bg-amber-600 hover:bg-amber-700", href: "/clientes" },
-  { nombre: "Stock", icono: "📦", color: "bg-emerald-700 hover:bg-emerald-800", href: "/stock" },
+  { nombre: "Vender", icono: "🛒", color: "bg-brand hover:bg-brand-light", href: "/vender" },
+  { nombre: "Fiado / Crédito", icono: "📒", color: "bg-navy hover:bg-navy-2", href: "/clientes" },
+  { nombre: "Stock", icono: "📦", color: "bg-navy-2 hover:bg-navy", href: "/stock" },
   { nombre: "Cerrar caja", icono: "🔒", color: "bg-slate-700 hover:bg-slate-800", href: "/caja" },
 ];
 
+// Verde/amarillo/rojo quedan reservados exclusivamente para este
+// semaforo (identidad de marca EMPREMAS) - no reusar en botones ni
+// decoracion en ningun otro lugar de la app.
 const ESTILO_SEMAFORO = {
-  verde: { emoji: "🟢", borde: "border-emerald-300", fondo: "bg-emerald-50", texto: "text-emerald-800" },
-  amarillo: { emoji: "🟡", borde: "border-amber-300", fondo: "bg-amber-50", texto: "text-amber-800" },
-  rojo: { emoji: "🔴", borde: "border-red-300", fondo: "bg-red-50", texto: "text-red-800" },
+  verde: { emoji: "🟢", borde: "border-semaforo-ok/40", fondo: "bg-semaforo-ok/10", texto: "text-semaforo-ok" },
+  amarillo: { emoji: "🟡", borde: "border-semaforo-warn/40", fondo: "bg-semaforo-warn/10", texto: "text-semaforo-warn" },
+  rojo: { emoji: "🔴", borde: "border-semaforo-danger/40", fondo: "bg-semaforo-danger/10", texto: "text-semaforo-danger" },
 };
 
 const ETIQUETA_ROL = {
@@ -79,7 +82,7 @@ export default function Panel() {
     <main className="flex flex-1 flex-col items-center p-6">
       <div className="flex w-full max-w-3xl items-center justify-between py-6">
         <div>
-          <h1 className="text-2xl font-bold text-blue-900">EMPREMAS</h1>
+          <h1 className="text-2xl font-bold text-navy">EMPREMAS</h1>
           <p className="text-slate-500">
             {yo
               ? `Hola, ${yo.nombre} (${ETIQUETA_ROL[yo.rol]})${
@@ -172,7 +175,7 @@ export default function Panel() {
                 {
                   nombre: "Consumo interno",
                   icono: "🏠",
-                  color: "bg-purple-700 hover:bg-purple-800",
+                  color: "bg-navy hover:bg-navy-2",
                   href: "/gastos/salida-stock?motivo=consumo_interno",
                 },
               ]

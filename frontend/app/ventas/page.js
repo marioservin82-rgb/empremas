@@ -112,16 +112,16 @@ export default function Ventas() {
             <Link href="/vender" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver a Vender
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Ventas</h1>
+            <h1 className="text-2xl font-bold text-navy">Ventas</h1>
           </div>
           <div className="flex items-center gap-4">
             {puedeVerReporte && (
-              <Link href="/ventas/facturas-electronicas" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+              <Link href="/ventas/facturas-electronicas" className="text-sm font-semibold text-navy hover:text-brand">
                 Facturas electrónicas
               </Link>
             )}
             {puedeVerReporte && (
-              <Link href="/ventas/reporte" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+              <Link href="/ventas/reporte" className="text-sm font-semibold text-navy hover:text-brand">
                 Reporte
               </Link>
             )}
@@ -134,9 +134,9 @@ export default function Ventas() {
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por cliente o cédula/RUC..."
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
-            <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+            <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
               Buscar
             </button>
           </form>
@@ -152,7 +152,7 @@ export default function Ventas() {
                 key={p.valor}
                 onClick={() => elegirPeriodo(p.valor)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -170,7 +170,7 @@ export default function Ventas() {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -182,12 +182,12 @@ export default function Ventas() {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={() => buscar({ q: busqueda, desde, hasta })}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>
@@ -227,7 +227,7 @@ export default function Ventas() {
                       {new Date(v.creado_en).toLocaleTimeString("es-PY")} · {ETIQUETA_TIPO_PAGO[v.tipo_pago]}
                     </p>
                   </div>
-                  <p className="text-2xl font-extrabold text-blue-900">Gs {formatoGs.format(v.total)}</p>
+                  <p className="text-2xl font-extrabold text-navy">Gs {formatoGs.format(v.total)}</p>
                 </div>
               </Link>
             ))}

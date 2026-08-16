@@ -76,7 +76,7 @@ export default function AjusteInventario() {
           <Link href="/stock/inventario" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-blue-900">Ajuste de inventario</h1>
+          <h1 className="mt-2 text-2xl font-bold text-navy">Ajuste de inventario</h1>
         </div>
 
         {exito && (

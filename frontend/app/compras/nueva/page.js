@@ -283,7 +283,7 @@ export default function NuevaCompra() {
   if (!listo) return null;
 
   const campoPrecio =
-    "w-24 rounded-lg border border-slate-300 px-2 py-2 text-right text-sm outline-none focus:border-blue-600";
+    "w-24 rounded-lg border border-slate-300 px-2 py-2 text-right text-sm outline-none focus:border-navy";
 
   return (
     <main className="flex flex-1 flex-col items-center p-6">
@@ -292,7 +292,7 @@ export default function NuevaCompra() {
           <Link href="/proveedores" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Registrar compra</h1>
+          <h1 className="text-2xl font-bold text-navy">Registrar compra</h1>
         </div>
 
         {exito && (
@@ -307,9 +307,9 @@ export default function NuevaCompra() {
                 value={busquedaProveedor}
                 onChange={(e) => setBusquedaProveedor(e.target.value)}
                 placeholder="Buscar por nombre o RUC..."
-                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
-              <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+              <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
                 Buscar
               </button>
             </form>
@@ -337,7 +337,7 @@ export default function NuevaCompra() {
                   autoFocus
                   value={nuevoProveedorNombre}
                   onChange={(e) => setNuevoProveedorNombre(e.target.value)}
-                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                  className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                 />
                 <div className="mb-3 grid grid-cols-2 gap-2">
                   <div>
@@ -345,7 +345,7 @@ export default function NuevaCompra() {
                     <input
                       value={nuevoProveedorDocumento}
                       onChange={(e) => setNuevoProveedorDocumento(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                     />
                   </div>
                   <div>
@@ -353,7 +353,7 @@ export default function NuevaCompra() {
                     <input
                       value={nuevoProveedorTelefono}
                       onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                     />
                   </div>
                 </div>
@@ -368,7 +368,7 @@ export default function NuevaCompra() {
                   <button
                     type="submit"
                     disabled={creandoProveedor}
-                    className="flex-1 rounded-xl bg-emerald-700 py-2 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                    className="flex-1 rounded-xl bg-brand py-2 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
                   >
                     {creandoProveedor ? "Creando..." : "Crear y usar este proveedor"}
                   </button>
@@ -377,7 +377,7 @@ export default function NuevaCompra() {
             ) : (
               <button
                 onClick={abrirProveedorRapido}
-                className="mt-3 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+                className="mt-3 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-navy hover:bg-tint"
               >
                 + Crear proveedor nuevo
               </button>
@@ -388,7 +388,7 @@ export default function NuevaCompra() {
             <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-lg font-bold text-slate-800">{proveedor.nombre}</p>
-                <button onClick={() => setProveedor(null)} className="text-sm font-medium text-blue-700 hover:text-blue-900">
+                <button onClick={() => setProveedor(null)} className="text-sm font-medium text-navy hover:text-brand">
                   Cambiar proveedor
                 </button>
               </div>
@@ -401,7 +401,7 @@ export default function NuevaCompra() {
                     type="date"
                     value={fechaCompra}
                     onChange={(e) => setFechaCompra(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-blue-600"
+                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-navy"
                   />
                 </div>
                 <div>
@@ -410,7 +410,7 @@ export default function NuevaCompra() {
                     value={timbrado}
                     onChange={(e) => setTimbrado(e.target.value)}
                     placeholder="XXXXXXXX"
-                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-blue-600"
+                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-navy"
                   />
                 </div>
                 <div>
@@ -419,7 +419,7 @@ export default function NuevaCompra() {
                     value={numeroFactura}
                     onChange={(e) => setNumeroFactura(e.target.value)}
                     placeholder="XXX-XXX-XXXXXXX"
-                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-blue-600"
+                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-navy"
                   />
                 </div>
               </div>
@@ -431,9 +431,9 @@ export default function NuevaCompra() {
                   value={busquedaProducto}
                   onChange={(e) => setBusquedaProducto(e.target.value)}
                   placeholder="Buscar producto por nombre o código de barras..."
-                  className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
-                <button type="submit" className="rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">
+                <button type="submit" className="rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:bg-brand-light">
                   Buscar
                 </button>
               </form>
@@ -462,7 +462,7 @@ export default function NuevaCompra() {
                     autoFocus
                     value={nuevoProductoNombre}
                     onChange={(e) => setNuevoProductoNombre(e.target.value)}
-                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                   />
                   <div className="mb-3 grid grid-cols-2 gap-2">
                     <div>
@@ -472,7 +472,7 @@ export default function NuevaCompra() {
                         onChange={(e) => setNuevoProductoCodigoBarras(e.target.value)}
                         onKeyDown={evitarEnvioPorLectorDeCodigo}
                         placeholder="Opcional (podés escanear acá)"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                       />
                     </div>
                     <div>
@@ -480,7 +480,7 @@ export default function NuevaCompra() {
                       <input
                         value={nuevoProductoUnidadMedida}
                         onChange={(e) => setNuevoProductoUnidadMedida(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                       />
                     </div>
                   </div>
@@ -492,7 +492,7 @@ export default function NuevaCompra() {
                     min="1"
                     value={nuevoProductoPrecioContado}
                     onChange={(e) => setNuevoProductoPrecioContado(e.target.value)}
-                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+                    className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                     placeholder="0"
                   />
                   <div className="flex gap-2">
@@ -506,7 +506,7 @@ export default function NuevaCompra() {
                     <button
                       type="submit"
                       disabled={creandoProducto}
-                      className="flex-1 rounded-xl bg-emerald-700 py-2 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                      className="flex-1 rounded-xl bg-brand py-2 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
                     >
                       {creandoProducto ? "Creando..." : "Crear y agregar a la compra"}
                     </button>
@@ -515,7 +515,7 @@ export default function NuevaCompra() {
               ) : (
                 <button
                   onClick={abrirProductoRapido}
-                  className="mb-4 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+                  className="mb-4 w-full rounded-xl border border-dashed border-slate-300 py-3 font-semibold text-navy hover:bg-tint"
                 >
                   + Crear producto nuevo
                 </button>
@@ -647,7 +647,7 @@ export default function NuevaCompra() {
                               onClick={() => elegirFormaNuevoPago(f.valor)}
                               className={`rounded-xl py-3 font-semibold transition ${
                                 nuevoPagoForma === f.valor
-                                  ? "bg-blue-700 text-white"
+                                  ? "bg-navy text-white"
                                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                               }`}
                             >
@@ -662,13 +662,13 @@ export default function NuevaCompra() {
                               min="0"
                               value={nuevoPagoMonto}
                               onChange={(e) => setNuevoPagoMonto(e.target.value)}
-                              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               placeholder="0"
                             />
                             <button
                               onClick={agregarPago}
                               disabled={!(Number(nuevoPagoMonto) > 0)}
-                              className="mt-3 w-full rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-50"
+                              className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
                             >
                               Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}
                             </button>
@@ -682,7 +682,7 @@ export default function NuevaCompra() {
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
                     <p className="text-lg font-semibold text-slate-600">Total</p>
-                    <p className="text-3xl font-extrabold text-blue-900">Gs {formatoGs.format(total)}</p>
+                    <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                   </div>
 
                   {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -698,7 +698,7 @@ export default function NuevaCompra() {
                     <button
                       onClick={() => confirmarCompra("contado")}
                       disabled={enviando || !puedeConfirmarContado}
-                      className="flex-1 rounded-xl bg-emerald-700 py-4 text-lg font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                      className="flex-1 rounded-xl bg-brand py-4 text-lg font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
                     >
                       A contado
                     </button>

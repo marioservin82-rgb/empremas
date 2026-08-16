@@ -57,7 +57,7 @@ export default function NuevoCliente() {
           <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-blue-900">Nuevo cliente</h1>
+          <h1 className="mt-2 text-2xl font-bold text-navy">Nuevo cliente</h1>
         </div>
 
         <form onSubmit={enviar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">

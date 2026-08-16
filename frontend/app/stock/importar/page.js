@@ -116,7 +116,7 @@ export default function ImportarProductos() {
           <Link href="/stock" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Importar productos desde CSV</h1>
+          <h1 className="text-2xl font-bold text-navy">Importar productos desde CSV</h1>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
@@ -143,7 +143,7 @@ export default function ImportarProductos() {
             type="file"
             accept=".csv,text/csv"
             onChange={onArchivoSeleccionado}
-            className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
           {nombreArchivo && <p className="text-sm text-slate-400">{nombreArchivo}</p>}
         </div>
@@ -203,7 +203,7 @@ export default function ImportarProductos() {
             <button
               onClick={importar}
               disabled={importando}
-              className="w-full rounded-xl bg-blue-700 py-3 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+              className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
             >
               {importando ? "Importando..." : `Importar ${filas.length} producto${filas.length === 1 ? "" : "s"}`}
             </button>

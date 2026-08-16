@@ -100,7 +100,7 @@ export default function FacturasElectronicas() {
           <Link href="/ventas" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver a Ventas
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Facturas electrónicas</h1>
+          <h1 className="text-2xl font-bold text-navy">Facturas electrónicas</h1>
           <p className="text-sm text-slate-500">Solo las ventas facturadas como Factura Legal (SIFEN).</p>
         </div>
 
@@ -116,7 +116,7 @@ export default function FacturasElectronicas() {
                 key={p.valor}
                 onClick={() => elegirPeriodo(p.valor)}
                 className={`rounded-xl py-2 font-semibold transition ${
-                  periodoActivo === p.valor ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  periodoActivo === p.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {p.etiqueta}
@@ -134,7 +134,7 @@ export default function FacturasElectronicas() {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <div className="flex-1">
@@ -146,12 +146,12 @@ export default function FacturasElectronicas() {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
                 }}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
             <button
               onClick={() => buscar({ desde, hasta })}
-              className="rounded-xl bg-blue-700 px-5 py-2 font-semibold text-white hover:bg-blue-800"
+              className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
             >
               Consultar
             </button>
@@ -195,7 +195,7 @@ export default function FacturasElectronicas() {
                     ) : null}
                   </div>
                   <div className="text-right">
-                    <p className="text-xl font-extrabold text-blue-900">Gs {formatoGs.format(f.total)}</p>
+                    <p className="text-xl font-extrabold text-navy">Gs {formatoGs.format(f.total)}</p>
                     <span
                       className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold ${
                         ESTILO_ESTADO[f.de_estado] || "bg-slate-100 text-slate-500"

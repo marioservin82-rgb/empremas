@@ -119,7 +119,7 @@ export default function ConfiguracionImpresora() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Impresora de tickets</h1>
+          <h1 className="text-2xl font-bold text-navy">Impresora de tickets</h1>
           <p className="mt-1 text-sm text-slate-500">
             Ajustá el tamaño de letra del ticket (80mm) hasta que se vea bien en tu impresora.
           </p>
@@ -150,7 +150,7 @@ export default function ConfiguracionImpresora() {
           <button
             onClick={guardar}
             disabled={guardando}
-            className="w-full rounded-xl bg-blue-700 py-3 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+            className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {guardando ? "Guardando..." : "Guardar"}
           </button>
@@ -190,7 +190,7 @@ export default function ConfiguracionImpresora() {
               <select
                 value={impresoraElegida}
                 onChange={(e) => setImpresoraElegida(e.target.value)}
-                className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               >
                 <option value="">— Elegí una impresora —</option>
                 {impresorasAgente.map((nombre) => (
@@ -213,7 +213,7 @@ export default function ConfiguracionImpresora() {
                 <button
                   onClick={guardarImpresora}
                   disabled={guardandoImpresora || !impresoraElegida}
-                  className="flex-1 rounded-xl bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
                 >
                   {guardandoImpresora ? "Guardando..." : "Guardar impresora"}
                 </button>
