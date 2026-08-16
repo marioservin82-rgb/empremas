@@ -93,6 +93,10 @@ export default function Vender() {
   const [recibo, setRecibo] = useState(null);
   const [restaurado, setRestaurado] = useState(false);
   const [sifenConfigurado, setSifenConfigurado] = useState(false);
+  // null = todavia no se sabe, false = no hay caja abierta, true = si.
+  // Sin caja abierta no se puede vender - cada dia hay que abrirla y
+  // cerrarla, para que el arqueo de caja tenga sentido.
+  const [cajaAbierta, setCajaAbierta] = useState(null);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -105,6 +109,9 @@ export default function Vender() {
     apiFetch("/api/empresas/sifen")
       .then((c) => setSifenConfigurado(c.configurado))
       .catch(() => {});
+    apiFetch("/api/turnos/actual")
+      .then((t) => setCajaAbierta(Boolean(t)))
+      .catch(() => setCajaAbierta(false));
 
     // Si había una venta a medio cargar (ej. se fue a Stock a corregir un
     // precio), la recupera antes de que el efecto de guardado de abajo
@@ -396,6 +403,29 @@ export default function Vender() {
   }
 
   if (!listo) return null;
+
+  if (cajaAbierta === false) {
+    return (
+      <main className="flex flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg shadow-slate-200">
+          <p className="text-5xl">🔒</p>
+          <h1 className="mt-4 text-xl font-bold text-navy">Abrí la caja para vender</h1>
+          <p className="mt-2 text-slate-500">
+            Todavía no abriste la caja hoy. Cada día hay que abrirla antes de vender y cerrarla al terminar.
+          </p>
+          <Link
+            href="/caja"
+            className="mt-6 inline-block w-full rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light"
+          >
+            Abrir caja
+          </Link>
+          <Link href="/panel" className="mt-3 block text-sm font-medium text-slate-500 hover:text-slate-700">
+            ← Volver al panel
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   if (recibo) {
     return (

@@ -257,6 +257,9 @@ export async function crearVenta(req, res) {
 
             const vuelto = tipoPago === 'credito' ? null : calcularVuelto(pagos, total);
             const turnoId = await turnoAbiertoDe(cliente, usuarioId);
+            if (!turnoId) {
+                throw new ErrorNegocio('Tenés que abrir la caja antes de vender.');
+            }
 
             const vencimiento =
                 tipoPago === 'credito'
