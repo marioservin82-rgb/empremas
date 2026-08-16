@@ -117,6 +117,11 @@ export default function Panel() {
               Gastos
             </Link>
           )}
+          {yo?.rol === "dueno" && (
+            <Link href="/configuracion/recordatorios" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              Recordatorios
+            </Link>
+          )}
           {esSupervisor && (
             <Link href="/perfil/pin" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Mi PIN

@@ -12,17 +12,36 @@ export async function listarClientes(req, res) {
     const { q } = req.query;
     const { empresaId } = req.usuario;
 
+    // La venta a credito impaga mas urgente de cada cliente (la mas vencida
+    // si hay varias atrasadas, o la mas proxima si ninguna vencio aun) - la
+    // usa el boton "Recordar pago" para saber que plantilla corresponde,
+    // sin tener que pedir el extracto completo de cada cliente.
+    const ventaUrgenteJoin = `
+        LEFT JOIN LATERAL (
+            SELECT numero_ticket, saldo_pendiente, vencimiento FROM ventas
+            WHERE cliente_id = c.id AND tipo_pago = 'credito' AND anulada = false
+              AND saldo_pendiente > 0 AND vencimiento IS NOT NULL
+            ORDER BY vencimiento ASC LIMIT 1
+        ) v ON true`;
+    const columnasVentaUrgente = `v.numero_ticket AS recordatorio_numero,
+              v.saldo_pendiente AS recordatorio_monto, v.vencimiento AS recordatorio_vencimiento`;
+
     const resultado = q
         ? await consultaDeEmpresa(
               empresaId,
-              `SELECT * FROM clientes
-               WHERE activo = true AND (documento LIKE $1 OR unaccent(lower(nombre)) LIKE unaccent(lower($2)))
-               ORDER BY nombre LIMIT 50`,
+              `SELECT c.*, ${columnasVentaUrgente}
+               FROM clientes c
+               ${ventaUrgenteJoin}
+               WHERE c.activo = true AND (c.documento LIKE $1 OR unaccent(lower(c.nombre)) LIKE unaccent(lower($2)))
+               ORDER BY c.nombre LIMIT 50`,
               [`%${q}%`, `%${q}%`]
           )
         : await consultaDeEmpresa(
               empresaId,
-              `SELECT * FROM clientes WHERE activo = true ORDER BY nombre LIMIT 100`,
+              `SELECT c.*, ${columnasVentaUrgente}
+               FROM clientes c
+               ${ventaUrgenteJoin}
+               WHERE c.activo = true ORDER BY c.nombre LIMIT 100`,
               []
           );
 

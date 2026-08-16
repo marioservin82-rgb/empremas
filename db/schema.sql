@@ -76,6 +76,19 @@ CREATE TABLE empresas (
     -- local (ver /agente-impresion) - null = agente no configurado, sigue
     -- imprimiendo con window.print() como siempre.
     impresora_agente_nombre        TEXT,
+    -- Recordatorio de pago por vencimiento (WhatsApp/copiar mensaje). Los
+    -- dos umbrales son ajustables por el dueno; las 4 plantillas quedan
+    -- NULL por defecto = usar la plantilla de fabrica (vive en el
+    -- frontend, ver frontend/lib/recordatorios.js), no hace falta
+    -- duplicarla aca.
+    recordatorio_dias_aviso_previo         INTEGER NOT NULL DEFAULT 3,
+    recordatorio_dias_mora_prolongada      INTEGER NOT NULL DEFAULT 7,
+    recordatorio_incluir_ruc               BOOLEAN NOT NULL DEFAULT true,
+    recordatorio_incluir_telefono          BOOLEAN NOT NULL DEFAULT true,
+    recordatorio_mensaje_previo            TEXT,
+    recordatorio_mensaje_hoy               TEXT,
+    recordatorio_mensaje_mora_leve         TEXT,
+    recordatorio_mensaje_mora_prolongada   TEXT,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

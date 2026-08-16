@@ -8,7 +8,11 @@ export async function obtenerEmpresaActual(req, res) {
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
                 permitir_venta_sin_stock, limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
-                datos_fiscales_modificado_en, impresora_agente_nombre
+                datos_fiscales_modificado_en, impresora_agente_nombre,
+                recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
+                recordatorio_incluir_ruc, recordatorio_incluir_telefono,
+                recordatorio_mensaje_previo, recordatorio_mensaje_hoy,
+                recordatorio_mensaje_mora_leve, recordatorio_mensaje_mora_prolongada
          FROM empresas WHERE id = $1`,
         [empresaId]
     );
@@ -109,6 +113,10 @@ export async function actualizarConfiguracion(req, res) {
         permitirVentaSinStock, ticketEscala,
         razonSocial, ruc, direccion, direccionAtencion, telefono, email,
         sifenCertVencimiento, sifenCertNota, impresoraAgenteNombre,
+        recordatorioDiasAvisoPrevio, recordatorioDiasMoraProlongada,
+        recordatorioIncluirRuc, recordatorioIncluirTelefono,
+        recordatorioMensajePrevio, recordatorioMensajeHoy,
+        recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
     } = req.body;
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
@@ -119,6 +127,12 @@ export async function actualizarConfiguracion(req, res) {
     }
     if (ruc !== undefined && !ruc?.trim()) {
         return res.status(400).json({ error: 'El RUC no puede quedar vacío' });
+    }
+    if (recordatorioDiasAvisoPrevio !== undefined && !(Number(recordatorioDiasAvisoPrevio) >= 0)) {
+        return res.status(400).json({ error: 'Los días de aviso previo deben ser 0 o más' });
+    }
+    if (recordatorioDiasMoraProlongada !== undefined && !(Number(recordatorioDiasMoraProlongada) >= 0)) {
+        return res.status(400).json({ error: 'Los días de mora prolongada deben ser 0 o más' });
     }
 
     // Si razon_social o ruc cambian de verdad (no solo se re-envia el mismo
@@ -137,6 +151,14 @@ export async function actualizarConfiguracion(req, res) {
             sifen_cert_vencimiento = COALESCE($10, sifen_cert_vencimiento),
             sifen_cert_nota = COALESCE($11, sifen_cert_nota),
             impresora_agente_nombre = COALESCE($13, impresora_agente_nombre),
+            recordatorio_dias_aviso_previo = COALESCE($14, recordatorio_dias_aviso_previo),
+            recordatorio_dias_mora_prolongada = COALESCE($15, recordatorio_dias_mora_prolongada),
+            recordatorio_incluir_ruc = COALESCE($16, recordatorio_incluir_ruc),
+            recordatorio_incluir_telefono = COALESCE($17, recordatorio_incluir_telefono),
+            recordatorio_mensaje_previo = COALESCE($18, recordatorio_mensaje_previo),
+            recordatorio_mensaje_hoy = COALESCE($19, recordatorio_mensaje_hoy),
+            recordatorio_mensaje_mora_leve = COALESCE($20, recordatorio_mensaje_mora_leve),
+            recordatorio_mensaje_mora_prolongada = COALESCE($21, recordatorio_mensaje_mora_prolongada),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -146,10 +168,16 @@ export async function actualizarConfiguracion(req, res) {
          WHERE id = $1
          RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
-                   datos_fiscales_modificado_en, impresora_agente_nombre`,
+                   datos_fiscales_modificado_en, impresora_agente_nombre,
+                   recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
+                   recordatorio_incluir_ruc, recordatorio_incluir_telefono,
+                   recordatorio_mensaje_previo, recordatorio_mensaje_hoy,
+                   recordatorio_mensaje_mora_leve, recordatorio_mensaje_mora_prolongada`,
         [empresaId, permitirVentaSinStock, ticketEscala, razonSocial, ruc, direccion,
             direccionAtencion, telefono, email, sifenCertVencimiento, sifenCertNota, usuarioId,
-            impresoraAgenteNombre]
+            impresoraAgenteNombre, recordatorioDiasAvisoPrevio, recordatorioDiasMoraProlongada,
+            recordatorioIncluirRuc, recordatorioIncluirTelefono, recordatorioMensajePrevio,
+            recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada]
     );
 
     res.json(resultado.rows[0]);

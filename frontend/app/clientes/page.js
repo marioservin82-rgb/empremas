@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { linkWhatsapp } from "@/lib/whatsapp";
+import { construirMensajeRecordatorio, ETIQUETA_CATEGORIA_RECORDATORIO } from "@/lib/recordatorios";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -21,6 +23,14 @@ export default function Clientes() {
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [yo, setYo] = useState(null);
+  const [empresaInfo, setEmpresaInfo] = useState(null);
+
+  // Id del cliente cuya tarjeta de "Recordar pago" esta abierta (solo una
+  // a la vez) + el texto del mensaje, editable antes de mandarlo.
+  const [recordatorioAbiertoId, setRecordatorioAbiertoId] = useState(null);
+  const [textoRecordatorio, setTextoRecordatorio] = useState("");
+  const [copiadoId, setCopiadoId] = useState(null);
 
   const buscar = useCallback(async (q) => {
     setCargando(true);
@@ -40,6 +50,8 @@ export default function Clientes() {
       router.push("/");
       return;
     }
+    apiFetch("/api/usuarios/yo").then(setYo).catch(() => {});
+    apiFetch("/api/empresas/actual").then(setEmpresaInfo).catch(() => {});
   }, [router]);
 
   const busquedaDebounced = useDebounced(busqueda);
@@ -50,6 +62,19 @@ export default function Clientes() {
   function onSubmitBusqueda(e) {
     e.preventDefault();
     buscar(busqueda);
+  }
+
+  const puedeRecordar = yo?.rol === "dueno" || yo?.rol === "encargado";
+
+  function abrirRecordatorio(cliente, mensaje) {
+    setRecordatorioAbiertoId(cliente.id);
+    setTextoRecordatorio(mensaje.texto);
+    setCopiadoId(null);
+  }
+
+  async function copiarMensaje(clienteId) {
+    await navigator.clipboard.writeText(textoRecordatorio);
+    setCopiadoId(clienteId);
   }
 
   return (
@@ -98,6 +123,9 @@ export default function Clientes() {
             {clientes.map((c) => {
               const linea = Number(c.linea_credito);
               const disponible = Number(c.saldo_disponible);
+              const mensaje =
+                puedeRecordar && empresaInfo ? construirMensajeRecordatorio(c, empresaInfo) : null;
+              const recordatorioAbierto = recordatorioAbiertoId === c.id;
               return (
                 <div key={c.id} className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
                   <div className="flex items-start justify-between gap-4">
@@ -131,6 +159,16 @@ export default function Clientes() {
                       </span>
                     </div>
                     <div className="flex gap-4">
+                      {mensaje && (
+                        <button
+                          onClick={() =>
+                            recordatorioAbierto ? setRecordatorioAbiertoId(null) : abrirRecordatorio(c, mensaje)
+                          }
+                          className="text-sm font-semibold text-brand hover:text-navy"
+                        >
+                          {recordatorioAbierto ? "Cerrar" : `Recordar pago (${ETIQUETA_CATEGORIA_RECORDATORIO[mensaje.categoria]})`}
+                        </button>
+                      )}
                       {Number(c.saldo) > 0 && (
                         <Link
                           href={`/clientes/${c.id}/cobro`}
@@ -153,6 +191,42 @@ export default function Clientes() {
                       </Link>
                     </div>
                   </div>
+
+                  {recordatorioAbierto && (
+                    <div className="mt-4 rounded-xl border border-slate-200 p-4">
+                      <p className="mb-2 text-sm font-medium text-slate-500">
+                        Mensaje ({ETIQUETA_CATEGORIA_RECORDATORIO[mensaje.categoria]}) — podés editarlo antes de mandarlo
+                      </p>
+                      <textarea
+                        value={textoRecordatorio}
+                        onChange={(e) => setTextoRecordatorio(e.target.value)}
+                        rows={6}
+                        className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {c.celular ? (
+                          <a
+                            href={linkWhatsapp(c.celular, textoRecordatorio)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700"
+                          >
+                            Enviar por WhatsApp
+                          </a>
+                        ) : (
+                          <p className="text-sm text-slate-400">
+                            Este cliente no tiene celular cargado — usá "Copiar mensaje" para mandarlo por otro medio.
+                          </p>
+                        )}
+                        <button
+                          onClick={() => copiarMensaje(c.id)}
+                          className="rounded-xl bg-slate-100 px-5 py-2 font-semibold text-slate-600 hover:bg-slate-200"
+                        >
+                          {copiadoId === c.id ? "¡Copiado!" : "Copiar mensaje"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
