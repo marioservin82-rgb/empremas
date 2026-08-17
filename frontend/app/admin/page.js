@@ -82,6 +82,9 @@ export default function AdminEmpresas() {
             <p className="text-slate-500">{admin ? `Hola, ${admin.nombre}` : "Empresas de la plataforma"}</p>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/admin/novedades" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              Novedades
+            </Link>
             <Link href="/admin/configuracion" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Configuración de soporte
             </Link>

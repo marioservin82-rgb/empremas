@@ -10,6 +10,8 @@ import {
     registrarPago,
     obtenerConfiguracion,
     actualizarConfiguracion,
+    listarNovedades,
+    crearNovedad,
 } from '../controllers/adminController.js';
 
 const router = Router();
@@ -26,5 +28,7 @@ router.patch('/empresas/:id', actualizarEmpresa);
 router.post('/empresas/:id/pagos', registrarPago);
 router.get('/configuracion', obtenerConfiguracion);
 router.patch('/configuracion', actualizarConfiguracion);
+router.get('/novedades', listarNovedades);
+router.post('/novedades', crearNovedad);
 
 export default router;

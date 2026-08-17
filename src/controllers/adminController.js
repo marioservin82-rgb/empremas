@@ -186,6 +186,40 @@ export async function actualizarConfiguracion(req, res) {
     res.json({ whatsappSoporte: resultado.rows[0].whatsapp_soporte });
 }
 
+const CATEGORIAS_NOVEDAD_VALIDAS = ['nueva_funcion', 'mejora', 'correccion'];
+
+// Novedades que Mario publica para todas las empresas a la vez (sin RLS,
+// contenido global de la plataforma - mismo criterio que empresas/pagos).
+export async function listarNovedades(req, res) {
+    const resultado = await pool.query(
+        `SELECT n.id, n.titulo, n.descripcion, n.categoria, n.creado_en, a.nombre AS admin_nombre
+         FROM novedades n
+         JOIN admins_plataforma a ON a.id = n.admin_id
+         ORDER BY n.creado_en DESC`
+    );
+    res.json(resultado.rows);
+}
+
+export async function crearNovedad(req, res) {
+    const { adminId } = req.admin;
+    const { titulo, descripcion, categoria } = req.body;
+
+    if (!titulo || !titulo.trim() || !descripcion || !descripcion.trim()) {
+        return res.status(400).json({ error: 'Título y descripción son obligatorios' });
+    }
+    if (!CATEGORIAS_NOVEDAD_VALIDAS.includes(categoria)) {
+        return res.status(400).json({ error: 'Categoría inválida' });
+    }
+
+    const resultado = await pool.query(
+        `INSERT INTO novedades (titulo, descripcion, categoria, admin_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, titulo, descripcion, categoria, creado_en`,
+        [titulo.trim(), descripcion.trim(), categoria, adminId]
+    );
+    res.status(201).json(resultado.rows[0]);
+}
+
 // Registra un pago y, de paso, actualiza vence_en al periodo cubierto y
 // reactiva la cuenta si estaba en mora/suspendida - pagar es la señal
 // mas clara de que hay que devolverle el acceso.

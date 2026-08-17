@@ -782,6 +782,41 @@ CREATE TABLE configuracion_plataforma (
     actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Novedades que Mario publica para avisar mejoras/funciones nuevas/
+-- correcciones a todos los negocios de la plataforma a la vez. Contenido
+-- global (no de un tenant) - sin empresa_id, sin RLS, mismo criterio que
+-- el resto de esta seccion.
+CREATE TYPE categoria_novedad AS ENUM ('nueva_funcion', 'mejora', 'correccion');
+
+CREATE TABLE novedades (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    titulo          TEXT NOT NULL,
+    descripcion     TEXT NOT NULL,
+    categoria       categoria_novedad NOT NULL,
+    admin_id        UUID NOT NULL REFERENCES admins_plataforma(id),
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Que novedad ya leyo cada usuario puntual (no cada empresa - una misma
+-- empresa puede tener dueño, encargado y varios cajeros, y que uno la lea
+-- no le tiene que ocultar el aviso a los demas). Lleva empresa_id ademas
+-- de usuario_id para mantener el mismo patron de aislamiento por RLS que
+-- el resto del schema, aunque usuario_id ya sea unico en toda la
+-- plataforma. UNIQUE(novedad_id, usuario_id) habilita el upsert al marcar
+-- como leida.
+CREATE TABLE novedades_leidas (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    novedad_id      UUID NOT NULL REFERENCES novedades(id) ON DELETE CASCADE,
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    leido_en        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (novedad_id, usuario_id)
+);
+CREATE INDEX idx_novedades_leidas_empresa ON novedades_leidas (empresa_id);
+ALTER TABLE novedades_leidas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY novedades_leidas_aislamiento ON novedades_leidas
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- =====================================================================
 -- Facturacion electronica (SIFEN via Sifende). Fase 1: solo Factura
 -- Electronica - Sifende todavia no tiene lista la Nota de Remision.

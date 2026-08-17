@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import CampanaNovedades from "@/components/CampanaNovedades";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -127,6 +128,7 @@ export default function Panel() {
               Mi PIN
             </Link>
           )}
+          <CampanaNovedades />
           <Link href="/ayuda" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             Ayuda
           </Link>
