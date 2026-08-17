@@ -15,22 +15,41 @@ function firmarToken(usuario) {
     );
 }
 
+// El dueno elige registrarse con email O telefono (no los dos
+// obligatorios) - muchos dueños de comercio revisan poco el email pero
+// usan WhatsApp a diario. Se normaliza el telefono a solo digitos (mismo
+// criterio que linkWhatsapp en el frontend) para que el login de despues
+// lo encuentre sin importar como lo haya escrito ("0981 234 567" vs
+// "0981234567").
+function normalizarTelefono(valor) {
+    const digitos = valor ? valor.replace(/\D/g, '') : '';
+    return digitos || null;
+}
+
 // Da de alta una empresa nueva junto con su primer usuario (el dueño).
 // Es el único lugar donde se crea una empresa sin tener ya una sesión.
 export async function registrarEmpresa(req, res) {
-    const { razonSocial, ruc, nombreDueno, email, password } = req.body;
+    const { razonSocial, ruc, nombreDueno, email, telefono, password } = req.body;
 
-    if (!razonSocial || !ruc || !nombreDueno || !email || !password) {
+    if (!razonSocial || !ruc || !nombreDueno || !password) {
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
+    const telefonoNormalizado = normalizarTelefono(telefono);
+    if (!email && !telefonoNormalizado) {
+        return res.status(400).json({ error: 'Indicá un email o un teléfono para registrarte' });
     }
 
     const cliente = await pool.connect();
     try {
         await cliente.query('BEGIN');
 
+        // El mismo dato que se usa para registrarse (telefono o email) se
+        // guarda tambien en la empresa - asi el panel de super-admin ya lo
+        // ve sin que el dueño tenga que volver a cargarlo en Perfil de
+        // Empresa.
         const empresa = await cliente.query(
-            `INSERT INTO empresas (razon_social, ruc) VALUES ($1, $2) RETURNING id`,
-            [razonSocial, ruc]
+            `INSERT INTO empresas (razon_social, ruc, telefono, email) VALUES ($1, $2, $3, $4) RETURNING id`,
+            [razonSocial, ruc, telefonoNormalizado, email || null]
         );
         const empresaId = empresa.rows[0].id;
 
@@ -49,9 +68,9 @@ export async function registrarEmpresa(req, res) {
 
         const passwordHash = await bcrypt.hash(password, 10);
         const usuario = await cliente.query(
-            `INSERT INTO usuarios (empresa_id, sucursal_id, nombre, email, password_hash, rol)
-             VALUES ($1, $2, $3, $4, $5, 'dueno') RETURNING id, empresa_id, sucursal_id, rol`,
-            [empresaId, sucursalId, nombreDueno, email, passwordHash]
+            `INSERT INTO usuarios (empresa_id, sucursal_id, nombre, email, telefono, password_hash, rol)
+             VALUES ($1, $2, $3, $4, $5, $6, 'dueno') RETURNING id, empresa_id, sucursal_id, rol`,
+            [empresaId, sucursalId, nombreDueno, email || null, telefonoNormalizado, passwordHash]
         );
 
         // Toda venta necesita un comprador; este es el que se usa cuando no
@@ -68,7 +87,7 @@ export async function registrarEmpresa(req, res) {
     } catch (error) {
         await cliente.query('ROLLBACK');
         if (error.code === '23505') {
-            return res.status(409).json({ error: 'Ya existe una empresa o usuario con ese RUC/email' });
+            return res.status(409).json({ error: 'Ya existe una empresa o usuario con ese RUC/email/teléfono' });
         }
         throw error;
     } finally {
@@ -77,22 +96,26 @@ export async function registrarEmpresa(req, res) {
 }
 
 export async function login(req, res) {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    // identificador: email o telefono, segun con que se haya registrado
+    // quien inicia sesion - se acepta cualquiera de los dos sin que el
+    // usuario tenga que saber cual eligio en su momento.
+    const { identificador, password } = req.body;
+    if (!identificador || !password) {
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
+    const identificadorTelefono = normalizarTelefono(identificador);
 
     const resultado = await pool.query(
         `SELECT u.id, u.empresa_id, u.sucursal_id, u.rol, u.password_hash, u.activo, e.estado AS empresa_estado
          FROM usuarios u
          JOIN empresas e ON e.id = u.empresa_id
-         WHERE u.email = $1`,
-        [email]
+         WHERE u.email = $1 OR u.telefono = $2`,
+        [identificador, identificadorTelefono]
     );
     const usuario = resultado.rows[0];
 
     if (!usuario || !usuario.activo || !(await bcrypt.compare(password, usuario.password_hash))) {
-        return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+        return res.status(401).json({ error: 'Email/teléfono o contraseña incorrectos' });
     }
     if (usuario.empresa_estado === 'suspendida') {
         return res.status(401).json({ error: 'Tu cuenta está suspendida — contactate con EMPREMAS para regularizar tu pago' });

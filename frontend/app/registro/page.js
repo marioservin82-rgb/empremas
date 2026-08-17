@@ -11,8 +11,10 @@ export default function Registro() {
     ruc: "",
     nombreDueno: "",
     email: "",
+    telefono: "",
     password: "",
   });
+  const [metodoContacto, setMetodoContacto] = useState("telefono");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -28,7 +30,14 @@ export default function Registro() {
       const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/auth/registro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          razonSocial: form.razonSocial,
+          ruc: form.ruc,
+          nombreDueno: form.nombreDueno,
+          password: form.password,
+          email: metodoContacto === "email" ? form.email : undefined,
+          telefono: metodoContacto === "telefono" ? form.telefono : undefined,
+        }),
       });
       const datos = await resp.json();
       if (!resp.ok) throw new Error(datos.error || "No se pudo registrar la empresa");
@@ -64,8 +73,53 @@ export default function Registro() {
           <label className={etiqueta}>Tu nombre</label>
           <input required value={form.nombreDueno} onChange={actualizar("nombreDueno")} className={campo} placeholder="Nombre y apellido" />
 
-          <label className={etiqueta}>Email</label>
-          <input type="email" required value={form.email} onChange={actualizar("email")} className={campo} placeholder="tu@email.com" />
+          <p className={etiqueta}>Registrarme con</p>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMetodoContacto("telefono")}
+              className={`rounded-xl py-2 text-sm font-semibold transition ${
+                metodoContacto === "telefono" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Teléfono
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetodoContacto("email")}
+              className={`rounded-xl py-2 text-sm font-semibold transition ${
+                metodoContacto === "email" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Email
+            </button>
+          </div>
+
+          {metodoContacto === "telefono" ? (
+            <>
+              <label className={etiqueta}>Teléfono</label>
+              <input
+                type="tel"
+                required
+                value={form.telefono}
+                onChange={actualizar("telefono")}
+                className={campo}
+                placeholder="0981 234 567"
+              />
+            </>
+          ) : (
+            <>
+              <label className={etiqueta}>Email</label>
+              <input
+                type="email"
+                required
+                value={form.email}
+                onChange={actualizar("email")}
+                className={campo}
+                placeholder="tu@email.com"
+              />
+            </>
+          )}
 
           <label className={etiqueta}>Contraseña</label>
           <input type="password" required value={form.password} onChange={actualizar("password")} className={campo} placeholder="••••••••" />

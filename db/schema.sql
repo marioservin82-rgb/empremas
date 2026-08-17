@@ -117,7 +117,12 @@ CREATE TABLE usuarios (
     empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     sucursal_id     UUID REFERENCES sucursales(id) ON DELETE SET NULL,
     nombre          TEXT NOT NULL,
-    email           TEXT NOT NULL UNIQUE,
+    -- El dueno se registra con email O telefono (no los dos obligatorios) -
+    -- por eso ninguno de los dos es NOT NULL por si solo, pero el CHECK de
+    -- abajo exige que haya al menos uno. UNIQUE permite multiples NULL sin
+    -- pisarse (Postgres no considera NULL = NULL para UNIQUE).
+    email           TEXT UNIQUE,
+    telefono        TEXT UNIQUE,
     password_hash   TEXT NOT NULL,
     rol             rol_usuario NOT NULL,
     activo          BOOLEAN NOT NULL DEFAULT true,
@@ -127,7 +132,8 @@ CREATE TABLE usuarios (
     -- persona lo configure. Hasheado igual que password_hash, nunca en
     -- texto plano.
     pin_hash        TEXT,
-    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT usuarios_email_o_telefono CHECK (email IS NOT NULL OR telefono IS NOT NULL)
 );
 
 CREATE INDEX idx_usuarios_empresa ON usuarios (empresa_id);

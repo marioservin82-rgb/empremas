@@ -6,7 +6,7 @@ import Link from "next/link";
 
 export default function Login() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -19,7 +19,7 @@ export default function Login() {
       const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identificador, password }),
       });
       const datos = await resp.json();
       if (!resp.ok) throw new Error(datos.error || "No se pudo iniciar sesión");
@@ -45,17 +45,17 @@ export default function Login() {
           className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200"
         >
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Email
+            Email o teléfono
           </label>
           <input
-            type="email"
-            name="email"
+            type="text"
+            name="identificador"
             autoComplete="username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={identificador}
+            onChange={(e) => setIdentificador(e.target.value)}
             className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-            placeholder="tu@email.com"
+            placeholder="tu@email.com o tu teléfono"
           />
 
           <label className="mb-1 block text-sm font-medium text-slate-700">

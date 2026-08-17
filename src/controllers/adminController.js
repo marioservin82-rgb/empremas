@@ -17,6 +17,33 @@ async function contarSucursalesActivas(empresaId) {
     return Number(resultado.rows[0].cantidad);
 }
 
+async function contarProductosActivos(empresaId) {
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT COUNT(*) AS cantidad FROM productos WHERE activo = true`,
+        []
+    );
+    return Number(resultado.rows[0].cantidad);
+}
+
+async function fechaUltimaVenta(empresaId) {
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT MAX(creado_en) AS fecha FROM ventas WHERE anulada = false`,
+        []
+    );
+    return resultado.rows[0].fecha;
+}
+
+// Embudo simple para priorizar a quien contactar: sin productos cargados
+// (recien se registro, no hizo nada mas) -> con productos pero sin vender
+// todavia -> ya vendio al menos una vez.
+function calcularEstadoNegocio(productosActivos, ultimaVenta) {
+    if (productosActivos === 0) return 'registro_incompleto';
+    if (!ultimaVenta) return 'sin_ventas';
+    return 'activo';
+}
+
 export async function cambiarPassword(req, res) {
     const { adminId } = req.admin;
     const { passwordActual, passwordNueva } = req.body;
@@ -48,15 +75,26 @@ export async function yo(req, res) {
 export async function listarEmpresas(req, res) {
     const resultado = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
+                e.telefono, e.creado_en,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          ORDER BY e.razon_social ASC`
     );
     const empresas = await Promise.all(
-        resultado.rows.map(async (empresa) => ({
-            ...empresa,
-            sucursales_activas: await contarSucursalesActivas(empresa.id),
-        }))
+        resultado.rows.map(async (empresa) => {
+            const [sucursalesActivas, productosActivos, ultimaVenta] = await Promise.all([
+                contarSucursalesActivas(empresa.id),
+                contarProductosActivos(empresa.id),
+                fechaUltimaVenta(empresa.id),
+            ]);
+            return {
+                ...empresa,
+                sucursales_activas: sucursalesActivas,
+                productos_activos: productosActivos,
+                ultima_venta: ultimaVenta,
+                estado_negocio: calcularEstadoNegocio(productosActivos, ultimaVenta),
+            };
+        })
     );
     res.json(empresas);
 }
