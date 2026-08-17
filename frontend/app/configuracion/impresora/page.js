@@ -165,11 +165,30 @@ export default function ConfiguracionImpresora() {
 
           {agenteEstado === "verificando" && <p className="text-sm text-slate-500">Buscando el agente...</p>}
 
-          {agenteEstado === "no_disponible" && (
+          {agenteEstado === "no_disponible" && empresa?.impresora_agente_nombre && (
+            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="mb-2 font-semibold">El agente no está corriendo ahora mismo.</p>
+              <p className="mb-3">
+                Ya lo tenés instalado (impresora guardada: <strong>{empresa.impresora_agente_nombre}</strong>) — solo
+                hace falta abrirlo. Buscalo en tu compu (el ícono de "EMPREMAS-Agente-Impresion") y abrilo; queda
+                corriendo en segundo plano hasta que apagués la compu. Si lo configuraste para que arranque solo con
+                Windows, dale un momento y volvé a cargar esta página.
+              </p>
+              <a
+                href="/agente/EMPREMAS-Agente-Impresion.exe"
+                className="text-xs font-medium text-amber-700 underline hover:text-amber-900"
+              >
+                ¿No lo encontrás? Descargalo de nuevo acá
+              </a>
+            </div>
+          )}
+
+          {agenteEstado === "no_disponible" && !empresa?.impresora_agente_nombre && (
             <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <p className="mb-2 font-semibold">No se detectó el agente instalado en esta compu.</p>
               <p className="mb-3">
-                Descargalo, abrilo una vez (queda corriendo en segundo plano) y volvé a cargar esta página.
+                Descargalo, abrilo una vez (queda corriendo en segundo plano — y a partir de esa primera vez arranca
+                solo cada vez que prendés la compu, no hace falta abrirlo de nuevo) y volvé a cargar esta página.
               </p>
               <a
                 href="/agente/EMPREMAS-Agente-Impresion.exe"

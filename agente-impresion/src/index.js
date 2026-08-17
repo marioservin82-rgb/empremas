@@ -5,6 +5,9 @@ const express = require('express');
 const cors = require('cors');
 const { armarBuffer } = require('./escpos.js');
 const { listarImpresoras, enviarRaw } = require('./impresoraWindows.js');
+const { asegurarInicioAutomatico } = require('./autoInicio.js');
+
+asegurarInicioAutomatico();
 
 const app = express();
 
