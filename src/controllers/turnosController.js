@@ -38,13 +38,20 @@ async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
         `SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_proveedor WHERE turno_id = $1 AND forma_pago = 'efectivo'`,
         [turnoId]
     );
+    // Retiros ya autorizados y documentados - se restan aca para que no
+    // aparezcan como una "diferencia" fantasma al cerrar caja.
+    const retiros = await cliente.query(
+        `SELECT COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE turno_id = $1`,
+        [turnoId]
+    );
 
     return (
         Number(montoInicial) +
         Number(efectivoVentas.rows[0].total) -
         Number(vueltoVentas.rows[0].total) +
         Number(efectivoCobros.rows[0].total) -
-        Number(efectivoPagosProveedor.rows[0].total)
+        Number(efectivoPagosProveedor.rows[0].total) -
+        Number(retiros.rows[0].total)
     );
 }
 
@@ -177,7 +184,8 @@ export async function listarTurnos(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT t.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+        `SELECT t.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre,
+                COALESCE((SELECT SUM(monto) FROM retiros_caja WHERE turno_id = t.id), 0) AS total_retiros
          FROM turnos t
          JOIN usuarios u ON u.id = t.usuario_id
          LEFT JOIN sucursales s ON s.id = t.sucursal_id

@@ -3,6 +3,7 @@ import { autenticar } from '../middleware/autenticar.js';
 import { permitirRolesOPermiso } from '../middleware/permitirRoles.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { obtenerTurnoActual, abrirTurno, cerrarTurno, listarTurnos } from '../controllers/turnosController.js';
+import { crearRetiro, listarRetirosDeTurno } from '../controllers/retirosCajaController.js';
 
 const router = Router();
 
@@ -15,5 +16,10 @@ router.get('/actual', asyncHandler(obtenerTurnoActual));
 router.get('/', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(listarTurnos));
 router.post('/abrir', asyncHandler(abrirTurno));
 router.post('/:id/cerrar', asyncHandler(cerrarTurno));
+// Sin permitirRoles a nivel ruta a proposito: el filtro dueno/encargado
+// directo vs. cajero-con-PIN vive adentro del controller, mismo patron
+// que /ventas/:id/anular.
+router.post('/:id/retiro', asyncHandler(crearRetiro));
+router.get('/:id/retiros', asyncHandler(listarRetirosDeTurno));
 
 export default router;

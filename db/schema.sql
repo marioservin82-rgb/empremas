@@ -209,6 +209,37 @@ ALTER TABLE turnos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY turnos_aislamiento ON turnos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
+-- Retiro de efectivo de caja: cualquier salida de plata del turno que no
+-- sea una venta ni un gasto cargado por otro medio (pago a proveedor en
+-- efectivo puntual, gasto puntual, retiro personal del dueno, envio con
+-- un tercero, u otro motivo). usuario_id es quien lo registra (puede ser
+-- el cajero); autorizado_por es quien autorizo de verdad - el mismo si ya
+-- es dueno/encargado, o el supervisor cuyo PIN coincidio si lo registro
+-- un cajero (mismo patron que ventas.anulada_por).
+CREATE TYPE motivo_retiro AS ENUM ('pago_proveedor', 'gasto_puntual', 'retiro_personal', 'envio_tercero', 'otro');
+
+CREATE TABLE retiros_caja (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    turno_id        UUID NOT NULL REFERENCES turnos(id),
+    sucursal_id     UUID REFERENCES sucursales(id),
+    monto           NUMERIC(14,2) NOT NULL,
+    motivo          motivo_retiro NOT NULL,
+    motivo_detalle  TEXT,
+    persona_retira  TEXT NOT NULL,
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    autorizado_por  UUID NOT NULL REFERENCES usuarios(id),
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_retiros_caja_empresa ON retiros_caja (empresa_id);
+CREATE INDEX idx_retiros_caja_turno ON retiros_caja (empresa_id, turno_id);
+
+ALTER TABLE retiros_caja ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY retiros_caja_aislamiento ON retiros_caja
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- Catalogo de productos + stock (punto 2 del MVP)
 CREATE TABLE productos (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

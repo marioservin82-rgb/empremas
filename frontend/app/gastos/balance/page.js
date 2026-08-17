@@ -187,6 +187,12 @@ export default function BalanceMensual() {
                   <span className="text-slate-500">Merma (a costo)</span>
                   <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.merma)}</span>
                 </div>
+                {balance.retirosOperativos > 0 && (
+                  <div className="flex justify-between py-1 text-sm">
+                    <span className="text-slate-500">Retiros de caja (pago a proveedor / gasto puntual)</span>
+                    <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.retirosOperativos)}</span>
+                  </div>
+                )}
 
                 <div className="my-2 border-t border-slate-200" />
                 <div className="flex justify-between py-1 font-bold">
@@ -197,7 +203,7 @@ export default function BalanceMensual() {
                 </div>
               </div>
 
-              {(balance.inversionEquipos > 0 || balance.prestamos.length > 0) && (
+              {(balance.inversionEquipos > 0 || balance.retirosPersonales > 0 || balance.prestamos.length > 0) && (
                 <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-5">
                   <h2 className="mb-3 font-bold text-slate-600">
                     Aparte — no afecta el resultado operativo
@@ -207,6 +213,13 @@ export default function BalanceMensual() {
                     <div className="flex justify-between py-1 text-sm">
                       <span className="text-slate-500">Inversión en equipos en el período</span>
                       <span className="font-semibold text-slate-700">Gs {formatoGs.format(balance.inversionEquipos)}</span>
+                    </div>
+                  )}
+
+                  {balance.retirosPersonales > 0 && (
+                    <div className="flex justify-between py-1 text-sm">
+                      <span className="text-slate-500">Retiros del dueño en el período</span>
+                      <span className="font-semibold text-slate-700">Gs {formatoGs.format(balance.retirosPersonales)}</span>
                     </div>
                   )}
 
@@ -230,6 +243,20 @@ export default function BalanceMensual() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {balance.retirosARevisar > 0 && (
+                <div className="mt-4 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 p-5">
+                  <h2 className="mb-1 font-bold text-amber-800">A revisar</h2>
+                  <p className="mb-3 text-xs text-amber-700">
+                    Retiros de caja por "Envío con un tercero" u "Otro" — no se sabe si corresponden a un gasto del
+                    negocio, así que no se contaron en el resultado operativo. Revisalos a mano.
+                  </p>
+                  <div className="flex justify-between py-1 text-sm">
+                    <span className="text-amber-700">Retiros sin clasificar</span>
+                    <span className="font-semibold text-amber-800">Gs {formatoGs.format(balance.retirosARevisar)}</span>
+                  </div>
                 </div>
               )}
             </>

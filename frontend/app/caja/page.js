@@ -4,8 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import ComprobanteRetiro from "./ComprobanteRetiro";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
+
+const MOTIVOS_RETIRO = [
+  { valor: "pago_proveedor", etiqueta: "Pago a proveedor" },
+  { valor: "gasto_puntual", etiqueta: "Gasto puntual" },
+  { valor: "retiro_personal", etiqueta: "Retiro personal del dueño" },
+  { valor: "envio_tercero", etiqueta: "Envío con un tercero" },
+  { valor: "otro", etiqueta: "Otro" },
+];
 
 function formatoFechaHora(fecha) {
   const d = new Date(fecha);
@@ -23,12 +32,33 @@ export default function Caja() {
   const [enviando, setEnviando] = useState(false);
   const [puedeVerHistorial, setPuedeVerHistorial] = useState(false);
 
+  const [empresaInfo, setEmpresaInfo] = useState(null);
+  const [yo, setYo] = useState(null);
+  const [retiros, setRetiros] = useState([]);
+  const [mostrarFormRetiro, setMostrarFormRetiro] = useState(false);
+  const [montoRetiro, setMontoRetiro] = useState("");
+  const [motivoRetiro, setMotivoRetiro] = useState("");
+  const [detalleRetiro, setDetalleRetiro] = useState("");
+  const [personaRetira, setPersonaRetira] = useState("");
+  const [pinRetiro, setPinRetiro] = useState("");
+  const [enviandoRetiro, setEnviandoRetiro] = useState(false);
+  const [errorRetiro, setErrorRetiro] = useState("");
+  const [retiroCreado, setRetiroCreado] = useState(null);
+
   async function cargarTurno() {
     try {
-      setTurno(await apiFetch("/api/turnos/actual"));
+      const actual = await apiFetch("/api/turnos/actual");
+      setTurno(actual);
+      if (actual) cargarRetiros(actual.id);
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  function cargarRetiros(turnoId) {
+    apiFetch(`/api/turnos/${turnoId}/retiros`)
+      .then(setRetiros)
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -37,6 +67,8 @@ export default function Caja() {
       return;
     }
     cargarTurno();
+    apiFetch("/api/empresas/actual").then(setEmpresaInfo).catch(() => {});
+    apiFetch("/api/usuarios/yo").then(setYo).catch(() => {});
     // El historial es solo dueño/encargado (el backend devuelve 403 para
     // cajero); si no da 403, mostramos el link.
     apiFetch("/api/turnos")
@@ -45,6 +77,44 @@ export default function Caja() {
     setListo(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  function abrirFormRetiro() {
+    setMostrarFormRetiro(true);
+    setMontoRetiro("");
+    setMotivoRetiro("");
+    setDetalleRetiro("");
+    setPersonaRetira("");
+    setPinRetiro("");
+    setErrorRetiro("");
+    setRetiroCreado(null);
+  }
+
+  async function crearRetiro(e) {
+    e.preventDefault();
+    setErrorRetiro("");
+    setEnviandoRetiro(true);
+    try {
+      const nuevo = await apiFetch(`/api/turnos/${turno.id}/retiro`, {
+        method: "POST",
+        body: JSON.stringify({
+          monto: Number(montoRetiro),
+          motivo: motivoRetiro,
+          motivoDetalle: detalleRetiro || undefined,
+          personaRetira,
+          pin: yo?.rol === "cajero" ? pinRetiro : undefined,
+        }),
+      });
+      setRetiroCreado(nuevo);
+      setMostrarFormRetiro(false);
+      cargarRetiros(turno.id);
+    } catch (err) {
+      setErrorRetiro(err.message);
+    } finally {
+      setEnviandoRetiro(false);
+    }
+  }
+
+  const totalRetirado = retiros.reduce((acumulado, r) => acumulado + Number(r.monto), 0);
 
   async function abrirCaja() {
     setError("");
@@ -156,13 +226,142 @@ export default function Caja() {
               {enviando ? "Abriendo..." : "Abrir caja"}
             </button>
           </div>
+        ) : retiroCreado ? (
+          <div className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+            <p className="mb-2 text-center text-lg font-bold text-slate-800">Retiro registrado</p>
+            {empresaInfo && <ComprobanteRetiro empresa={empresaInfo} retiro={retiroCreado} onNuevoRetiro={abrirFormRetiro} />}
+            <button
+              onClick={() => setRetiroCreado(null)}
+              className="mt-2 w-full text-center text-sm font-medium text-slate-500 hover:text-slate-700"
+            >
+              Volver a la caja
+            </button>
+          </div>
+        ) : mostrarFormRetiro ? (
+          <form onSubmit={crearRetiro} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+            <p className="mb-4 font-semibold text-slate-700">Retiro de efectivo</p>
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Monto (Gs)</label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={montoRetiro}
+              onChange={(e) => setMontoRetiro(e.target.value)}
+              placeholder="0"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            />
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Motivo</label>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {MOTIVOS_RETIRO.map((m) => (
+                <button
+                  key={m.valor}
+                  type="button"
+                  onClick={() => setMotivoRetiro(m.valor)}
+                  className={`rounded-xl py-2 text-sm font-semibold transition ${
+                    motivoRetiro === m.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {m.etiqueta}
+                </button>
+              ))}
+            </div>
+
+            {motivoRetiro === "otro" && (
+              <>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Especificá el motivo</label>
+                <input
+                  required
+                  value={detalleRetiro}
+                  onChange={(e) => setDetalleRetiro(e.target.value)}
+                  className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                />
+              </>
+            )}
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Quién retira o recibe el efectivo</label>
+            <input
+              required
+              value={personaRetira}
+              onChange={(e) => setPersonaRetira(e.target.value)}
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            />
+
+            {yo?.rol === "cajero" && (
+              <>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  PIN de un dueño o encargado (para autorizar)
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  required
+                  value={pinRetiro}
+                  onChange={(e) => setPinRetiro(e.target.value)}
+                  className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                />
+              </>
+            )}
+
+            {errorRetiro && (
+              <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorRetiro}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarFormRetiro(false)}
+                className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={enviandoRetiro || !motivoRetiro}
+                className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
+              >
+                {enviandoRetiro ? "Registrando..." : "Registrar retiro"}
+              </button>
+            </div>
+          </form>
         ) : (
           <div className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
             <p className="mb-1 text-sm text-slate-400">Turno abierto desde</p>
             <p className="mb-4 font-semibold text-slate-800">{formatoFechaHora(turno.abierto_en)}</p>
-            <p className="mb-6 text-sm text-slate-500">
+            <p className="mb-4 text-sm text-slate-500">
               Monto inicial: <span className="font-semibold text-slate-800">Gs {formatoGs.format(turno.monto_inicial)}</span>
             </p>
+
+            <div className="mb-6 rounded-xl border border-slate-200 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-500">Retiros de efectivo este turno</p>
+                <button
+                  onClick={abrirFormRetiro}
+                  className="text-sm font-semibold text-brand hover:text-navy"
+                >
+                  + Retiro de efectivo
+                </button>
+              </div>
+              {retiros.length === 0 ? (
+                <p className="text-sm text-slate-400">Sin retiros registrados.</p>
+              ) : (
+                <>
+                  <div className="flex flex-col divide-y divide-slate-100">
+                    {retiros.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between py-2 text-sm">
+                        <span className="text-slate-500">{r.persona_retira}</span>
+                        <span className="font-semibold text-slate-700">Gs {formatoGs.format(r.monto)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-sm font-bold">
+                    <span>Total retirado</span>
+                    <span>Gs {formatoGs.format(totalRetirado)}</span>
+                  </div>
+                </>
+              )}
+            </div>
 
             <label className="mb-1 block text-sm font-medium text-slate-700">
               Contá el efectivo de la caja y poné cuánto hay (Gs)

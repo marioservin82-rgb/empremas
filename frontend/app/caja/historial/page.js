@@ -72,6 +72,12 @@ export default function HistorialTurnos() {
                     <p className="text-xs text-slate-400">Inicial</p>
                     <p className="font-semibold text-slate-700">Gs {formatoGs.format(t.monto_inicial)}</p>
                   </div>
+                  {Number(t.total_retiros) > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-400">Retiros</p>
+                      <p className="font-semibold text-slate-700">− Gs {formatoGs.format(t.total_retiros)}</p>
+                    </div>
+                  )}
                   {t.estado === "cerrado" && (
                     <>
                       <div>

@@ -346,6 +346,11 @@ export async function obtenerBalanceMensual(req, res) {
         `SELECT * FROM prestamos WHERE activo = true ORDER BY creado_en DESC`,
         []
     );
+    const retirosPorMotivo = await consultaDeEmpresa(
+        empresaId,
+        `SELECT motivo, COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE ${whereFecha('creado_en')} GROUP BY motivo`,
+        [desde, hasta]
+    );
 
     const desglose = Object.fromEntries(gastosPorCategoria.rows.map((f) => [f.categoria, Number(f.total)]));
     const inversionEquipos = desglose.equipos_inversion || 0;
@@ -353,11 +358,23 @@ export async function obtenerBalanceMensual(req, res) {
         .filter((f) => f.categoria !== 'equipos_inversion')
         .reduce((acumulado, f) => acumulado + Number(f.total), 0);
 
+    // Retiros de caja: segun el motivo se cuentan como gasto operativo
+    // (pago a proveedor / gasto puntual), quedan aparte sin afectar el
+    // resultado (retiro personal del dueno, mismo trato que prestamos e
+    // inversion en equipos), o quedan marcados para revisar a mano (envio
+    // con tercero / otro) - no se sabe de antemano si son gasto del
+    // negocio o no, asi que no se cuentan solos en ningun lado.
+    const desgloseRetiros = Object.fromEntries(retirosPorMotivo.rows.map((f) => [f.motivo, Number(f.total)]));
+    const retirosOperativos = (desgloseRetiros.pago_proveedor || 0) + (desgloseRetiros.gasto_puntual || 0);
+    const retirosPersonales = desgloseRetiros.retiro_personal || 0;
+    const retirosARevisar = (desgloseRetiros.envio_tercero || 0) + (desgloseRetiros.otro || 0);
+
     const ingresos = Number(ventasContado.rows[0].total) + Number(cobrosFiado.rows[0].total);
     const montoMercaderia = Number(mercaderia.rows[0].total);
     const montoConsumoInterno = Number(consumoInterno.rows[0].total);
     const montoMerma = Number(merma.rows[0].total);
-    const resultadoOperativo = ingresos - gastosOperativos - montoMercaderia - montoConsumoInterno - montoMerma;
+    const resultadoOperativo =
+        ingresos - gastosOperativos - montoMercaderia - montoConsumoInterno - montoMerma - retirosOperativos;
 
     res.json({
         desde,
@@ -370,8 +387,11 @@ export async function obtenerBalanceMensual(req, res) {
         mercaderia: montoMercaderia,
         consumoInterno: montoConsumoInterno,
         merma: montoMerma,
+        retirosOperativos,
         resultadoOperativo,
         inversionEquipos,
         prestamos: prestamos.rows,
+        retirosPersonales,
+        retirosARevisar,
     });
 }
