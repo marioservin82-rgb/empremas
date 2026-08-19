@@ -137,6 +137,12 @@ export default function ExtractoProveedor() {
           </div>
           <div className="flex gap-2">
             <Link
+              href={`/proveedores/${id}/pedido`}
+              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
+            >
+              Pedido inteligente
+            </Link>
+            <Link
               href={`/proveedores/${id}/ajustar-saldo`}
               className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
             >

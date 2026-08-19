@@ -232,6 +232,96 @@ export async function extractoProveedor(req, res) {
     });
 }
 
+// Lista de pedido inteligente: que productos pedirle a este proveedor,
+// priorizando lo que menos stock tiene, con el punto de pedido (stock_
+// minimo, ya existia en productos pero no lo usaba ninguna pantalla) y
+// comparando el ultimo precio pagado a este proveedor contra el de
+// cualquier otro proveedor que tambien haya vendido el mismo producto
+// alguna vez. No hay tabla producto-proveedor: se arma todo a partir del
+// historial de compras (compra_items + compras).
+export async function listaPedido(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const proveedor = await consultaDeEmpresa(empresaId, `SELECT id, nombre FROM proveedores WHERE id = $1`, [id]);
+    if (!proveedor.rows[0]) {
+        return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const productosComprados = await consultaDeEmpresa(
+        empresaId,
+        `SELECT DISTINCT ci.producto_id
+         FROM compra_items ci
+         JOIN compras c ON c.id = ci.compra_id
+         WHERE c.proveedor_id = $1`,
+        [id]
+    );
+    const productoIds = productosComprados.rows.map((r) => r.producto_id);
+    if (productoIds.length === 0) {
+        return res.json({ proveedor: proveedor.rows[0], productos: [] });
+    }
+
+    // Stock sumado de todas las sucursales, mismo criterio que
+    // inventarioValorizado: el punto de pedido tampoco es por sucursal.
+    const productos = await consultaDeEmpresa(
+        empresaId,
+        `SELECT p.id, p.nombre, p.stock_minimo, COALESCE(SUM(ps.stock), 0) AS stock
+         FROM productos p
+         LEFT JOIN producto_stock ps ON ps.producto_id = p.id
+         WHERE p.activo = true AND p.id = ANY($1::uuid[])
+         GROUP BY p.id, p.nombre, p.stock_minimo`,
+        [productoIds]
+    );
+
+    // Ultimo precio pagado por producto, para CADA proveedor que alguna
+    // vez lo vendio (no solo el proveedor seleccionado) - de ahi sale la
+    // comparacion.
+    const precios = await consultaDeEmpresa(
+        empresaId,
+        `SELECT DISTINCT ON (ci.producto_id, c.proveedor_id)
+                ci.producto_id, c.proveedor_id, pr.nombre AS proveedor_nombre, ci.precio_unitario
+         FROM compra_items ci
+         JOIN compras c ON c.id = ci.compra_id
+         JOIN proveedores pr ON pr.id = c.proveedor_id
+         WHERE ci.producto_id = ANY($1::uuid[]) AND pr.activo = true
+         ORDER BY ci.producto_id, c.proveedor_id, c.fecha_compra DESC, c.creado_en DESC`,
+        [productoIds]
+    );
+
+    const preciosPorProducto = new Map();
+    for (const fila of precios.rows) {
+        if (!preciosPorProducto.has(fila.producto_id)) {
+            preciosPorProducto.set(fila.producto_id, []);
+        }
+        preciosPorProducto.get(fila.producto_id).push({
+            proveedorId: fila.proveedor_id,
+            proveedorNombre: fila.proveedor_nombre,
+            precio: Number(fila.precio_unitario),
+            esEsteProveedor: fila.proveedor_id === id,
+        });
+    }
+
+    const lista = productos.rows.map((p) => {
+        const stock = Number(p.stock);
+        const stockMinimo = p.stock_minimo != null ? Number(p.stock_minimo) : null;
+        const preciosProducto = (preciosPorProducto.get(p.id) || []).sort((a, b) => a.precio - b.precio);
+        const precioMasBarato = preciosProducto.length > 0 ? preciosProducto[0].precio : null;
+
+        return {
+            id: p.id,
+            nombre: p.nombre,
+            stock,
+            stockMinimo,
+            bajoPuntoPedido: stockMinimo != null && stock < stockMinimo,
+            precios: preciosProducto.map((precio) => ({ ...precio, masBarato: precio.precio === precioMasBarato })),
+        };
+    });
+
+    lista.sort((a, b) => a.stock - b.stock);
+
+    res.json({ proveedor: proveedor.rows[0], productos: lista });
+}
+
 // Pago a proveedor, admite pagos parciales (no hace falta cancelar toda
 // la deuda de una vez).
 export async function pagarProveedor(req, res) {
