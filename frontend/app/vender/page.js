@@ -268,9 +268,28 @@ export default function Vender() {
     }
   }
 
-  function buscarProducto(e) {
+  // Al tipear y tocar "Buscar" (o al leer un código con el lector, que
+  // manda el mismo Enter) - si lo escrito matchea el código de barras
+  // exacto de un solo producto, es una lectura de código, no una
+  // búsqueda por nombre: se agrega directo al carrito (sumando si ya
+  // estaba, vía agregarAlCarrito) sin exigir un clic extra por cada
+  // unidad leída. Si hay varios resultados o ninguno matchea exacto,
+  // sigue mostrando la lista para elegir a mano, como antes.
+  async function buscarProducto(e) {
     e.preventDefault();
-    ejecutarBusquedaProducto(busquedaProducto);
+    const q = busquedaProducto;
+    if (!q) return;
+    try {
+      const resultados = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
+      const porCodigoExacto = resultados.filter((p) => p.codigo_barras === q);
+      if (porCodigoExacto.length === 1) {
+        agregarAlCarrito(porCodigoExacto[0]);
+      } else {
+        setResultadosProducto(resultados);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   const busquedaProductoDebounced = useDebounced(busquedaProducto);
