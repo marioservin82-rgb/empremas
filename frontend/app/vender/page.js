@@ -365,7 +365,12 @@ export default function Vender() {
   const puedeAgregarProductos = tipoPago !== "credito" || cliente;
   const puedeConfirmar = carrito.length > 0 && (tipoPago === "credito" || (pagos.length > 0 && restante <= 0));
 
-  async function confirmarVenta() {
+  // pagosParaEnviar por parametro (en vez de leer el estado "pagos"
+  // directo) porque el cierre rapido (Ctrl+Enter) agrega el pago en
+  // efectivo y confirma en el mismo gesto - si confirmarVenta leyera el
+  // estado, todavia veria los pagos de antes de ese agregado (setState
+  // es asincrono, no se refleja en el mismo tick).
+  async function confirmarVenta(pagosParaEnviar = pagos) {
     setError("");
     setEnviando(true);
     try {
@@ -376,7 +381,7 @@ export default function Vender() {
           tipoComprobante,
           presupuestoId,
           clienteId: cliente?.id,
-          pagos,
+          pagos: pagosParaEnviar,
           items: carrito.map((i) => ({
             productoId: i.productoId,
             cantidad: i.cantidad,
@@ -405,6 +410,32 @@ export default function Vender() {
       setEnviando(false);
     }
   }
+
+  // Atajo Ctrl+Enter: "cobro rápido" para el caso más común (venta de
+  // contado/mayorista pagada toda en efectivo) - completa el pago en
+  // efectivo por lo que falte y confirma, todo en un solo gesto de
+  // teclado, sin tener que bajar con el cursor hasta el botón. Si ya se
+  // cargó algún pago a mano (parcial o con otra forma de pago), no lo
+  // pisa - solo cubre el resto con efectivo. En crédito no aplica (no
+  // hay pago que cobrar en el momento).
+  function cierreRapido() {
+    if (enviando || carrito.length === 0 || tipoPago === "credito") return;
+    const pagosFinal = restante > 0 ? [...pagos, { formaPago: "efectivo", monto: restante }] : pagos;
+    setPagos(pagosFinal);
+    confirmarVenta(pagosFinal);
+  }
+
+  useEffect(() => {
+    function alPresionarTecla(e) {
+      if (!(e.ctrlKey && e.key === "Enter")) return;
+      e.preventDefault();
+      if (recibo || cajaAbierta === false) return;
+      cierreRapido();
+    }
+    window.addEventListener("keydown", alPresionarTecla);
+    return () => window.removeEventListener("keydown", alPresionarTecla);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enviando, carrito, tipoPago, restante, pagos, recibo, cajaAbierta]);
 
   function nuevaVenta() {
     localStorage.removeItem(CLAVE_VENTA_EN_CURSO);
@@ -951,12 +982,17 @@ export default function Vender() {
                   <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
                 )}
                 <button
-                  onClick={confirmarVenta}
+                  onClick={() => confirmarVenta()}
                   disabled={enviando || !puedeConfirmar}
                   className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
                 >
                   {enviando ? "Guardando..." : "Confirmar venta"}
                 </button>
+                {tipoPago !== "credito" && (
+                  <p className="mt-2 text-center text-xs text-slate-400">
+                    Atajo: Ctrl+Enter cobra en efectivo y confirma de una
+                  </p>
+                )}
               </>
             )}
           </div>
