@@ -1,6 +1,6 @@
 {
   "name": "empremas-agente-impresion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Agente local que recibe tickets de EMPREMAS por HTTP y los imprime en modo texto (ESC/POS) en una impresora térmica instalada en Windows.",
   "main": "src/index.js",
@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "iconv-lite": "^0.6.3"
   },
   "devDependencies": {
     "pkg": "^5.8.1"

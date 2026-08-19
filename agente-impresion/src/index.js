@@ -22,7 +22,7 @@ app.use(express.json());
 // Asi el frontend detecta si el agente esta instalado y corriendo antes de
 // intentar imprimir con el (ver frontend/lib/agenteImpresion.js).
 app.get('/estado', (req, res) => {
-    res.json({ ok: true, version: '0.1.0' });
+    res.json({ ok: true, version: '0.2.0' });
 });
 
 app.get('/impresoras', async (req, res) => {

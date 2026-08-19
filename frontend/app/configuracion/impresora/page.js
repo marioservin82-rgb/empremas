@@ -72,7 +72,10 @@ export default function ConfiguracionImpresora() {
       await imprimirEnAgente(impresoraElegida, [
         { texto: "EMPREMAS", negrita: true, alineacion: "centro" },
         { texto: "Ticket de prueba", alineacion: "centro" },
-        { texto: "Si ves esto, la impresión rápida funciona." },
+        { texto: "Si ves esto bien, sin letras rotas, la impresión rápida funciona:" },
+        { texto: "Ñandú compró jabón económico" },
+        { texto: "Miércoles, Condición, electrónica" },
+        { texto: "Nombre de producto bastante largo para ver que corte por palabra completa" },
       ]);
       setExitoPrueba(true);
     } catch (err) {
