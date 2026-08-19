@@ -118,11 +118,16 @@ function envolverTexto(texto, ancho) {
 }
 
 // lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha', tamano: 'normal'|'alto'|'grande' }]
+//
+// Tamaño por defecto 'normal': con la Fuente A (mas nitida, ver arriba)
+// doble alto salía "un poco grande" - Mario pidió probar normal para
+// comparar. Si vuelve a pedir mas grande, el siguiente escalon es 'alto'
+// (el de antes).
 function armarBuffer(lineas, { cortar = true } = {}) {
-    const partes = [INICIALIZAR, SELECCIONAR_CODEPAGE, FUENTE_A, TAMANO_ALTO];
+    const partes = [INICIALIZAR, SELECCIONAR_CODEPAGE, FUENTE_A, TAMANO_NORMAL];
     let alineacionActual = 'izquierda';
     let negritaActual = false;
-    let tamanoActual = 'alto';
+    let tamanoActual = 'normal';
 
     for (const linea of lineas) {
         const quiereAlineacion = linea.alineacion || 'izquierda';
