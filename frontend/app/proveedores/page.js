@@ -68,6 +68,12 @@ export default function Proveedores() {
             >
               + Agregar proveedor
             </Link>
+            <Link
+              href="/proveedores/importar"
+              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+            >
+              Importar CSV
+            </Link>
           </div>
         </div>
 

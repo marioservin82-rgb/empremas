@@ -9,6 +9,7 @@ import {
     actualizarProveedor,
     extractoProveedor,
     listaPedido,
+    importarProveedores,
     pagarProveedor,
     ajustarSaldo,
     historialAjustesSaldo,
@@ -25,6 +26,7 @@ router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], '
 router.get('/:id/lista-pedido', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(listaPedido));
 
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(crearProveedor));
+router.post('/importar', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(importarProveedores));
 router.patch('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(actualizarProveedor));
 router.post('/:id/pagos', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(pagarProveedor));
 router.post('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(ajustarSaldo));

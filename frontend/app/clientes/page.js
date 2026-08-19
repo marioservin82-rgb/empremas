@@ -87,12 +87,20 @@ export default function Clientes() {
             </Link>
             <h1 className="text-2xl font-bold text-navy">Fiado / Crédito</h1>
           </div>
-          <Link
-            href="/clientes/nuevo"
-            className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700"
-          >
-            + Agregar cliente
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/clientes/importar"
+              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+            >
+              Importar CSV
+            </Link>
+            <Link
+              href="/clientes/nuevo"
+              className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700"
+            >
+              + Agregar cliente
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={onSubmitBusqueda} className="mb-6 flex gap-2">

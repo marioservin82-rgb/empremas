@@ -74,6 +74,82 @@ export async function crearProveedor(req, res) {
     res.status(201).json(proveedor);
 }
 
+// Importacion masiva desde CSV, simetrica a importarClientes/
+// importarProductos: matchea por documento (si existe, actualiza sin
+// tocar el saldo; si no, crea con el mismo saldoInicial+ajuste auditado
+// que ya usa crearProveedor). Filas invalidas se reportan pero no frenan
+// al resto.
+export async function importarProveedores(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { proveedores } = req.body;
+
+    if (!Array.isArray(proveedores) || proveedores.length === 0) {
+        return res.status(400).json({ error: 'No hay proveedores para importar' });
+    }
+
+    const validos = [];
+    const errores = [];
+    proveedores.forEach((p, indice) => {
+        const fila = indice + 2; // fila 1 es el encabezado del CSV
+        if (!p.nombre || !String(p.nombre).trim()) {
+            errores.push({ fila, motivo: 'Falta el nombre' });
+            return;
+        }
+        if (p.saldoInicial !== undefined && p.saldoInicial !== '' && !(Number(p.saldoInicial) >= 0)) {
+            errores.push({ fila, motivo: 'saldo_inicial debe ser 0 o mayor' });
+            return;
+        }
+        validos.push(p);
+    });
+
+    let creados = 0;
+    let actualizados = 0;
+
+    if (validos.length > 0) {
+        await transaccionDeEmpresa(empresaId, async (db) => {
+            for (const p of validos) {
+                const documento = p.documento ? String(p.documento).trim() : null;
+                let existenteId = null;
+                if (documento) {
+                    const resultado = await db.query(`SELECT id FROM proveedores WHERE documento = $1`, [documento]);
+                    existenteId = resultado.rows[0]?.id ?? null;
+                }
+
+                if (existenteId) {
+                    await db.query(
+                        `UPDATE proveedores SET
+                            nombre = COALESCE($2, nombre),
+                            telefono = COALESCE($3, telefono),
+                            email = COALESCE($4, email),
+                            direccion = COALESCE($5, direccion)
+                         WHERE id = $1`,
+                        [existenteId, p.nombre, p.telefono || null, p.email || null, p.direccion || null]
+                    );
+                    actualizados++;
+                } else {
+                    const saldoInicial = p.saldoInicial === '' || p.saldoInicial === undefined ? 0 : Number(p.saldoInicial);
+                    const insertado = await db.query(
+                        `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7)
+                         RETURNING id`,
+                        [empresaId, p.nombre, documento, p.telefono || null, p.email || null, p.direccion || null, saldoInicial]
+                    );
+                    if (saldoInicial > 0) {
+                        await db.query(
+                            `INSERT INTO ajustes_saldo_proveedor (empresa_id, proveedor_id, usuario_id, saldo_anterior, saldo_nuevo, diferencia, motivo)
+                             VALUES ($1, $2, $3, 0, $4, $4, 'Saldo inicial (migración)')`,
+                            [empresaId, insertado.rows[0].id, usuarioId, saldoInicial]
+                        );
+                    }
+                    creados++;
+                }
+            }
+        });
+    }
+
+    res.json({ creados, actualizados, errores });
+}
+
 // Ajuste manual de saldo, simetrico a clientesController.ajustarSaldo.
 export async function ajustarSaldo(req, res) {
     const { empresaId, usuarioId } = req.usuario;

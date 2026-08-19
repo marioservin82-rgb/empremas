@@ -8,6 +8,7 @@ import {
     crearCliente,
     actualizarCliente,
     extractoCliente,
+    importarClientes,
     ajustarSaldo,
     historialAjustesSaldo,
 } from '../controllers/clientesController.js';
@@ -28,6 +29,7 @@ router.get('/:id/extracto', asyncHandler(extractoCliente));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(historialAjustesSaldo));
 
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(crearCliente));
+router.post('/importar', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(importarClientes));
 router.patch('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(actualizarCliente));
 router.post('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(ajustarSaldo));
 // Cobrar es una tarea de caja diaria: cualquier rol logueado puede
