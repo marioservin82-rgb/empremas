@@ -146,6 +146,11 @@ CREATE INDEX idx_usuarios_empresa ON usuarios (empresa_id);
 -- (ej. listar empleados) el aislamiento se hace por codigo (WHERE empresa_id
 -- = ...), como primera capa, ya que la segunda capa (RLS) no aplica aca.
 ALTER TABLE sucursales ENABLE ROW LEVEL SECURITY;
+-- FORCE es necesario ademas de ENABLE: el rol con el que se conecta la
+-- app en produccion es dueño de sus propias tablas, y Postgres exime por
+-- default al dueño de una tabla de sus propias politicas de RLS. Sin
+-- FORCE, el aislamiento por empresa quedaria en el papel nomas.
+ALTER TABLE sucursales FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY sucursales_aislamiento ON sucursales
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -177,6 +182,7 @@ CREATE INDEX idx_usuario_permisos_empresa ON usuario_permisos (empresa_id);
 CREATE INDEX idx_usuario_permisos_usuario ON usuario_permisos (usuario_id);
 
 ALTER TABLE usuario_permisos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usuario_permisos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY usuario_permisos_aislamiento ON usuario_permisos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -211,6 +217,7 @@ CREATE INDEX idx_turnos_empresa ON turnos (empresa_id);
 CREATE INDEX idx_turnos_usuario_abierto ON turnos (usuario_id) WHERE estado = 'abierto';
 
 ALTER TABLE turnos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE turnos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY turnos_aislamiento ON turnos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -242,6 +249,7 @@ CREATE INDEX idx_retiros_caja_empresa ON retiros_caja (empresa_id);
 CREATE INDEX idx_retiros_caja_turno ON retiros_caja (empresa_id, turno_id);
 
 ALTER TABLE retiros_caja ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retiros_caja FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY retiros_caja_aislamiento ON retiros_caja
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -275,6 +283,7 @@ CREATE INDEX idx_productos_codigo_barras ON productos (empresa_id, codigo_barras
 CREATE INDEX idx_productos_nombre ON productos (empresa_id, lower(nombre));
 
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE productos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY productos_aislamiento ON productos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -297,6 +306,7 @@ CREATE INDEX idx_producto_stock_producto ON producto_stock (producto_id);
 CREATE INDEX idx_producto_stock_sucursal ON producto_stock (sucursal_id);
 
 ALTER TABLE producto_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE producto_stock FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY producto_stock_aislamiento ON producto_stock
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -323,6 +333,7 @@ CREATE INDEX idx_ajustes_inventario_empresa ON ajustes_inventario (empresa_id);
 CREATE INDEX idx_ajustes_inventario_producto ON ajustes_inventario (empresa_id, producto_id);
 
 ALTER TABLE ajustes_inventario ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ajustes_inventario FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY ajustes_inventario_aislamiento ON ajustes_inventario
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -361,6 +372,7 @@ CREATE INDEX idx_clientes_nombre ON clientes (empresa_id, lower(nombre));
 CREATE INDEX idx_clientes_documento ON clientes (empresa_id, documento);
 
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clientes FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY clientes_aislamiento ON clientes
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -385,6 +397,7 @@ CREATE INDEX idx_ajustes_saldo_cliente_empresa ON ajustes_saldo_cliente (empresa
 CREATE INDEX idx_ajustes_saldo_cliente_cliente ON ajustes_saldo_cliente (empresa_id, cliente_id);
 
 ALTER TABLE ajustes_saldo_cliente ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ajustes_saldo_cliente FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY ajustes_saldo_cliente_aislamiento ON ajustes_saldo_cliente
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -482,8 +495,11 @@ CREATE INDEX idx_venta_items_empresa ON venta_items (empresa_id);
 CREATE INDEX idx_venta_items_venta ON venta_items (venta_id);
 
 ALTER TABLE ventas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ventas FORCE ROW LEVEL SECURITY;
 ALTER TABLE venta_pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE venta_pagos FORCE ROW LEVEL SECURITY;
 ALTER TABLE venta_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE venta_items FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY ventas_aislamiento ON ventas
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -534,7 +550,9 @@ CREATE INDEX idx_presupuesto_items_empresa ON presupuesto_items (empresa_id);
 CREATE INDEX idx_presupuesto_items_presupuesto ON presupuesto_items (presupuesto_id);
 
 ALTER TABLE presupuestos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presupuestos FORCE ROW LEVEL SECURITY;
 ALTER TABLE presupuesto_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presupuesto_items FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY presupuestos_aislamiento ON presupuestos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -570,6 +588,7 @@ CREATE INDEX idx_proveedores_nombre ON proveedores (empresa_id, lower(nombre));
 CREATE INDEX idx_proveedores_documento ON proveedores (empresa_id, documento);
 
 ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proveedores FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY proveedores_aislamiento ON proveedores
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -592,6 +611,7 @@ CREATE INDEX idx_ajustes_saldo_proveedor_empresa ON ajustes_saldo_proveedor (emp
 CREATE INDEX idx_ajustes_saldo_proveedor_proveedor ON ajustes_saldo_proveedor (empresa_id, proveedor_id);
 
 ALTER TABLE ajustes_saldo_proveedor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ajustes_saldo_proveedor FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY ajustes_saldo_proveedor_aislamiento ON ajustes_saldo_proveedor
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -648,8 +668,11 @@ CREATE INDEX idx_compra_items_empresa ON compra_items (empresa_id);
 CREATE INDEX idx_compra_items_compra ON compra_items (compra_id);
 
 ALTER TABLE compras ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compras FORCE ROW LEVEL SECURITY;
 ALTER TABLE compra_pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compra_pagos FORCE ROW LEVEL SECURITY;
 ALTER TABLE compra_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compra_items FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY compras_aislamiento ON compras
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -682,6 +705,7 @@ CREATE INDEX idx_pagos_proveedor_empresa ON pagos_proveedor (empresa_id);
 CREATE INDEX idx_pagos_proveedor_proveedor ON pagos_proveedor (empresa_id, proveedor_id);
 
 ALTER TABLE pagos_proveedor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pagos_proveedor FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY pagos_proveedor_aislamiento ON pagos_proveedor
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -728,8 +752,11 @@ CREATE INDEX idx_cobro_aplicaciones_cobro ON cobro_aplicaciones (cobro_id);
 CREATE INDEX idx_cobro_aplicaciones_venta ON cobro_aplicaciones (venta_id);
 
 ALTER TABLE cobros ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cobros FORCE ROW LEVEL SECURITY;
 ALTER TABLE cobro_pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cobro_pagos FORCE ROW LEVEL SECURITY;
 ALTER TABLE cobro_aplicaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cobro_aplicaciones FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY cobros_aislamiento ON cobros
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -814,6 +841,7 @@ CREATE TABLE novedades_leidas (
 );
 CREATE INDEX idx_novedades_leidas_empresa ON novedades_leidas (empresa_id);
 ALTER TABLE novedades_leidas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE novedades_leidas FORCE ROW LEVEL SECURITY;
 CREATE POLICY novedades_leidas_aislamiento ON novedades_leidas
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
@@ -847,6 +875,7 @@ CREATE TABLE documentos_electronicos (
 CREATE INDEX idx_documentos_electronicos_empresa ON documentos_electronicos (empresa_id);
 
 ALTER TABLE documentos_electronicos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documentos_electronicos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY documentos_electronicos_aislamiento ON documentos_electronicos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -885,6 +914,7 @@ CREATE TABLE gastos_recurrentes (
 CREATE INDEX idx_gastos_recurrentes_empresa ON gastos_recurrentes (empresa_id);
 
 ALTER TABLE gastos_recurrentes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gastos_recurrentes FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY gastos_recurrentes_aislamiento ON gastos_recurrentes
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -911,6 +941,7 @@ CREATE INDEX idx_gastos_empresa ON gastos (empresa_id);
 CREATE INDEX idx_gastos_empresa_fecha ON gastos (empresa_id, fecha_gasto);
 
 ALTER TABLE gastos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gastos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY gastos_aislamiento ON gastos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -935,6 +966,7 @@ CREATE TABLE prestamos (
 CREATE INDEX idx_prestamos_empresa ON prestamos (empresa_id);
 
 ALTER TABLE prestamos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prestamos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY prestamos_aislamiento ON prestamos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
@@ -965,6 +997,7 @@ CREATE INDEX idx_salidas_stock_empresa_fecha ON salidas_stock (empresa_id, fecha
 CREATE INDEX idx_salidas_stock_producto ON salidas_stock (empresa_id, producto_id);
 
 ALTER TABLE salidas_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salidas_stock FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY salidas_stock_aislamiento ON salidas_stock
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
