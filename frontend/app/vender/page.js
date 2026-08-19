@@ -288,7 +288,6 @@ export default function Vender() {
         );
       }
       return [
-        ...actual,
         {
           productoId: p.id,
           nombre: p.nombre,
@@ -300,6 +299,7 @@ export default function Vender() {
             mayorista: Number(p.precio_mayorista),
           },
         },
+        ...actual,
       ];
     });
     setResultadosProducto([]);

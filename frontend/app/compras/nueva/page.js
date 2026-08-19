@@ -155,7 +155,6 @@ export default function NuevaCompra() {
     setCarrito((actual) => {
       if (actual.find((i) => i.productoId === p.id)) return actual;
       return [
-        ...actual,
         {
           productoId: p.id,
           nombre: p.nombre,
@@ -166,6 +165,7 @@ export default function NuevaCompra() {
           precioCredito: Number(p.precio_credito) || 0,
           precioMayorista: Number(p.precio_mayorista) || 0,
         },
+        ...actual,
       ];
     });
     setResultadosProducto([]);
