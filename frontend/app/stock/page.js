@@ -8,11 +8,15 @@ import { useDebounced } from "@/lib/useDebounced";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
+const TAMANO_PAGINA = 50;
+
 export default function Stock() {
   const router = useRouter();
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [hayMas, setHayMas] = useState(false);
   const [error, setError] = useState("");
   const [permitirVentaSinStock, setPermitirVentaSinStock] = useState(null);
   const [sucursalActual, setSucursalActual] = useState(null);
@@ -30,18 +34,40 @@ export default function Stock() {
     }
   }
 
+  // Sin busqueda, se trae de a paginas (TAMANO_PAGINA a la vez) - con un
+  // catalogo grande, traer y renderizar todo de una sola vez tildaba el
+  // navegador, sobre todo justo al volver acá después de cargar un
+  // producto nuevo. Buscando por nombre/código sí sigue trayendo todo lo
+  // que matchea de una, porque ahí la lista ya viene acotada sola.
   const buscar = useCallback(async (q) => {
     setCargando(true);
     setError("");
     try {
-      const ruta = q ? `/api/productos?q=${encodeURIComponent(q)}` : "/api/productos";
-      setProductos(await apiFetch(ruta));
+      const ruta = q
+        ? `/api/productos?q=${encodeURIComponent(q)}`
+        : `/api/productos?limit=${TAMANO_PAGINA}&offset=0`;
+      const resultado = await apiFetch(ruta);
+      setProductos(resultado);
+      setHayMas(!q && resultado.length === TAMANO_PAGINA);
     } catch (err) {
       setError(err.message);
     } finally {
       setCargando(false);
     }
   }, []);
+
+  async function cargarMas() {
+    setCargandoMas(true);
+    try {
+      const resultado = await apiFetch(`/api/productos?limit=${TAMANO_PAGINA}&offset=${productos.length}`);
+      setProductos((actual) => [...actual, ...resultado]);
+      setHayMas(resultado.length === TAMANO_PAGINA);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCargandoMas(false);
+    }
+  }
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -213,6 +239,16 @@ export default function Stock() {
               </div>
             ))}
           </div>
+        )}
+
+        {!cargando && hayMas && (
+          <button
+            onClick={cargarMas}
+            disabled={cargandoMas}
+            className="mt-4 w-full rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-60"
+          >
+            {cargandoMas ? "Cargando..." : "Cargar más productos"}
+          </button>
         )}
       </div>
     </main>

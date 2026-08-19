@@ -13,7 +13,7 @@ async function ocultarCostoSiCorresponde(productos, rol, empresaId, usuarioId) {
 }
 
 export async function listarProductos(req, res) {
-    const { q } = req.query;
+    const { q, limit, offset } = req.query;
     const { empresaId, usuarioId, rol, sucursalId } = req.usuario;
 
     // LEFT JOIN: un producto sin fila todavia en producto_stock para esta
@@ -29,16 +29,20 @@ export async function listarProductos(req, res) {
               [q, `%${q}%`, sucursalId]
           )
         : await consultaDeEmpresa(
-              // Sin busqueda (ej. listado completo para Stock o para el
-              // inventario de cantidades) no hay paginacion todavia, asi
-              // que el limite es alto para no truncar el catalogo en
-              // silencio en un comercio con muchos productos.
+              // Sin busqueda: por defecto (sin limit/offset) devuelve el
+              // catalogo entero, hasta 5000 - lo sigue necesitando el
+              // inventario de cantidades (planilla imprimible completa).
+              // La pantalla de Stock en cambio SI manda limit/offset para
+              // traer de a paginas - con miles de productos, traer y
+              // renderizar todo de una tildaba el navegador cada vez que
+              // volvia a esta pantalla (ej. justo despues de cargar un
+              // producto nuevo).
               empresaId,
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE p.activo = true ORDER BY p.nombre LIMIT 5000`,
-              [sucursalId]
+               WHERE p.activo = true ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+              [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 
     res.json(await ocultarCostoSiCorresponde(resultado.rows, rol, empresaId, usuarioId));
