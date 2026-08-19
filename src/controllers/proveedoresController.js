@@ -1,6 +1,7 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
+import { numeroLocal } from '../utils/numeroLocal.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -54,7 +55,7 @@ export async function crearProveedor(req, res) {
     const proveedor = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
             `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo)
-             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 0))
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 0::numeric))
              RETURNING *`,
             [empresaId, nombre, documento || null, telefono || null, email || null, direccion || null, saldoInicial]
         );
@@ -95,7 +96,12 @@ export async function importarProveedores(req, res) {
             errores.push({ fila, motivo: 'Falta el nombre' });
             return;
         }
-        if (p.saldoInicial !== undefined && p.saldoInicial !== '' && !(Number(p.saldoInicial) >= 0)) {
+        const saldoInicialNum = numeroLocal(p.saldoInicial);
+        if (Number.isNaN(saldoInicialNum)) {
+            errores.push({ fila, motivo: `"${p.saldoInicial}" no es un número válido para saldo_inicial` });
+            return;
+        }
+        if (saldoInicialNum !== null && !(saldoInicialNum >= 0)) {
             errores.push({ fila, motivo: 'saldo_inicial debe ser 0 o mayor' });
             return;
         }
@@ -106,6 +112,7 @@ export async function importarProveedores(req, res) {
     let actualizados = 0;
 
     if (validos.length > 0) {
+      try {
         await transaccionDeEmpresa(empresaId, async (db) => {
             for (const p of validos) {
                 const documento = p.documento ? String(p.documento).trim() : null;
@@ -127,7 +134,7 @@ export async function importarProveedores(req, res) {
                     );
                     actualizados++;
                 } else {
-                    const saldoInicial = p.saldoInicial === '' || p.saldoInicial === undefined ? 0 : Number(p.saldoInicial);
+                    const saldoInicial = numeroLocal(p.saldoInicial) ?? 0;
                     const insertado = await db.query(
                         `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo)
                          VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -145,6 +152,12 @@ export async function importarProveedores(req, res) {
                 }
             }
         });
+      } catch (error) {
+        console.error('Error en importarProveedores:', error);
+        return res.status(400).json({
+            error: 'No se pudo completar la importación — revisá que los números tengan formato válido e intentá de nuevo.',
+        });
+      }
     }
 
     res.json({ creados, actualizados, errores });

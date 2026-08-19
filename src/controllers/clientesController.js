@@ -1,5 +1,6 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { numeroLocal } from '../utils/numeroLocal.js';
 
 function conSaldoDisponible(cliente) {
     return {
@@ -142,7 +143,7 @@ export async function crearCliente(req, res) {
     const cliente = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
             `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), COALESCE($9, 0))
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric))
              RETURNING *`,
             [
                 empresaId,
@@ -196,8 +197,18 @@ export async function importarClientes(req, res) {
             errores.push({ fila, motivo: 'Falta el nombre' });
             return;
         }
-        if (c.saldoInicial !== undefined && c.saldoInicial !== '' && !(Number(c.saldoInicial) >= 0)) {
+        const saldoInicialNum = numeroLocal(c.saldoInicial);
+        if (Number.isNaN(saldoInicialNum)) {
+            errores.push({ fila, motivo: `"${c.saldoInicial}" no es un número válido para saldo_inicial` });
+            return;
+        }
+        if (saldoInicialNum !== null && !(saldoInicialNum >= 0)) {
             errores.push({ fila, motivo: 'saldo_inicial debe ser 0 o mayor' });
+            return;
+        }
+        const lineaCreditoNum = numeroLocal(c.lineaCredito);
+        if (Number.isNaN(lineaCreditoNum)) {
+            errores.push({ fila, motivo: `"${c.lineaCredito}" no es un número válido para linea_credito` });
             return;
         }
         validos.push(c);
@@ -207,9 +218,11 @@ export async function importarClientes(req, res) {
     let actualizados = 0;
 
     if (validos.length > 0) {
+      try {
         await transaccionDeEmpresa(empresaId, async (db) => {
             for (const c of validos) {
                 const documento = c.documento ? String(c.documento).trim() : null;
+                const lineaCredito = numeroLocal(c.lineaCredito);
                 let existenteId = null;
                 if (documento) {
                     const resultado = await db.query(`SELECT id FROM clientes WHERE documento = $1`, [documento]);
@@ -226,34 +239,16 @@ export async function importarClientes(req, res) {
                             direccion = COALESCE($6, direccion),
                             linea_credito = COALESCE($7, linea_credito)
                          WHERE id = $1`,
-                        [
-                            existenteId,
-                            c.nombre,
-                            c.telefono || null,
-                            c.celular || null,
-                            c.email || null,
-                            c.direccion || null,
-                            c.lineaCredito === '' || c.lineaCredito === undefined ? null : Number(c.lineaCredito),
-                        ]
+                        [existenteId, c.nombre, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito]
                     );
                     actualizados++;
                 } else {
-                    const saldoInicial = c.saldoInicial === '' || c.saldoInicial === undefined ? 0 : Number(c.saldoInicial);
+                    const saldoInicial = numeroLocal(c.saldoInicial) ?? 0;
                     const insertado = await db.query(
                         `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), $9)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), $9)
                          RETURNING id`,
-                        [
-                            empresaId,
-                            c.nombre,
-                            documento,
-                            c.telefono || null,
-                            c.celular || null,
-                            c.email || null,
-                            c.direccion || null,
-                            c.lineaCredito === '' || c.lineaCredito === undefined ? null : Number(c.lineaCredito),
-                            saldoInicial,
-                        ]
+                        [empresaId, c.nombre, documento, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito, saldoInicial]
                     );
                     if (saldoInicial > 0) {
                         await db.query(
@@ -266,6 +261,12 @@ export async function importarClientes(req, res) {
                 }
             }
         });
+      } catch (error) {
+        console.error('Error en importarClientes:', error);
+        return res.status(400).json({
+            error: 'No se pudo completar la importación — revisá que los números tengan formato válido e intentá de nuevo.',
+        });
+      }
     }
 
     res.json({ creados, actualizados, errores });

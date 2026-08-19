@@ -1,6 +1,7 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { tienePermiso } from '../utils/permisos.js';
+import { numeroLocal } from '../utils/numeroLocal.js';
 
 // El cajero no debe ver el precio de costo (revela el margen del negocio) —
 // misma regla que ya rige para editar precios: eso es cosa de dueño/
@@ -44,8 +45,16 @@ export async function listarProductos(req, res) {
 }
 
 function numOrNull(v) {
-    return v === undefined || v === null || v === '' ? null : Number(v);
+    return numeroLocal(v);
 }
+
+const CAMPOS_NUMERICOS_IMPORT = [
+    ['precioCosto', 'precio_costo'],
+    ['precioContado', 'precio_contado'],
+    ['precioCredito', 'precio_credito'],
+    ['precioMayorista', 'precio_mayorista'],
+    ['stock', 'stock'],
+];
 
 // Importacion masiva desde CSV (el parseo del archivo se hace en el
 // frontend, esto recibe filas ya como objetos). Matchea por codigo_barras:
@@ -74,6 +83,11 @@ export async function importarProductos(req, res) {
             errores.push({ fila, motivo: 'tasa_iva debe ser 0, 5 o 10' });
             return;
         }
+        const campoInvalido = CAMPOS_NUMERICOS_IMPORT.find(([campo]) => Number.isNaN(numeroLocal(p[campo])));
+        if (campoInvalido) {
+            errores.push({ fila, motivo: `"${p[campoInvalido[0]]}" no es un número válido para ${campoInvalido[1]}` });
+            return;
+        }
         validos.push(p);
     });
 
@@ -81,6 +95,7 @@ export async function importarProductos(req, res) {
     let actualizados = 0;
 
     if (validos.length > 0) {
+      try {
         await transaccionDeEmpresa(empresaId, async (cliente) => {
             for (const p of validos) {
                 const codigoBarras = p.codigoBarras ? String(p.codigoBarras).trim() : null;
@@ -118,7 +133,7 @@ export async function importarProductos(req, res) {
                 } else {
                     const productoInsertado = await cliente.query(
                         `INSERT INTO productos (empresa_id, codigo_barras, nombre, unidad_medida, precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva)
-                         VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0), COALESCE($6, 0), COALESCE($7, 0), COALESCE($8, 0), COALESCE($9, 10))
+                         VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint))
                          RETURNING id`,
                         [
                             empresaId,
@@ -140,6 +155,12 @@ export async function importarProductos(req, res) {
                 }
             }
         });
+      } catch (error) {
+        console.error('Error en importarProductos:', error);
+        return res.status(400).json({
+            error: 'No se pudo completar la importación — revisá que los precios y el stock tengan formato de número válido e intentá de nuevo.',
+        });
+      }
     }
 
     res.json({ creados, actualizados, errores });
@@ -195,7 +216,7 @@ export async function crearProducto(req, res) {
                 empresa_id, codigo_barras, nombre, unidad_medida,
                 precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo
              )
-             VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0), COALESCE($6, 0), COALESCE($7, 0), COALESCE($8, 0), COALESCE($9, 10), $10)
+             VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10)
              RETURNING *`,
             [
                 empresaId,
