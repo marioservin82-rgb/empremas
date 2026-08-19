@@ -175,18 +175,27 @@ export default function Panel() {
       )}
 
       {(() => {
-        const items =
-          yo?.rol === "dueno"
-            ? [
-                ...botones,
-                {
-                  nombre: "Consumo interno",
-                  icono: "🏠",
-                  color: "bg-navy hover:bg-navy-2",
-                  href: "/gastos/salida-stock?motivo=consumo_interno",
-                },
-              ]
-            : botones;
+        const extra = [];
+        if (yo?.rol === "dueno") {
+          extra.push({
+            nombre: "Consumo interno",
+            icono: "🏠",
+            color: "bg-navy hover:bg-navy-2",
+            href: "/gastos/salida-stock?motivo=consumo_interno",
+          });
+        }
+        // Pedido inteligente: mismo permiso que ya tiene el backend
+        // (dueño/encargado, gestionar_compras) - por eso encargado también
+        // lo ve acá, aunque no vea "Consumo interno".
+        if (yo?.rol === "dueno" || yo?.rol === "encargado") {
+          extra.push({
+            nombre: "Pedido inteligente",
+            icono: "📋",
+            color: "bg-navy hover:bg-navy-2",
+            href: "/proveedores",
+          });
+        }
+        const items = [...botones, ...extra];
         const columnas = items.length > 4 ? "grid-cols-3" : "grid-cols-2";
         return (
           <div className={`grid w-full max-w-3xl ${columnas} gap-4`}>
