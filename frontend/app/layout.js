@@ -2,6 +2,7 @@ import { Sora, Inter } from "next/font/google";
 import "./globals.css";
 import BotonSoporteWhatsapp from "@/components/BotonSoporteWhatsapp";
 import BotonVenderRapido from "@/components/BotonVenderRapido";
+import VentanaConsultaPrecio from "@/components/VentanaConsultaPrecio";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full flex flex-col bg-cream">
         {children}
         <BotonVenderRapido />
+        <VentanaConsultaPrecio />
         <BotonSoporteWhatsapp />
       </body>
     </html>
