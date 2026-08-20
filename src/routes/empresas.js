@@ -6,6 +6,7 @@ import {
     obtenerEmpresaActual,
     actualizarConfiguracion,
     saludFinanciera,
+    reporteCuentasPorCobrarYPagar,
     obtenerConfigSifen,
     actualizarConfigSifen,
     obtenerLogo,
@@ -19,6 +20,7 @@ router.use(autenticar);
 router.get('/actual', asyncHandler(obtenerEmpresaActual));
 router.patch('/actual', permitirRoles('dueno'), asyncHandler(actualizarConfiguracion));
 router.get('/salud-financiera', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(saludFinanciera));
+router.get('/reporte-saldos', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(reporteCuentasPorCobrarYPagar));
 router.get('/sifen', asyncHandler(obtenerConfigSifen));
 router.patch('/sifen', permitirRoles('dueno'), asyncHandler(actualizarConfigSifen));
 router.get('/logo', asyncHandler(obtenerLogo));

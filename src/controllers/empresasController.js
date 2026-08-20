@@ -235,3 +235,28 @@ export async function saludFinanciera(req, res) {
 
     res.json({ totalPorCobrar, totalPorPagar, efectivoDisponible, semaforo, mensaje, sugerenciaCobrar });
 }
+
+// Detalle de cuentas por cobrar/pagar, para tramites bancarios - mismo
+// agregado que saludFinanciera de arriba, pero fila por fila en vez de
+// sumado, y pensado para imprimirse en A4 (ver reporte-imprimible en el
+// frontend). Es siempre "a hoy": saldo es un total corriente, no un
+// historial con fecha, asi que no tiene un filtro de periodo como los
+// reportes de ventas/compras.
+export async function reporteCuentasPorCobrarYPagar(req, res) {
+    const { empresaId } = req.usuario;
+
+    const { clientes, proveedores } = await transaccionDeEmpresa(empresaId, async (cliente) => {
+        const cobrar = await cliente.query(
+            `SELECT id, nombre, documento, saldo FROM clientes WHERE activo = true AND saldo > 0 ORDER BY saldo DESC`
+        );
+        const pagar = await cliente.query(
+            `SELECT id, nombre, documento, saldo FROM proveedores WHERE activo = true AND saldo > 0 ORDER BY saldo DESC`
+        );
+        return { clientes: cobrar.rows, proveedores: pagar.rows };
+    });
+
+    const totalPorCobrar = clientes.reduce((acumulado, c) => acumulado + Number(c.saldo), 0);
+    const totalPorPagar = proveedores.reduce((acumulado, p) => acumulado + Number(p.saldo), 0);
+
+    res.json({ clientes, totalPorCobrar, proveedores, totalPorPagar, generadoEn: new Date() });
+}

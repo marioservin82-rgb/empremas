@@ -123,6 +123,11 @@ export default function Panel() {
               Recordatorios
             </Link>
           )}
+          {(yo?.rol === "dueno" || yo?.rol === "encargado") && (
+            <Link href="/reportes/saldos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              Cuentas por cobrar/pagar
+            </Link>
+          )}
           {esSupervisor && (
             <Link href="/perfil/pin" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Mi PIN
