@@ -132,7 +132,7 @@ function armarBuffer(lineas, { cortar = true } = {}) {
     for (const linea of lineas) {
         const quiereAlineacion = linea.alineacion || 'izquierda';
         const quiereNegrita = !!linea.negrita;
-        const quiereTamano = linea.tamano || 'alto';
+        const quiereTamano = linea.tamano || 'normal';
 
         if (quiereAlineacion !== alineacionActual) {
             partes.push(alinear(quiereAlineacion));
