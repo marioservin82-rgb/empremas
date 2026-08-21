@@ -106,7 +106,6 @@ export default function NuevoPresupuesto() {
         );
       }
       return [
-        ...actual,
         {
           productoId: p.id,
           nombre: p.nombre,
@@ -114,6 +113,7 @@ export default function NuevoPresupuesto() {
           cantidad: 1,
           precioUnitario: Number(p[`precio_${listaPrecio}`]),
         },
+        ...actual,
       ];
     });
     setResultadosProducto([]);
@@ -169,6 +169,13 @@ export default function NuevoPresupuesto() {
           </Link>
           <h1 className="text-2xl font-bold text-navy">Nuevo presupuesto</h1>
         </div>
+
+        {carrito.length > 0 && (
+          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur">
+            <p className="text-sm font-semibold text-slate-500">Total</p>
+            <p className="text-2xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
+          </div>
+        )}
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
           <p className="mb-2 text-sm font-medium text-slate-500">Lista de precio</p>

@@ -533,6 +533,13 @@ export default function Vender() {
           </div>
         </div>
 
+        {carrito.length > 0 && (
+          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur">
+            <p className="text-sm font-semibold text-slate-500">Total</p>
+            <p className="text-2xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
+          </div>
+        )}
+
         <div className="mb-4 flex gap-2">
           {TIPOS_PAGO.map((t) => (
             <button
