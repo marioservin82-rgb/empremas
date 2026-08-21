@@ -11,7 +11,7 @@ const formatoGs = new Intl.NumberFormat("es-PY");
 const botones = [
   { nombre: "Vender", icono: "🛒", color: "bg-brand hover:bg-brand-light", href: "/vender" },
   { nombre: "Fiado / Crédito", icono: "📒", color: "bg-navy hover:bg-navy-2", href: "/clientes" },
-  { nombre: "Stock", icono: "📦", color: "bg-navy-2 hover:bg-navy", href: "/stock" },
+  { nombre: "Stock / Compras", icono: "📦", color: "bg-navy-2 hover:bg-navy", href: "/stock" },
   { nombre: "Cerrar caja", icono: "🔒", color: "bg-slate-700 hover:bg-slate-800", href: "/caja" },
 ];
 
