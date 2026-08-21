@@ -148,7 +148,7 @@ export async function crearVenta(req, res) {
                     throw new ErrorNegocio('La cantidad debe ser mayor a cero');
                 }
                 const productoResultado = await cliente.query(
-                    `SELECT nombre, tasa_iva, ${columnaPrecio} AS precio FROM productos WHERE id = $1`,
+                    `SELECT nombre, tasa_iva, precio_costo, ${columnaPrecio} AS precio FROM productos WHERE id = $1`,
                     [productoId]
                 );
                 const producto = productoResultado.rows[0];
@@ -189,6 +189,11 @@ export async function crearVenta(req, res) {
                     productoId,
                     cantidad,
                     precioUnitario,
+                    // Foto del costo promedio ponderado al momento de la
+                    // venta (ver venta_items.costo_unitario en el schema) -
+                    // si el costo cambia despues, el margen de esta venta ya
+                    // vendida no se mueve retroactivamente.
+                    costoUnitario: Number(producto.precio_costo),
                     subtotal,
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
@@ -311,9 +316,9 @@ export async function crearVenta(req, res) {
 
             for (const item of itemsCalculados) {
                 await cliente.query(
-                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [empresaId, ventaId, item.productoId, item.cantidad, item.precioUnitario, item.subtotal]
+                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal, costo_unitario)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [empresaId, ventaId, item.productoId, item.cantidad, item.precioUnitario, item.subtotal, item.costoUnitario]
                 );
                 await cliente.query(
                     `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,

@@ -260,7 +260,6 @@ export async function actualizarProducto(req, res) {
         codigoBarras,
         nombre,
         unidadMedida,
-        precioCosto,
         precioContado,
         precioCredito,
         precioMayorista,
@@ -273,19 +272,21 @@ export async function actualizarProducto(req, res) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
     }
 
+    // precio_costo NO se acepta aca a proposito: desde que es un costo
+    // promedio ponderado (ver crearCompra), solo lo actualiza una compra
+    // nueva - permitir pisarlo a mano rompería el calculo.
     const resultado = await consultaDeEmpresa(
         empresaId,
         `UPDATE productos SET
             codigo_barras = COALESCE($3, codigo_barras),
             nombre = COALESCE($4, nombre),
             unidad_medida = COALESCE($5, unidad_medida),
-            precio_costo = COALESCE($6, precio_costo),
-            precio_contado = COALESCE($7, precio_contado),
-            precio_credito = COALESCE($8, precio_credito),
-            precio_mayorista = COALESCE($9, precio_mayorista),
-            tasa_iva = COALESCE($10, tasa_iva),
-            stock_minimo = COALESCE($11, stock_minimo),
-            activo = COALESCE($12, activo)
+            precio_contado = COALESCE($6, precio_contado),
+            precio_credito = COALESCE($7, precio_credito),
+            precio_mayorista = COALESCE($8, precio_mayorista),
+            tasa_iva = COALESCE($9, tasa_iva),
+            stock_minimo = COALESCE($10, stock_minimo),
+            activo = COALESCE($11, activo)
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
         [
@@ -294,7 +295,6 @@ export async function actualizarProducto(req, res) {
             codigoBarras,
             nombre,
             unidadMedida,
-            precioCosto,
             precioContado,
             precioCredito,
             precioMayorista,

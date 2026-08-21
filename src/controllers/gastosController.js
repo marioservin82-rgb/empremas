@@ -324,9 +324,19 @@ export async function obtenerBalanceMensual(req, res) {
         `SELECT categoria, COALESCE(SUM(monto), 0) AS total FROM gastos WHERE ${whereFecha('fecha_gasto')} GROUP BY categoria`,
         [desde, hasta]
     );
-    const mercaderia = await consultaDeEmpresa(
+    // Costo de lo efectivamente vendido en el periodo (a costo promedio
+    // ponderado, congelado por venta - ver venta_items.costo_unitario), no
+    // lo que se pago a proveedores ese mes: pagar stock que todavia no se
+    // vendio no es una perdida, y contarlo aparte de la venta que lo
+    // origina inflaria o desinflaria el resultado segun cuando se compro.
+    // Se cuentan tanto ventas de contado como a credito - el costo sale de
+    // la mercaderia cuando se vende, no cuando se cobra.
+    const costoMercaderiaVendida = await consultaDeEmpresa(
         empresaId,
-        `SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_proveedor WHERE ${whereFecha('fecha_pago')}`,
+        `SELECT COALESCE(SUM(vi.cantidad * vi.costo_unitario), 0) AS total
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id
+         WHERE v.anulada = false AND ${whereFecha('v.creado_en')}`,
         [desde, hasta]
     );
     const consumoInterno = await consultaDeEmpresa(
@@ -370,11 +380,11 @@ export async function obtenerBalanceMensual(req, res) {
     const retirosARevisar = (desgloseRetiros.envio_tercero || 0) + (desgloseRetiros.otro || 0);
 
     const ingresos = Number(ventasContado.rows[0].total) + Number(cobrosFiado.rows[0].total);
-    const montoMercaderia = Number(mercaderia.rows[0].total);
+    const montoCostoMercaderiaVendida = Number(costoMercaderiaVendida.rows[0].total);
     const montoConsumoInterno = Number(consumoInterno.rows[0].total);
     const montoMerma = Number(merma.rows[0].total);
     const resultadoOperativo =
-        ingresos - gastosOperativos - montoMercaderia - montoConsumoInterno - montoMerma - retirosOperativos;
+        ingresos - gastosOperativos - montoCostoMercaderiaVendida - montoConsumoInterno - montoMerma - retirosOperativos;
 
     res.json({
         desde,
@@ -384,7 +394,7 @@ export async function obtenerBalanceMensual(req, res) {
         cobrosFiado: Number(cobrosFiado.rows[0].total),
         gastosOperativos,
         gastosPorCategoria: desglose,
-        mercaderia: montoMercaderia,
+        costoMercaderiaVendida: montoCostoMercaderiaVendida,
         consumoInterno: montoConsumoInterno,
         merma: montoMerma,
         retirosOperativos,

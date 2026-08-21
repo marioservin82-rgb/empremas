@@ -484,7 +484,11 @@ CREATE TABLE venta_items (
     -- precio_unitario queda "congelado" al momento de la venta: si despues
     -- cambia el precio del producto, las ventas viejas no deben cambiar.
     precio_unitario NUMERIC(14,2) NOT NULL,
-    subtotal        NUMERIC(14,2) NOT NULL
+    subtotal        NUMERIC(14,2) NOT NULL,
+    -- Foto de productos.precio_costo (costo promedio ponderado) al momento
+    -- de la venta, mismo criterio que salidas_stock.costo_unitario - asi un
+    -- cambio de costo posterior no altera el margen de ventas ya cerradas.
+    costo_unitario  NUMERIC(14,2) NOT NULL
 );
 
 CREATE INDEX idx_ventas_empresa ON ventas (empresa_id);

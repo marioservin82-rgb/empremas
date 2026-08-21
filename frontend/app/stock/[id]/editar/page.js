@@ -10,6 +10,7 @@ export default function EditarProducto() {
   const { id } = useParams();
 
   const [form, setForm] = useState(null);
+  const [costoPromedio, setCostoPromedio] = useState(0);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -19,20 +20,20 @@ export default function EditarProducto() {
       return;
     }
     apiFetch(`/api/productos/${id}`)
-      .then((p) =>
+      .then((p) => {
+        setCostoPromedio(Number(p.precio_costo));
         setForm({
           nombre: p.nombre,
           codigoBarras: p.codigo_barras || "",
           unidadMedida: p.unidad_medida,
-          precioCosto: p.precio_costo ?? "",
           precioContado: p.precio_contado,
           precioCredito: p.precio_credito,
           precioMayorista: p.precio_mayorista,
           tasaIva: p.tasa_iva,
           stock: p.stock,
           stockMinimo: p.stock_minimo ?? "",
-        })
-      )
+        });
+      })
       .catch((err) => setError(err.message));
   }, [id, router]);
 
@@ -50,7 +51,6 @@ export default function EditarProducto() {
         body: JSON.stringify({
           ...form,
           tasaIva: Number(form.tasaIva),
-          precioCosto: form.precioCosto === "" ? undefined : Number(form.precioCosto),
           precioContado: Number(form.precioContado),
           precioCredito: Number(form.precioCredito),
           precioMayorista: Number(form.precioMayorista),
@@ -67,6 +67,18 @@ export default function EditarProducto() {
 
   const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
   const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
+  const formatoGs = new Intl.NumberFormat("es-PY");
+
+  // Precios que quedaron por debajo del costo promedio - un problema
+  // comun y silencioso cuando el costo sube por una compra reciente y el
+  // precio de venta no se llega a actualizar a tiempo.
+  const preciosBajoCosto = form
+    ? [
+        ["Contado", Number(form.precioContado)],
+        ["Crédito", Number(form.precioCredito)],
+        ["Mayorista", Number(form.precioMayorista)],
+      ].filter(([, precio]) => precio > 0 && precio < costoPromedio)
+    : [];
 
   if (error && !form) {
     return (
@@ -104,8 +116,27 @@ export default function EditarProducto() {
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} />
 
-          <label className={etiqueta}>Precio de costo (Gs, lo que pagaste)</label>
-          <input type="number" min="0" value={form.precioCosto} onChange={actualizar("precioCosto")} className={campo} />
+          <label className={etiqueta}>Costo promedio actual</label>
+          <div className="mb-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
+            <span className="font-semibold text-slate-700">Gs {formatoGs.format(costoPromedio)}</span>
+          </div>
+          <p className="mb-4 text-xs text-slate-400">
+            Se actualiza solo con cada compra (promedio ponderado por cantidad) — no se edita a mano.
+          </p>
+
+          {preciosBajoCosto.length > 0 && (
+            <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="font-semibold">Estás vendiendo por debajo de tu costo promedio (Gs {formatoGs.format(costoPromedio)}):</p>
+              <ul className="mt-1 list-disc pl-5">
+                {preciosBajoCosto.map(([etiquetaPrecio, precio]) => (
+                  <li key={etiquetaPrecio}>
+                    Precio {etiquetaPrecio}: Gs {formatoGs.format(precio)}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1">Revisá el precio.</p>
+            </div>
+          )}
 
           <label className={etiqueta}>Precio contado (Gs, IVA incluido)</label>
           <input type="number" min="0" value={form.precioContado} onChange={actualizar("precioContado")} className={campo} />

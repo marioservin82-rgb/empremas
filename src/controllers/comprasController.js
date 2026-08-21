@@ -45,11 +45,33 @@ export async function crearCompra(req, res) {
                 if (!(cantidad > 0) || !(precioUnitario >= 0)) {
                     throw new ErrorNegocio('Cada producto necesita una cantidad y un precio de costo válidos');
                 }
-                const resultado = await cliente.query(`SELECT nombre FROM productos WHERE id = $1 FOR UPDATE`, [
-                    productoId,
-                ]);
+                const resultado = await cliente.query(
+                    `SELECT nombre, precio_costo FROM productos WHERE id = $1 FOR UPDATE`,
+                    [productoId]
+                );
                 if (!resultado.rows[0]) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
+                }
+                // Costo promedio ponderado por cantidad, no por cantidad de
+                // compras: (stock actual * costo promedio actual + cantidad
+                // comprada * costo de esta compra) / (stock actual + cantidad
+                // comprada). Si nunca hubo costo cargado (0), se usa directo
+                // el costo de esta compra en vez de diluir contra un cero
+                // falso - y si el stock actual es 0 la formula ya da eso
+                // mismo sola, sin necesitar un caso aparte. El stock es el
+                // total de todas las sucursales (mismo criterio que
+                // inventarioValorizado): el costo es del producto, no de una
+                // sucursal puntual.
+                const costoPromedioActual = Number(resultado.rows[0].precio_costo);
+                let costoPromedioNuevo = precioUnitario;
+                if (costoPromedioActual > 0) {
+                    const stockResultado = await cliente.query(
+                        `SELECT COALESCE(SUM(stock), 0) AS total FROM producto_stock WHERE producto_id = $1`,
+                        [productoId]
+                    );
+                    const stockActual = Number(stockResultado.rows[0].total);
+                    costoPromedioNuevo =
+                        (stockActual * costoPromedioActual + cantidad * precioUnitario) / (stockActual + cantidad);
                 }
                 const subtotal = precioUnitario * cantidad;
                 total += subtotal;
@@ -57,6 +79,7 @@ export async function crearCompra(req, res) {
                     productoId,
                     cantidad,
                     precioUnitario,
+                    costoPromedioNuevo,
                     subtotal,
                     precioContado,
                     precioCredito,
@@ -101,10 +124,10 @@ export async function crearCompra(req, res) {
                     [empresaId, compraId, item.productoId, item.cantidad, item.precioUnitario, item.subtotal]
                 );
                 // La compra aumenta el stock (al reves de una venta, en la
-                // sucursal de quien la carga), actualiza el costo al ultimo
-                // precio pagado, y de paso permite fijar los 3 precios de
-                // venta ahi mismo (si se mandaron) para no tener que ir a
-                // Stock a cargarlos por separado.
+                // sucursal de quien la carga), actualiza el costo al
+                // promedio ponderado ya calculado arriba, y de paso permite
+                // fijar los 3 precios de venta ahi mismo (si se mandaron)
+                // para no tener que ir a Stock a cargarlos por separado.
                 await cliente.query(
                     `UPDATE productos SET
                         precio_costo = $2,
@@ -114,7 +137,7 @@ export async function crearCompra(req, res) {
                      WHERE id = $1`,
                     [
                         item.productoId,
-                        item.precioUnitario,
+                        item.costoPromedioNuevo,
                         item.precioContado,
                         item.precioCredito,
                         item.precioMayorista,

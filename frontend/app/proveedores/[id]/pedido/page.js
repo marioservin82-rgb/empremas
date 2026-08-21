@@ -97,6 +97,7 @@ export default function ListaPedido() {
                     <th className="py-2 pr-2">Producto</th>
                     <th className="py-2 pr-2">Stock</th>
                     <th className="py-2 pr-2">Punto de pedido</th>
+                    <th className="py-2 pr-2">Costo promedio</th>
                     <th className="py-2 pr-2">Precio {proveedor.nombre}</th>
                     <th className={`py-2 pr-2 ${claseComparacion}`}>Otros proveedores</th>
                     <th className="py-2 pr-2">Cantidad a pedir</th>
@@ -120,6 +121,9 @@ export default function ListaPedido() {
                               <span className="ml-1 hidden font-bold print:inline">¡URGENTE!</span>
                             </>
                           )}
+                        </td>
+                        <td className="py-2 pr-2 text-slate-500">
+                          {p.costoPromedio > 0 ? `Gs ${formatoGs.format(p.costoPromedio)}` : "—"}
                         </td>
                         <td className="py-2 pr-2">
                           {precioEste ? `Gs ${formatoGs.format(precioEste.precio)}` : "—"}

@@ -354,11 +354,11 @@ export async function listaPedido(req, res) {
     // inventarioValorizado: el punto de pedido tampoco es por sucursal.
     const productos = await consultaDeEmpresa(
         empresaId,
-        `SELECT p.id, p.nombre, p.stock_minimo, COALESCE(SUM(ps.stock), 0) AS stock
+        `SELECT p.id, p.nombre, p.stock_minimo, p.precio_costo, COALESCE(SUM(ps.stock), 0) AS stock
          FROM productos p
          LEFT JOIN producto_stock ps ON ps.producto_id = p.id
          WHERE p.activo = true AND p.id = ANY($1::uuid[])
-         GROUP BY p.id, p.nombre, p.stock_minimo`,
+         GROUP BY p.id, p.nombre, p.stock_minimo, p.precio_costo`,
         [productoIds]
     );
 
@@ -401,6 +401,7 @@ export async function listaPedido(req, res) {
             nombre: p.nombre,
             stock,
             stockMinimo,
+            costoPromedio: Number(p.precio_costo),
             bajoPuntoPedido: stockMinimo != null && stock < stockMinimo,
             precios: preciosProducto.map((precio) => ({ ...precio, masBarato: precio.precio === precioMasBarato })),
         };

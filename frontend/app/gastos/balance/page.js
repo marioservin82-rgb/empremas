@@ -176,8 +176,8 @@ export default function BalanceMensual() {
                   ))}
 
                 <div className="flex justify-between py-1 text-sm">
-                  <span className="text-slate-500">Mercadería repuesta (pagos a proveedores)</span>
-                  <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.mercaderia)}</span>
+                  <span className="text-slate-500">Costo de mercadería vendida (a costo promedio)</span>
+                  <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.costoMercaderiaVendida)}</span>
                 </div>
                 <div className="flex justify-between py-1 text-sm">
                   <span className="text-slate-500">Consumo interno (a costo)</span>
