@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { montoEnLetras } from "@/lib/numeroALetras";
 
@@ -42,6 +43,19 @@ function lineasComprobanteRetiro(empresa, retiro, fecha) {
 
 export default function ComprobanteRetiro({ empresa, retiro, onNuevoRetiro }) {
   const fecha = new Date(retiro.creado_en);
+  const yaImprimio = useRef(false);
+
+  // Se imprime solo apenas se registra el retiro, igual que el ticket de
+  // venta - asi el cajero no tiene que acordarse de tocar "Imprimir" cada
+  // vez, sale directo como un comprobante mas para guardar en la gabeta.
+  useEffect(() => {
+    if (yaImprimio.current) return;
+    yaImprimio.current = true;
+    imprimirTicket(empresa.impresora_agente_nombre, lineasComprobanteRetiro(empresa, retiro, fecha), () =>
+      window.print()
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col items-center gap-4 py-6">
