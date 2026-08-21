@@ -12,7 +12,7 @@ const botones = [
   { nombre: "Vender", icono: "🛒", color: "bg-brand hover:bg-brand-light", href: "/vender" },
   { nombre: "Fiado / Crédito", icono: "📒", color: "bg-navy hover:bg-navy-2", href: "/clientes" },
   { nombre: "Stock / Compras", icono: "📦", color: "bg-navy-2 hover:bg-navy", href: "/stock" },
-  { nombre: "Cerrar caja", icono: "🔒", color: "bg-slate-700 hover:bg-slate-800", href: "/caja" },
+  { nombre: "Caja", icono: "🔒", color: "bg-slate-700 hover:bg-slate-800", href: "/caja" },
 ];
 
 // Verde/amarillo/rojo quedan reservados exclusivamente para este
@@ -114,18 +114,8 @@ export default function Panel() {
             </Link>
           )}
           {yo?.rol === "dueno" && (
-            <Link href="/gastos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-              Gastos
-            </Link>
-          )}
-          {yo?.rol === "dueno" && (
             <Link href="/configuracion/recordatorios" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               Recordatorios
-            </Link>
-          )}
-          {(yo?.rol === "dueno" || yo?.rol === "encargado") && (
-            <Link href="/reportes/saldos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-              Cuentas por cobrar/pagar
             </Link>
           )}
           {esSupervisor && (
@@ -133,9 +123,6 @@ export default function Panel() {
               Mi PIN
             </Link>
           )}
-          <Link href="/ventas/resumen-dia" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-            Ventas de hoy
-          </Link>
           <CampanaNovedades />
           <Link href="/ayuda" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             Ayuda
@@ -205,23 +192,48 @@ export default function Panel() {
         }
         const items = [...botones, ...extra];
         const columnas = items.length > 4 ? "grid-cols-3" : "grid-cols-2";
+
+        const secundarios = [];
+        if (yo?.rol === "dueno") {
+          secundarios.push({ nombre: "Gastos", icono: "💸", href: "/gastos" });
+        }
+        if (yo?.rol === "dueno" || yo?.rol === "encargado") {
+          secundarios.push({ nombre: "Cuentas por cobrar/pagar", icono: "🧾", href: "/reportes/saldos" });
+        }
+        secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
+
         return (
-          <div className={`grid w-full max-w-3xl ${columnas} gap-4`}>
-            {items.map((b) => {
-              const clases = `flex flex-col items-center justify-center gap-2 rounded-2xl ${b.color} px-3 py-7 text-white shadow-lg transition active:scale-[0.98]`;
-              return b.href ? (
-                <Link key={b.nombre} href={b.href} className={clases}>
-                  <span className="text-3xl">{b.icono}</span>
-                  <span className="text-center text-base font-bold">{b.nombre}</span>
+          <>
+            <div className={`grid w-full max-w-3xl ${columnas} gap-4`}>
+              {items.map((b) => {
+                const clases = `flex flex-col items-center justify-center gap-2 rounded-2xl ${b.color} px-3 py-7 text-white shadow-lg transition active:scale-[0.98]`;
+                return b.href ? (
+                  <Link key={b.nombre} href={b.href} className={clases}>
+                    <span className="text-3xl">{b.icono}</span>
+                    <span className="text-center text-base font-bold">{b.nombre}</span>
+                  </Link>
+                ) : (
+                  <button key={b.nombre} className={clases}>
+                    <span className="text-3xl">{b.icono}</span>
+                    <span className="text-center text-base font-bold">{b.nombre}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex w-full max-w-3xl flex-wrap justify-center gap-3">
+              {secundarios.map((b) => (
+                <Link
+                  key={b.nombre}
+                  href={b.href}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-600 shadow-sm transition hover:border-navy hover:text-navy active:scale-[0.98]"
+                >
+                  <span className="text-lg">{b.icono}</span>
+                  <span className="text-sm font-semibold">{b.nombre}</span>
                 </Link>
-              ) : (
-                <button key={b.nombre} className={clases}>
-                  <span className="text-3xl">{b.icono}</span>
-                  <span className="text-center text-base font-bold">{b.nombre}</span>
-                </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          </>
         );
       })()}
     </main>
