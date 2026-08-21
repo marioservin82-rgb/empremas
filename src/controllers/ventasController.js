@@ -512,6 +512,99 @@ export async function listarVentas(req, res) {
     res.json(resultado.rows);
 }
 
+// Resumen de ventas de un dia puntual (por defecto hoy), pensado para
+// consultar a distancia como acompañante del cierre de caja: totales
+// grandes arriba, detalle venta por venta abajo (items, forma de pago,
+// cliente si es fiado, cajero). Mismo criterio de alcance que
+// listarRetirosDeTurno: dueño/encargado/ver_reportes ven todo (y pueden
+// filtrar por sucursal); un cajero sin ese permiso solo ve sus propias
+// ventas del dia, sin importar que sucursalId mande.
+export async function resumenDia(req, res) {
+    const { empresaId, usuarioId, rol } = req.usuario;
+    const fecha = req.query.fecha || new Date().toISOString().slice(0, 10);
+    const sucursalIdPedido = req.query.sucursalId || null;
+
+    const puedeVerTodo = rol === 'dueno' || rol === 'encargado' || (await tienePermiso(empresaId, usuarioId, 'ver_reportes'));
+
+    const condiciones = [`v.anulada = false`, `v.creado_en >= $1::date`, `v.creado_en < ($1::date + INTERVAL '1 day')`];
+    const valores = [fecha];
+
+    if (!puedeVerTodo) {
+        valores.push(usuarioId);
+        condiciones.push(`v.usuario_id = $${valores.length}`);
+    } else if (sucursalIdPedido) {
+        valores.push(sucursalIdPedido);
+        condiciones.push(`v.sucursal_id = $${valores.length}`);
+    }
+
+    const ventas = await consultaDeEmpresa(
+        empresaId,
+        `SELECT v.id, v.numero_ticket, v.tipo_pago, v.total, v.creado_en,
+                c.nombre AS cliente_nombre, u.nombre AS usuario_nombre
+         FROM ventas v
+         LEFT JOIN clientes c ON c.id = v.cliente_id
+         JOIN usuarios u ON u.id = v.usuario_id
+         WHERE ${condiciones.join(' AND ')}
+         ORDER BY v.creado_en ASC`,
+        valores
+    );
+
+    const ventaIds = ventas.rows.map((v) => v.id);
+
+    let items = { rows: [] };
+    let pagos = { rows: [] };
+    if (ventaIds.length > 0) {
+        items = await consultaDeEmpresa(
+            empresaId,
+            `SELECT vi.venta_id, vi.cantidad, vi.precio_unitario, p.nombre AS producto_nombre
+             FROM venta_items vi JOIN productos p ON p.id = vi.producto_id
+             WHERE vi.venta_id = ANY($1::uuid[])`,
+            [ventaIds]
+        );
+        pagos = await consultaDeEmpresa(
+            empresaId,
+            `SELECT venta_id, forma_pago, monto FROM venta_pagos WHERE venta_id = ANY($1::uuid[])`,
+            [ventaIds]
+        );
+    }
+
+    const itemsPorVenta = new Map();
+    for (const item of items.rows) {
+        if (!itemsPorVenta.has(item.venta_id)) itemsPorVenta.set(item.venta_id, []);
+        itemsPorVenta.get(item.venta_id).push(item);
+    }
+    const pagosPorVenta = new Map();
+    for (const pago of pagos.rows) {
+        if (!pagosPorVenta.has(pago.venta_id)) pagosPorVenta.set(pago.venta_id, []);
+        pagosPorVenta.get(pago.venta_id).push(pago);
+    }
+
+    const detalle = ventas.rows.map((v) => ({
+        ...v,
+        items: itemsPorVenta.get(v.id) || [],
+        pagos: pagosPorVenta.get(v.id) || [],
+    }));
+
+    // Mismo criterio ya usado en obtenerBalanceMensual: "contado" es todo
+    // lo que no es credito (incluye mayorista, que tambien se cobra en el
+    // momento, solo con otro precio).
+    const totalVendido = ventas.rows.reduce((acumulado, v) => acumulado + Number(v.total), 0);
+    const totalCredito = ventas.rows
+        .filter((v) => v.tipo_pago === 'credito')
+        .reduce((acumulado, v) => acumulado + Number(v.total), 0);
+    const totalContado = totalVendido - totalCredito;
+
+    res.json({
+        fecha,
+        puedeVerTodo,
+        totalVendido,
+        totalContado,
+        totalCredito,
+        cantidadVentas: ventas.rows.length,
+        ventas: detalle,
+    });
+}
+
 // Solo las ventas que se facturaron como Factura Legal (SIFEN) - vista
 // separada de /ventas para lo fiscal, sin mezclarse con tickets comunes.
 export async function listarFacturasElectronicas(req, res) {

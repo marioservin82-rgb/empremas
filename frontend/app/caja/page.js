@@ -198,9 +198,16 @@ export default function Caja() {
                 </p>
               )}
             </div>
+            <Link
+              href="/ventas/resumen-dia"
+              target="_blank"
+              className="mt-4 block w-full rounded-xl bg-navy py-3 text-center font-semibold text-white transition hover:bg-navy-2"
+            >
+              Ver e imprimir resumen del día
+            </Link>
             <button
               onClick={nuevoTurno}
-              className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light"
+              className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light"
             >
               Abrir nuevo turno
             </button>

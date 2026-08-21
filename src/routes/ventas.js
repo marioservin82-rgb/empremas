@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import {
     crearVenta,
     listarVentas,
+    resumenDia,
     listarFacturasElectronicas,
     obtenerVenta,
     anularVenta,
@@ -17,9 +18,12 @@ const router = Router();
 
 router.use(autenticar);
 
-// /reporte y /facturas-electronicas antes de /:id para que Express no las
-// confunda con un id.
+// /reporte, /resumen-dia y /facturas-electronicas antes de /:id para que
+// Express no las confunda con un id.
 router.get('/reporte', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(reporteVentas));
+// Sin permitirRoles: el alcance (todo vs. solo lo propio) se resuelve
+// adentro del controller, mismo criterio que listarRetirosDeTurno.
+router.get('/resumen-dia', asyncHandler(resumenDia));
 router.get(
     '/facturas-electronicas',
     permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'),

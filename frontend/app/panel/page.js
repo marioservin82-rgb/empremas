@@ -133,6 +133,9 @@ export default function Panel() {
               Mi PIN
             </Link>
           )}
+          <Link href="/ventas/resumen-dia" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+            Ventas de hoy
+          </Link>
           <CampanaNovedades />
           <Link href="/ayuda" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             Ayuda
