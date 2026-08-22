@@ -83,7 +83,12 @@ export default function CobroCliente() {
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
     if (!nuevoPagoMonto) {
-      const restanteSaldo = montoSeleccionado - totalPagos;
+      // Si no hay ninguna factura para elegir (deuda migrada/ajustada sin
+      // ventas asociadas), no hay nada de que restar montoSeleccionado -
+      // se completa con el saldo total del cliente, igual que antes de
+      // que existiera el selector de facturas.
+      const base = facturas.length > 0 ? montoSeleccionado : Number(cliente.saldo);
+      const restanteSaldo = base - totalPagos;
       setNuevoPagoMonto(String(Math.max(restanteSaldo, 0)));
     }
   }
@@ -309,6 +314,10 @@ export default function CobroCliente() {
               Eso es más de lo que te debe (Gs {formatoGs.format(cliente.saldo)})
             </p>
           ) : (
+            // Solo tiene sentido este aviso si habia algo para elegir - un
+            // cliente con deuda migrada/ajustada (sin ninguna factura
+            // asociada) no tiene "facturas elegidas" con las que comparar.
+            facturas.length > 0 &&
             totalPagos > montoSeleccionado && (
               <p className="mt-2 text-sm font-semibold text-amber-600">
                 Estás cobrando más de lo que suman las facturas elegidas — el excedente baja la deuda general sin
