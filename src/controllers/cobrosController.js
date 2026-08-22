@@ -55,7 +55,7 @@ export async function facturasPendientes(req, res) {
 export async function crearCobro(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { id: clienteId } = req.params;
-    const { monto, pagos, facturaIds } = req.body;
+    const { monto, pagos, facturaIds, incluirSaldoSinFactura } = req.body;
 
     if (!Array.isArray(facturaIds)) {
         return res.status(400).json({ error: 'facturaIds debe ser una lista (puede ser vacía si el cliente no tiene facturas pendientes)' });
@@ -131,10 +131,12 @@ export async function crearCobro(req, res) {
                 if (facturas.rows.length !== facturaIds.length) {
                     throw new ErrorNegocio('Una de las facturas elegidas ya no está pendiente — actualizá la pantalla e intentá de nuevo');
                 }
-            } else {
-                // facturaIds vacio solo es valido si el cliente realmente no
-                // tiene ninguna factura pendiente (saldo migrado/ajustado sin
-                // ventas asociadas) - si tiene alguna, hay que elegir.
+            } else if (!incluirSaldoSinFactura) {
+                // facturaIds vacio sin marcar "incluir saldo sin factura" solo
+                // es valido si el cliente realmente no tiene ninguna factura
+                // pendiente (saldo migrado/ajustado sin ventas asociadas) - si
+                // tiene alguna, hay que elegir explicitamente que cobrar (una
+                // factura, el saldo sin factura, o ambos).
                 const pendientesResultado = await cliente.query(
                     `SELECT 1 FROM ventas WHERE cliente_id = $1 AND tipo_pago = 'credito' AND saldo_pendiente > 0 LIMIT 1`,
                     [clienteId]
@@ -143,6 +145,10 @@ export async function crearCobro(req, res) {
                     throw new ErrorNegocio('Elegí a qué factura(s) corresponde este pago');
                 }
             }
+            // Si incluirSaldoSinFactura vino true, se acepta facturaIds vacio
+            // sin este chequeo aunque el cliente tenga otras facturas
+            // pendientes sin elegir - el usuario decidio a proposito cobrar
+            // solo la parte sin factura, dejando esas otras intactas.
 
             let restante = Number(monto);
             const aplicaciones = [];

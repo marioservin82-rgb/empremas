@@ -142,7 +142,12 @@ export default function CobroCliente() {
     try {
       const cobro = await apiFetch(`/api/clientes/${id}/cobros`, {
         method: "POST",
-        body: JSON.stringify({ monto: totalPagos, pagos, facturaIds: facturaIdsSeleccionadas }),
+        body: JSON.stringify({
+          monto: totalPagos,
+          pagos,
+          facturaIds: facturaIdsSeleccionadas,
+          incluirSaldoSinFactura,
+        }),
       });
       setVistaRecibo("recibo");
       setRecibo(cobro);
