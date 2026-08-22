@@ -320,8 +320,9 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   if (cliente?.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
+    const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
     lineas.push(
-      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
+      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
     );
   }
@@ -362,8 +363,9 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   }
   lineas.push(SEPARADOR);
   for (const i of items) {
+    const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
     lineas.push(
-      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}`.replace(/\s+/g, " ") },
+      { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
     );
   }
@@ -492,6 +494,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
           <div key={i.productoId} className="mb-2">
             <p>
               {formatoCantidad.format(Number(i.cantidad))} {i.unidadMedida} x {i.nombre}
+              {i.esMayorista && <span className="ml-1">(mayorista)</span>}
             </p>
             <div className="flex justify-between text-sm">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
@@ -649,6 +652,7 @@ export default function Recibo({
           <div key={i.productoId} className="mb-2">
             <p>
               {formatoCantidad.format(Number(i.cantidad))} {i.unidadMedida} x {i.nombre}
+              {i.esMayorista && <span className="ml-1 text-navy">(mayorista)</span>}
             </p>
             <div className="flex justify-between text-sm text-slate-600">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>

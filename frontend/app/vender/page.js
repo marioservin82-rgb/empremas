@@ -48,9 +48,14 @@ function colorSaldo(disponible, linea) {
 
 // Un item que llegó de convertir un presupuesto trae su propio precio
 // cotizado (posiblemente editado a mano) — ese precio se respeta en vez de
-// recalcular con el precio de catálogo actual.
+// recalcular con el precio de catálogo actual. Fuera de ese caso, un item
+// marcado a mano como mayorista usa ese precio en vez del de la lista
+// general de la venta - pero solo si la venta es al contado (en crédito no
+// aplica, aunque el item haya quedado marcado de antes).
 function precioDe(item, tipoPago) {
-  return item.precioFijo ?? item.precios[tipoPago];
+  if (item.precioFijo != null) return item.precioFijo;
+  if (tipoPago === "contado" && item.esMayorista) return item.precios.mayorista;
+  return item.precios[tipoPago];
 }
 
 export default function Vender() {
@@ -317,6 +322,7 @@ export default function Vender() {
             credito: Number(p.precio_credito),
             mayorista: Number(p.precio_mayorista),
           },
+          esMayorista: false,
         },
         ...actual,
       ];
@@ -328,6 +334,16 @@ export default function Vender() {
   function cambiarCantidad(productoId, cantidad) {
     setCarrito((actual) =>
       actual.map((i) => (i.productoId === productoId ? { ...i, cantidad } : i))
+    );
+  }
+
+  // Marca/desmarca un producto puntual del carrito para venderlo a precio
+  // mayorista - solo tiene efecto real con tipoPago "contado" (ver
+  // precioDe), pensado para cuando el cliente compra al menudeo pero se
+  // lleva un producto puntual por cantidad (ej. una caja de cerveza).
+  function alternarMayorista(productoId) {
+    setCarrito((actual) =>
+      actual.map((i) => (i.productoId === productoId ? { ...i, esMayorista: !i.esMayorista } : i))
     );
   }
 
@@ -386,6 +402,7 @@ export default function Vender() {
             productoId: i.productoId,
             cantidad: i.cantidad,
             precioUnitario: i.precioFijo,
+            esMayorista: i.esMayorista,
           })),
         }),
       });
@@ -402,6 +419,7 @@ export default function Vender() {
           cantidad: i.cantidad,
           precioUnitario: precioDe(i, tipoPago),
           unidadMedida: i.unidadMedida,
+          esMayorista: tipoPago === "contado" && !!i.esMayorista,
         })),
       });
     } catch (err) {
@@ -708,6 +726,16 @@ export default function Vender() {
                         Gs {formatoGs.format(precioDe(i, tipoPago))} / {i.unidadMedida}
                         {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
                       </p>
+                      {tipoPago === "contado" && i.precioFijo == null && (
+                        <button
+                          onClick={() => alternarMayorista(i.productoId)}
+                          className={`mt-1 rounded-full px-2 py-0.5 text-xs font-semibold transition ${
+                            i.esMayorista ? "bg-navy text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                          }`}
+                        >
+                          {i.esMayorista ? "✓ A precio mayorista" : "Vender a precio mayorista"}
+                        </button>
+                      )}
                     </div>
                     <input
                       type="number"
