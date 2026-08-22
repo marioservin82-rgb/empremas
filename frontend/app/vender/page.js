@@ -50,13 +50,22 @@ function colorSaldo(disponible, linea) {
 // Un item que llegó de convertir un presupuesto trae su propio precio
 // cotizado (posiblemente editado a mano) — ese precio se respeta en vez de
 // recalcular con el precio de catálogo actual. Fuera de ese caso, un item
-// marcado a mano como mayorista usa ese precio en vez del de la lista
-// general de la venta - pero solo si la venta es al contado (en crédito no
-// aplica, aunque el item haya quedado marcado de antes).
-function precioDe(item, tipoPago) {
+// marcado a mano como mayorista (o el beneficio automático de la categoría
+// de fidelización del cliente elegido) usa ese precio en vez del de la
+// lista general de la venta - pero solo si la venta es al contado (en
+// crédito no aplica). Mismo cálculo que hace el servidor en crearVenta -
+// se repite acá para que el cajero vea el total real ANTES de confirmar
+// (necesita saber cuánto cobrar, no enterarse después del hecho).
+function precioDe(item, tipoPago, beneficios) {
   if (item.precioFijo != null) return item.precioFijo;
-  if (tipoPago === "contado" && item.esMayorista) return item.precios.mayorista;
-  return item.precios[tipoPago];
+  const usaMayorista =
+    tipoPago === "contado" && (item.esMayorista || beneficios?.beneficioMayoristaAutomatico);
+  let precio = usaMayorista ? item.precios.mayorista : item.precios[tipoPago];
+  const descuentoPct = beneficios?.beneficioDescuentoAdicionalPct || 0;
+  if (descuentoPct > 0) {
+    precio = Math.round(precio * (1 - descuentoPct / 100));
+  }
+  return precio;
 }
 
 export default function Vender() {
@@ -71,6 +80,10 @@ export default function Vender() {
   const [resultadosCliente, setResultadosCliente] = useState([]);
   const [cliente, setCliente] = useState(null);
   const [buscandoClienteOpcional, setBuscandoClienteOpcional] = useState(false);
+  // Productos mas comprados historicamente por el cliente elegido - capa
+  // aparte de la sugerencia de venta cruzada (esa es sobre el producto,
+  // esta es sobre la persona).
+  const [productosFrecuentes, setProductosFrecuentes] = useState([]);
 
   // Alta rápida de cliente sin salir de Vender - para cuando el cliente
   // todavía no está cargado y no tiene sentido mandar al cajero a otra
@@ -195,6 +208,7 @@ export default function Vender() {
   function cambiarTipoPago(valor) {
     setTipoPago(valor);
     setCliente(null);
+    setProductosFrecuentes([]);
     setBuscandoClienteOpcional(false);
     setPagos([]);
     setNuevoPagoForma("");
@@ -261,6 +275,19 @@ export default function Vender() {
     setBusquedaCliente("");
     setBuscandoClienteOpcional(false);
     setCreandoClienteRapido(false);
+    cargarProductosFrecuentes(c);
+  }
+
+  // Capa personalizada de sugerencia: que productos compra siempre ESTE
+  // cliente en particular (distinto de la venta cruzada general, que es
+  // sobre el producto). No bloquea ni retrasa la seleccion del cliente.
+  async function cargarProductosFrecuentes(c) {
+    try {
+      const productos = await apiFetch(`/api/clientes/${c.id}/productos-frecuentes`);
+      setProductosFrecuentes(productos);
+    } catch {
+      setProductosFrecuentes([]);
+    }
   }
 
   async function ejecutarBusquedaProducto(q) {
@@ -369,7 +396,7 @@ export default function Vender() {
   }
 
   const total = carrito.reduce(
-    (acumulado, i) => acumulado + precioDe(i, tipoPago) * i.cantidad,
+    (acumulado, i) => acumulado + precioDe(i, tipoPago, cliente?.categoriaCliente) * i.cantidad,
     0
   );
 
@@ -434,7 +461,7 @@ export default function Vender() {
           productoId: i.productoId,
           nombre: i.nombre,
           cantidad: i.cantidad,
-          precioUnitario: precioDe(i, tipoPago),
+          precioUnitario: precioDe(i, tipoPago, cliente?.categoriaCliente),
           unidadMedida: i.unidadMedida,
           esMayorista: tipoPago === "contado" && !!i.esMayorista,
         })),
@@ -477,6 +504,7 @@ export default function Vender() {
     setRecibo(null);
     setCarrito([]);
     setCliente(null);
+    setProductosFrecuentes([]);
     setBuscandoClienteOpcional(false);
     setPagos([]);
     setNuevoPagoForma("");
@@ -684,9 +712,19 @@ export default function Vender() {
           <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-lg font-bold text-slate-800">{cliente.nombre}</p>
+                <p className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                  {cliente.nombre}
+                  {cliente.categoriaCliente && (
+                    <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                      {cliente.categoriaCliente.nombre}
+                    </span>
+                  )}
+                </p>
                 <button
-                  onClick={() => setCliente(null)}
+                  onClick={() => {
+                    setCliente(null);
+                    setProductosFrecuentes([]);
+                  }}
                   className="text-sm font-medium text-navy hover:text-brand"
                 >
                   Cambiar cliente
@@ -699,6 +737,22 @@ export default function Vender() {
                 <p className="text-sm text-slate-400">crédito disponible</p>
               </div>
             </div>
+            {productosFrecuentes.length > 0 && (
+              <div className="mt-3 rounded-xl bg-tint p-3">
+                <p className="mb-2 text-sm text-navy">Este cliente suele llevar:</p>
+                <div className="flex flex-wrap gap-2">
+                  {productosFrecuentes.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => agregarAlCarrito(p)}
+                      className="rounded-xl border border-navy/30 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
+                    >
+                      + {p.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -765,7 +819,7 @@ export default function Vender() {
                     <div className="flex-1">
                       <p className="font-semibold text-slate-800">{i.nombre}</p>
                       <p className="text-sm text-slate-400">
-                        Gs {formatoGs.format(precioDe(i, tipoPago))} / {i.unidadMedida}
+                        Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente))} / {i.unidadMedida}
                         {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
                       </p>
                       {tipoPago === "contado" && i.precioFijo == null && (
@@ -788,7 +842,7 @@ export default function Vender() {
                       className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
                     />
                     <p className="w-28 text-right font-bold text-slate-800">
-                      Gs {formatoGs.format(precioDe(i, tipoPago) * i.cantidad)}
+                      Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente) * i.cantidad)}
                     </p>
                     <button
                       onClick={() => quitarDelCarrito(i.productoId)}
@@ -806,17 +860,45 @@ export default function Vender() {
                 {tipoPago !== "credito" && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     {cliente ? (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-slate-400">Cliente</p>
-                          <p className="font-semibold text-slate-800">{cliente.nombre}</p>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-slate-400">Cliente</p>
+                            <p className="flex items-center gap-2 font-semibold text-slate-800">
+                              {cliente.nombre}
+                              {cliente.categoriaCliente && (
+                                <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                                  {cliente.categoriaCliente.nombre}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setCliente(null);
+                              setProductosFrecuentes([]);
+                            }}
+                            className="text-sm font-medium text-red-500 hover:text-red-700"
+                          >
+                            Quitar
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setCliente(null)}
-                          className="text-sm font-medium text-red-500 hover:text-red-700"
-                        >
-                          Quitar
-                        </button>
+                        {productosFrecuentes.length > 0 && (
+                          <div className="mt-3 rounded-xl bg-tint p-3">
+                            <p className="mb-2 text-sm text-navy">Este cliente suele llevar:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {productosFrecuentes.map((p) => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => agregarAlCarrito(p)}
+                                  className="rounded-xl border border-navy/30 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
+                                >
+                                  + {p.nombre}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : buscandoClienteOpcional ? (
                       <div>

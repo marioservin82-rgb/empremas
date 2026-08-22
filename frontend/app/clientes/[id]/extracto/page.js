@@ -127,7 +127,14 @@ export default function ExtractoCliente() {
             <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-navy">Extracto de {cliente.nombre}</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-navy">
+              Extracto de {cliente.nombre}
+              {cliente.categoriaCliente && (
+                <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                  {cliente.categoriaCliente.nombre}
+                </span>
+              )}
+            </h1>
           </div>
           <div className="flex gap-2">
             <Link
@@ -223,7 +230,7 @@ export default function ExtractoCliente() {
           </div>
           <p className="mb-4 text-sm font-medium text-slate-500 print:hidden">{textoPeriodo}</p>
 
-          <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="mb-4 grid grid-cols-3 gap-3">
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
               <p className="text-sm text-slate-400">Debe hoy</p>
               <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.saldo)}</p>
@@ -233,6 +240,10 @@ export default function ExtractoCliente() {
               <p className="text-2xl font-extrabold text-ink">
                 Gs {formatoGs.format(cliente.saldo_disponible)}
               </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-5 text-center">
+              <p className="text-sm text-slate-400">Volumen este mes</p>
+              <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.volumenMes)}</p>
             </div>
           </div>
 

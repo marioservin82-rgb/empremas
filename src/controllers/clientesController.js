@@ -1,11 +1,51 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
+import { rangoDelMes } from '../utils/rangoDelMes.js';
 
-function conSaldoDisponible(cliente) {
+// Categoria de fidelizacion de un cliente: nunca se guarda, siempre se
+// recalcula comparando el volumen de compra del mes (contado + credito +
+// mayorista) contra las categorias activas de la empresa, quedandose con
+// la de monto_minimo mas alto que el volumen iguala o supera.
+// ejecutarConsulta: (sql, params) => Promise<{rows}> - consultaDeEmpresa ya
+// atado a la empresa, o cliente.query de una transaccion en curso.
+export async function categoriaYVolumenDeCliente(ejecutarConsulta, empresaId, clienteId, mes) {
+    const { desde, hasta } = rangoDelMes(mes);
+    const [volumen, categorias] = await Promise.all([
+        ejecutarConsulta(
+            `SELECT COALESCE(SUM(total), 0) AS total FROM ventas
+             WHERE cliente_id = $1 AND anulada = false AND creado_en >= $2::date AND creado_en < ($3::date + INTERVAL '1 day')`,
+            [clienteId, desde, hasta]
+        ),
+        ejecutarConsulta(
+            `SELECT * FROM categorias_cliente WHERE empresa_id = $1 AND activo = true ORDER BY monto_minimo DESC`,
+            [empresaId]
+        ),
+    ]);
+    const volumenMes = Number(volumen.rows[0].total);
+    const categoria = categorias.rows.find((c) => volumenMes >= Number(c.monto_minimo)) || null;
+    return { volumenMes, categoria };
+}
+
+function conSaldoDisponibleYCategoria(cliente, categoria) {
+    const lineaCreditoEfectiva = Number(cliente.linea_credito) + Number(categoria?.beneficio_linea_credito_extra || 0);
     return {
         ...cliente,
-        saldo_disponible: Number(cliente.linea_credito) - Number(cliente.saldo),
+        // Se manda tambien el beneficio de mayorista/descuento (no solo el
+        // nombre) para que Vender pueda mostrar el precio ya con el
+        // beneficio aplicado ANTES de confirmar la venta - el cajero
+        // necesita saber cuanto cobrar de verdad, no solo despues del
+        // hecho.
+        categoriaCliente: categoria
+            ? {
+                  id: categoria.id,
+                  nombre: categoria.nombre,
+                  beneficioMayoristaAutomatico: categoria.beneficio_mayorista_automatico,
+                  beneficioDescuentoAdicionalPct: Number(categoria.beneficio_descuento_adicional_pct || 0),
+              }
+            : null,
+        volumenMes: Number(cliente.volumen_mes ?? 0),
+        saldo_disponible: lineaCreditoEfectiva - Number(cliente.saldo),
     };
 }
 
@@ -24,29 +64,50 @@ export async function listarClientes(req, res) {
               AND saldo_pendiente > 0 AND vencimiento IS NOT NULL
             ORDER BY vencimiento ASC LIMIT 1
         ) v ON true`;
+    // Volumen de compra del mes en curso, traido con una subconsulta
+    // escalar en la misma fila (en vez de una categoria por cliente,
+    // aparte) - evita N+1: las categorias de la empresa se traen una sola
+    // vez, aparte, y la clasificacion de cada fila se resuelve en JS.
     const columnasVentaUrgente = `v.numero_ticket AS recordatorio_numero,
-              v.saldo_pendiente AS recordatorio_monto, v.vencimiento AS recordatorio_vencimiento`;
+              v.saldo_pendiente AS recordatorio_monto, v.vencimiento AS recordatorio_vencimiento,
+              COALESCE((
+                  SELECT SUM(total) FROM ventas
+                  WHERE cliente_id = c.id AND anulada = false AND creado_en >= date_trunc('month', now())
+              ), 0) AS volumen_mes`;
 
-    const resultado = q
-        ? await consultaDeEmpresa(
-              empresaId,
-              `SELECT c.*, ${columnasVentaUrgente}
-               FROM clientes c
-               ${ventaUrgenteJoin}
-               WHERE c.activo = true AND (c.documento LIKE $1 OR unaccent(lower(c.nombre)) LIKE unaccent(lower($2)))
-               ORDER BY c.nombre LIMIT 50`,
-              [`%${q}%`, `%${q}%`]
-          )
-        : await consultaDeEmpresa(
-              empresaId,
-              `SELECT c.*, ${columnasVentaUrgente}
-               FROM clientes c
-               ${ventaUrgenteJoin}
-               WHERE c.activo = true ORDER BY c.nombre LIMIT 100`,
-              []
-          );
+    const [resultado, categorias] = await Promise.all([
+        q
+            ? consultaDeEmpresa(
+                  empresaId,
+                  `SELECT c.*, ${columnasVentaUrgente}
+                   FROM clientes c
+                   ${ventaUrgenteJoin}
+                   WHERE c.activo = true AND (c.documento LIKE $1 OR unaccent(lower(c.nombre)) LIKE unaccent(lower($2)))
+                   ORDER BY c.nombre LIMIT 50`,
+                  [`%${q}%`, `%${q}%`]
+              )
+            : consultaDeEmpresa(
+                  empresaId,
+                  `SELECT c.*, ${columnasVentaUrgente}
+                   FROM clientes c
+                   ${ventaUrgenteJoin}
+                   WHERE c.activo = true ORDER BY c.nombre LIMIT 100`,
+                  []
+              ),
+        consultaDeEmpresa(
+            empresaId,
+            `SELECT * FROM categorias_cliente WHERE empresa_id = $1 AND activo = true ORDER BY monto_minimo DESC`,
+            [empresaId]
+        ),
+    ]);
 
-    res.json(resultado.rows.map(conSaldoDisponible));
+    res.json(
+        resultado.rows.map((c) => {
+            const volumenMes = Number(c.volumen_mes);
+            const categoria = categorias.rows.find((cat) => volumenMes >= Number(cat.monto_minimo)) || null;
+            return conSaldoDisponibleYCategoria(c, categoria);
+        })
+    );
 }
 
 export async function obtenerCliente(req, res) {
@@ -62,7 +123,12 @@ export async function obtenerCliente(req, res) {
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
     }
-    res.json(conSaldoDisponible(resultado.rows[0]));
+    const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
+        (sql, params) => consultaDeEmpresa(empresaId, sql, params),
+        empresaId,
+        id
+    );
+    res.json(conSaldoDisponibleYCategoria({ ...resultado.rows[0], volumen_mes: volumenMes }, categoria));
 }
 
 // Extracto de cliente (estado de cuenta): historial de ventas + cobros y
@@ -117,8 +183,14 @@ export async function extractoCliente(req, res) {
         [id, ...valoresFecha]
     );
 
+    const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
+        (sql, params) => consultaDeEmpresa(empresaId, sql, params),
+        empresaId,
+        id
+    );
+
     res.json({
-        cliente: conSaldoDisponible(cliente.rows[0]),
+        cliente: conSaldoDisponibleYCategoria({ ...cliente.rows[0], volumen_mes: volumenMes }, categoria),
         ventas: ventas.rows,
         cobros: cobros.rows,
         ajustesSaldo: ajustesSaldo.rows,
@@ -170,7 +242,7 @@ export async function crearCliente(req, res) {
         return nuevoCliente;
     });
 
-    res.status(201).json(conSaldoDisponible(cliente));
+    res.status(201).json(conSaldoDisponibleYCategoria(cliente, null));
 }
 
 // Importacion masiva desde CSV (el parseo del archivo se hace en el
@@ -366,5 +438,185 @@ export async function actualizarCliente(req, res) {
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
     }
-    res.json(conSaldoDisponible(resultado.rows[0]));
+    const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
+        (sql, params) => consultaDeEmpresa(empresaId, sql, params),
+        empresaId,
+        id
+    );
+    res.json(conSaldoDisponibleYCategoria({ ...resultado.rows[0], volumen_mes: volumenMes }, categoria));
+}
+
+// ---------------------------------------------------------------------
+// Categorias de fidelizacion (dueño-only: define nombre, rango y
+// beneficios - politica financiera del negocio, mismo criterio que
+// Gastos/Perfil de Empresa).
+// ---------------------------------------------------------------------
+
+export async function listarCategorias(req, res) {
+    const { empresaId } = req.usuario;
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT * FROM categorias_cliente WHERE empresa_id = $1 ORDER BY monto_minimo DESC`,
+        [empresaId]
+    );
+    res.json(resultado.rows);
+}
+
+export async function crearCategoria(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { nombre, montoMinimo, beneficioMayoristaAutomatico, beneficioDescuentoAdicionalPct, beneficioLineaCreditoExtra } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+        return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+    if (montoMinimo !== undefined && !(Number(montoMinimo) >= 0)) {
+        return res.status(400).json({ error: 'El monto mínimo debe ser 0 o mayor' });
+    }
+    if (beneficioDescuentoAdicionalPct !== undefined && beneficioDescuentoAdicionalPct !== null) {
+        const pct = Number(beneficioDescuentoAdicionalPct);
+        if (!(pct >= 0) || pct > 100) {
+            return res.status(400).json({ error: 'El descuento adicional debe estar entre 0 y 100' });
+        }
+    }
+    if (beneficioLineaCreditoExtra !== undefined && beneficioLineaCreditoExtra !== null && !(Number(beneficioLineaCreditoExtra) >= 0)) {
+        return res.status(400).json({ error: 'El crédito extra debe ser 0 o mayor' });
+    }
+
+    try {
+        const resultado = await consultaDeEmpresa(
+            empresaId,
+            `INSERT INTO categorias_cliente (empresa_id, nombre, monto_minimo, beneficio_mayorista_automatico, beneficio_descuento_adicional_pct, beneficio_linea_credito_extra, usuario_id)
+             VALUES ($1, $2, COALESCE($3, 0::numeric), COALESCE($4, false), $5, $6, $7)
+             RETURNING *`,
+            [
+                empresaId,
+                nombre.trim(),
+                montoMinimo,
+                beneficioMayoristaAutomatico,
+                beneficioDescuentoAdicionalPct || null,
+                beneficioLineaCreditoExtra || null,
+                usuarioId,
+            ]
+        );
+        res.status(201).json(resultado.rows[0]);
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(400).json({ error: 'Ya existe una categoría con ese nombre' });
+        }
+        throw error;
+    }
+}
+
+export async function actualizarCategoria(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const { nombre, montoMinimo, beneficioMayoristaAutomatico, beneficioDescuentoAdicionalPct, beneficioLineaCreditoExtra, activo } = req.body;
+
+    if (montoMinimo !== undefined && montoMinimo !== null && !(Number(montoMinimo) >= 0)) {
+        return res.status(400).json({ error: 'El monto mínimo debe ser 0 o mayor' });
+    }
+    if (beneficioDescuentoAdicionalPct !== undefined && beneficioDescuentoAdicionalPct !== null) {
+        const pct = Number(beneficioDescuentoAdicionalPct);
+        if (!(pct >= 0) || pct > 100) {
+            return res.status(400).json({ error: 'El descuento adicional debe estar entre 0 y 100' });
+        }
+    }
+
+    // beneficio_descuento_adicional_pct/beneficio_linea_credito_extra se
+    // asignan directo (sin COALESCE): son nulleables a proposito, para que
+    // el dueno pueda apagar un beneficio mandando null - la pantalla de
+    // edicion siempre reenvia el formulario completo, no es un PATCH
+    // parcial de un campo suelto.
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `UPDATE categorias_cliente SET
+            nombre = COALESCE($3, nombre),
+            monto_minimo = COALESCE($4, monto_minimo),
+            beneficio_mayorista_automatico = COALESCE($5, beneficio_mayorista_automatico),
+            beneficio_descuento_adicional_pct = $6,
+            beneficio_linea_credito_extra = $7,
+            activo = COALESCE($8, activo)
+         WHERE id = $1 AND empresa_id = $2
+         RETURNING *`,
+        [
+            id,
+            empresaId,
+            nombre,
+            montoMinimo,
+            beneficioMayoristaAutomatico,
+            beneficioDescuentoAdicionalPct || null,
+            beneficioLineaCreditoExtra || null,
+            activo,
+        ]
+    );
+
+    if (!resultado.rows[0]) {
+        return res.status(404).json({ error: 'Categoría no encontrada' });
+    }
+    res.json(resultado.rows[0]);
+}
+
+// Cuenta cuantos clientes activos caen en cada categoria hoy - misma
+// subconsulta escalar de volumen + comparacion en JS que listarClientes,
+// para no repetir un query por cliente.
+export async function reporteCategoriasCliente(req, res) {
+    const { empresaId } = req.usuario;
+
+    const [clientes, categorias] = await Promise.all([
+        consultaDeEmpresa(
+            empresaId,
+            `SELECT COALESCE((
+                 SELECT SUM(total) FROM ventas
+                 WHERE cliente_id = c.id AND anulada = false AND creado_en >= date_trunc('month', now())
+             ), 0) AS volumen_mes
+             FROM clientes c WHERE c.activo = true AND c.es_generico = false`,
+            []
+        ),
+        consultaDeEmpresa(
+            empresaId,
+            `SELECT * FROM categorias_cliente WHERE empresa_id = $1 AND activo = true ORDER BY monto_minimo DESC`,
+            [empresaId]
+        ),
+    ]);
+
+    const conteos = new Map(categorias.rows.map((c) => [c.id, 0]));
+    let sinCategoria = 0;
+    for (const fila of clientes.rows) {
+        const volumenMes = Number(fila.volumen_mes);
+        const categoria = categorias.rows.find((c) => volumenMes >= Number(c.monto_minimo));
+        if (categoria) {
+            conteos.set(categoria.id, conteos.get(categoria.id) + 1);
+        } else {
+            sinCategoria++;
+        }
+    }
+
+    res.json({
+        categorias: categorias.rows.map((c) => ({ id: c.id, nombre: c.nombre, cantidadClientes: conteos.get(c.id) })),
+        sinCategoria,
+    });
+}
+
+// Productos mas comprados historicamente por ESTE cliente puntual -
+// distinto de "productos asociados" (que es sobre el producto en
+// general). Sin gate de rol: el cajero lo necesita en Vender.
+export async function productosFrecuentesDeCliente(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT p.id, p.nombre, p.codigo_barras, p.unidad_medida,
+                p.precio_contado, p.precio_credito, p.precio_mayorista,
+                COUNT(DISTINCT vi.venta_id) AS veces_comprado
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id AND v.cliente_id = $1 AND v.anulada = false
+         JOIN productos p ON p.id = vi.producto_id AND p.activo = true
+         GROUP BY p.id
+         ORDER BY veces_comprado DESC
+         LIMIT 5`,
+        [id]
+    );
+
+    res.json(resultado.rows);
 }

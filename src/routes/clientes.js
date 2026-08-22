@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { autenticar } from '../middleware/autenticar.js';
-import { permitirRolesOPermiso } from '../middleware/permitirRoles.js';
+import { permitirRoles, permitirRolesOPermiso } from '../middleware/permitirRoles.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {
     listarClientes,
@@ -11,12 +11,27 @@ import {
     importarClientes,
     ajustarSaldo,
     historialAjustesSaldo,
+    listarCategorias,
+    crearCategoria,
+    actualizarCategoria,
+    reporteCategoriasCliente,
+    productosFrecuentesDeCliente,
 } from '../controllers/clientesController.js';
 import { facturasPendientes, crearCobro, listarCobros } from '../controllers/cobrosController.js';
 
 const router = Router();
 
 router.use(autenticar);
+
+// categorias y reporte-categorias antes de /:id para que Express no las
+// confunda con un id de cliente (mismo criterio que /inventario-valorizado
+// en productos.js). Dueño-only: es politica financiera del negocio, la
+// spec de esta funcion dice "el dueño define/configura", nunca "dueño o
+// encargado".
+router.get('/categorias', permitirRoles('dueno'), asyncHandler(listarCategorias));
+router.post('/categorias', permitirRoles('dueno'), asyncHandler(crearCategoria));
+router.patch('/categorias/:id', permitirRoles('dueno'), asyncHandler(actualizarCategoria));
+router.get('/reporte-categorias', permitirRoles('dueno'), asyncHandler(reporteCategoriasCliente));
 
 // Lectura abierta a cualquier rol logueado: el cajero necesita poder
 // consultar el credito disponible de un cliente antes de vender (regla de
@@ -26,6 +41,7 @@ router.get('/:id', asyncHandler(obtenerCliente));
 router.get('/:id/facturas-pendientes', asyncHandler(facturasPendientes));
 router.get('/:id/cobros', asyncHandler(listarCobros));
 router.get('/:id/extracto', asyncHandler(extractoCliente));
+router.get('/:id/productos-frecuentes', asyncHandler(productosFrecuentesDeCliente));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(historialAjustesSaldo));
 
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(crearCliente));

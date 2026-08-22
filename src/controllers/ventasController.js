@@ -4,6 +4,7 @@ import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { tienePermiso } from '../utils/permisos.js';
 import { emitirFacturaElectronica, descargarKude, ErrorSifen } from '../services/sifenService.js';
+import { categoriaYVolumenDeCliente } from './clientesController.js';
 
 const COLUMNA_PRECIO = {
     contado: 'precio_contado',
@@ -140,6 +141,42 @@ export async function crearVenta(req, res) {
             let total = 0;
             const itemsCalculados = [];
 
+            // Toda venta necesita un comprador. Si no se eligio uno puntual,
+            // se usa el "Consumidor Final" generico de la empresa. Se
+            // resuelve ANTES del loop de items (se movio desde mas abajo)
+            // porque los beneficios de categoria de fidelizacion, calculados
+            // acá mismo, tienen que estar listos antes de calcular el precio
+            // de cada item.
+            let clienteIdFinal = clienteId;
+            if (!clienteIdFinal) {
+                const generico = await cliente.query(
+                    `SELECT id FROM clientes WHERE empresa_id = $1 AND es_generico = true LIMIT 1`,
+                    [empresaId]
+                );
+                clienteIdFinal = generico.rows[0]?.id;
+                if (!clienteIdFinal) {
+                    throw new ErrorNegocio('No se encontró el cliente "Consumidor Final" de la empresa');
+                }
+            }
+
+            // Beneficios de la categoria de fidelizacion del cliente (ver
+            // clientesController.categoriaYVolumenDeCliente) - solo se
+            // calculan si se eligio un cliente puntual, nunca para el
+            // "Consumidor Final" generico (agrupa compradores anonimos, no
+            // una persona identificable cuyo historial tenga sentido
+            // premiar).
+            let beneficios = { mayoristaAutomatico: false, descuentoPct: 0, lineaCreditoExtra: 0 };
+            if (clienteId) {
+                const { categoria } = await categoriaYVolumenDeCliente(cliente.query.bind(cliente), empresaId, clienteIdFinal);
+                if (categoria) {
+                    beneficios = {
+                        mayoristaAutomatico: categoria.beneficio_mayorista_automatico,
+                        descuentoPct: Number(categoria.beneficio_descuento_adicional_pct || 0),
+                        lineaCreditoExtra: Number(categoria.beneficio_linea_credito_extra || 0),
+                    };
+                }
+            }
+
             // FOR UPDATE: bloquea la fila de stock (de esta sucursal) hasta
             // que termine la transaccion, asi dos ventas al mismo tiempo no
             // descuentan el mismo stock dos veces sin verlo.
@@ -178,17 +215,25 @@ export async function crearVenta(req, res) {
                 // mano) se respeta al convertir a venta, en vez de recalcular
                 // con el precio de catalogo actual. Fuera de esa conversion,
                 // el precio siempre sale del catalogo — nunca de lo que mande
-                // el cliente HTTP. La marca esMayorista por item solo tiene
-                // efecto en una venta al contado (no en credito) y nunca pisa
-                // el precio ya congelado de un presupuesto.
+                // el cliente HTTP. La marca esMayorista por item (manual o por
+                // el beneficio automatico de categoria) solo tiene efecto en
+                // una venta al contado (no en credito) y nunca pisa el precio
+                // ya congelado de un presupuesto.
+                const vienDePresupuesto = presupuestoId && precioDelPresupuesto != null;
                 const usaMayoristaPorItem =
-                    tipoPago === 'contado' && !!esMayorista && !(presupuestoId && precioDelPresupuesto != null);
-                const precioUnitario =
-                    presupuestoId && precioDelPresupuesto != null
-                        ? Number(precioDelPresupuesto)
-                        : usaMayoristaPorItem
-                        ? Number(producto.precio_mayorista)
-                        : Number(producto.precio);
+                    tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !vienDePresupuesto;
+                let precioUnitario = vienDePresupuesto
+                    ? Number(precioDelPresupuesto)
+                    : usaMayoristaPorItem
+                    ? Number(producto.precio_mayorista)
+                    : Number(producto.precio);
+                // Descuento adicional de categoria: nunca pisa un precio ya
+                // congelado de presupuesto, redondeado a guarani entero
+                // (moneda sin decimales en la practica, igual que el resto
+                // de los precios de la app).
+                if (!vienDePresupuesto && beneficios.descuentoPct > 0) {
+                    precioUnitario = Math.round(precioUnitario * (1 - beneficios.descuentoPct / 100));
+                }
                 const subtotal = precioUnitario * cantidad;
                 total += subtotal;
                 itemsCalculados.push({
@@ -205,20 +250,6 @@ export async function crearVenta(req, res) {
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
                 });
-            }
-
-            // Toda venta necesita un comprador. Si no se eligio uno puntual,
-            // se usa el "Consumidor Final" generico de la empresa.
-            let clienteIdFinal = clienteId;
-            if (!clienteIdFinal) {
-                const generico = await cliente.query(
-                    `SELECT id FROM clientes WHERE empresa_id = $1 AND es_generico = true LIMIT 1`,
-                    [empresaId]
-                );
-                clienteIdFinal = generico.rows[0]?.id;
-                if (!clienteIdFinal) {
-                    throw new ErrorNegocio('No se encontró el cliente "Consumidor Final" de la empresa');
-                }
             }
 
             // Se manda de vuelta en la respuesta (ver mas abajo) para que el
@@ -250,7 +281,13 @@ export async function crearVenta(req, res) {
                 }
                 montoFiado = total - entregaInicial;
 
-                const disponible = Number(c.linea_credito) - Number(c.saldo);
+                // lineaCreditoExtra del beneficio de categoria suma acá -
+                // mismo numero que ya calcula conSaldoDisponibleYCategoria
+                // para lo que ve el cajero en pantalla al elegir el cliente,
+                // para que nunca se rechace en el momento un crédito que la
+                // ficha le mostró como disponible.
+                const lineaCreditoEfectiva = Number(c.linea_credito) + beneficios.lineaCreditoExtra;
+                const disponible = lineaCreditoEfectiva - Number(c.saldo);
                 if (montoFiado > disponible) {
                     throw new ErrorNegocio(
                         `Crédito insuficiente: disponible Gs ${disponible.toLocaleString('es-PY')}, el saldo a fiar es de Gs ${montoFiado.toLocaleString('es-PY')}`
@@ -262,8 +299,8 @@ export async function crearVenta(req, res) {
                     entregaInicial,
                     montoFiado,
                     clienteSaldo: nuevoSaldo,
-                    clienteLineaCredito: Number(c.linea_credito),
-                    clienteSaldoDisponible: Number(c.linea_credito) - nuevoSaldo,
+                    clienteLineaCredito: lineaCreditoEfectiva,
+                    clienteSaldoDisponible: lineaCreditoEfectiva - nuevoSaldo,
                 };
             }
 

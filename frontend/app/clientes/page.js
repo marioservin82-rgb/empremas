@@ -88,6 +88,14 @@ export default function Clientes() {
             <h1 className="text-2xl font-bold text-navy">Fiado / Crédito</h1>
           </div>
           <div className="flex gap-2">
+            {yo?.rol === "dueno" && (
+              <Link
+                href="/clientes/categorias"
+                className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+              >
+                Categorías de clientes
+              </Link>
+            )}
             <Link
               href="/clientes/importar"
               className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
@@ -138,7 +146,14 @@ export default function Clientes() {
                 <div key={c.id} className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-lg font-bold text-slate-800">{c.nombre}</p>
+                      <p className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        {c.nombre}
+                        {c.categoriaCliente && (
+                          <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                            {c.categoriaCliente.nombre}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-sm text-slate-400">
                         {[c.documento || "sin documento", c.telefono, c.celular].filter(Boolean).join(" · ")}
                       </p>

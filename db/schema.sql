@@ -410,6 +410,37 @@ ALTER TABLE clientes FORCE ROW LEVEL SECURITY;
 CREATE POLICY clientes_aislamiento ON clientes
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
+-- Categorias de fidelizacion, definidas por el dueno (nombre y rango en
+-- Gs libres - el volumen "alto" varia mucho segun el rubro). La categoria
+-- de un cliente NUNCA se guarda aca ni en clientes - siempre se recalcula
+-- al vuelo comparando el volumen de compra del mes (SUM de ventas.total)
+-- contra estas filas, misma logica que ya usa el balance mensual de
+-- gastos. monto_minimo es el piso mensual (Gs) a partir del cual un
+-- cliente cae en esta categoria - la clasificacion es "la categoria
+-- activa con el monto_minimo mas alto que el volumen del mes iguala o
+-- supera", no hace falta un campo de orden aparte. Los beneficios valen
+-- "prendidos" cuando tienen un valor distinto de su default/null.
+CREATE TABLE categorias_cliente (
+    id                                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id                              UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    nombre                                  TEXT NOT NULL,
+    monto_minimo                            NUMERIC(14,2) NOT NULL DEFAULT 0,
+    beneficio_mayorista_automatico          BOOLEAN NOT NULL DEFAULT false,
+    beneficio_descuento_adicional_pct       NUMERIC(5,2),
+    beneficio_linea_credito_extra           NUMERIC(14,2),
+    activo                                  BOOLEAN NOT NULL DEFAULT true,
+    usuario_id                              UUID NOT NULL REFERENCES usuarios(id),
+    creado_en                               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (empresa_id, nombre)
+);
+CREATE INDEX idx_categorias_cliente_empresa ON categorias_cliente (empresa_id);
+
+ALTER TABLE categorias_cliente ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categorias_cliente FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY categorias_cliente_aislamiento ON categorias_cliente
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- Ajuste de saldo de cliente: mismo espiritu que ajustes_inventario (mas
 -- abajo) pero para clientes.saldo - permite migrar un cliente con deuda
 -- ya existente de otro sistema, o corregir un saldo mal cargado, siempre

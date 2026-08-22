@@ -1,4 +1,5 @@
 import pool, { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
+import { rangoDelMes } from '../utils/rangoDelMes.js';
 
 const CATEGORIAS_VALIDAS = [
     'servicios_fijos', 'software_suscripciones', 'personal',
@@ -260,16 +261,6 @@ export async function pagarCuotaPrestamo(req, res) {
 // ---------------------------------------------------------------------
 // Balance mensual
 // ---------------------------------------------------------------------
-
-function rangoDelMes(mes) {
-    // mes viene como "YYYY-MM"; si no viene, el mes actual.
-    const [anioStr, mesStr] = (mes || new Date().toISOString().slice(0, 7)).split('-');
-    const anio = Number(anioStr);
-    const mesIndice = Number(mesStr) - 1;
-    const desde = new Date(Date.UTC(anio, mesIndice, 1)).toISOString().slice(0, 10);
-    const hasta = new Date(Date.UTC(anio, mesIndice + 1, 0)).toISOString().slice(0, 10);
-    return { desde, hasta };
-}
 
 export async function obtenerBalanceMensual(req, res) {
     const { empresaId, usuarioId } = req.usuario;
