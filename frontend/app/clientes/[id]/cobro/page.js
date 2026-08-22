@@ -30,6 +30,12 @@ export default function CobroCliente() {
   const [facturas, setFacturas] = useState([]);
   const [empresaInfo, setEmpresaInfo] = useState(null);
   const [facturaIdsSeleccionadas, setFacturaIdsSeleccionadas] = useState([]);
+  // Parte del saldo del cliente que no tiene ninguna venta asociada en
+  // EMPREMAS (deuda migrada de otro sistema, o corregida a mano con un
+  // ajuste de saldo) - no es una "factura" real, pero el cajero necesita
+  // poder marcarla igual para que el monto a cobrar la contemple, en vez
+  // de que quede como un excedente sin explicar.
+  const [incluirSaldoSinFactura, setIncluirSaldoSinFactura] = useState(false);
 
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
@@ -49,10 +55,18 @@ export default function CobroCliente() {
       ]);
       setCliente(c);
       setFacturas(f);
-      // Con una sola factura pendiente, se preselecciona sola (menos
-      // friccion en el caso mas comun) - con varias, arranca sin marcar
-      // ninguna para que sea una eleccion explicita.
-      setFacturaIdsSeleccionadas(f.length === 1 ? [f[0].id] : []);
+      const sinFactura = Math.max(
+        Number(c.saldo) - f.reduce((acumulado, factura) => acumulado + Number(factura.saldo_pendiente), 0),
+        0
+      );
+      // Si hay un solo item para elegir en total (una factura sola, o solo
+      // saldo sin factura, sin ninguna factura real) se preselecciona solo
+      // (menos friccion en el caso mas comun) - con varios, arranca sin
+      // marcar nada para que sea una eleccion explicita.
+      const haySaldoSinFactura = sinFactura > 0.01;
+      const totalSeleccionable = f.length + (haySaldoSinFactura ? 1 : 0);
+      setFacturaIdsSeleccionadas(totalSeleccionable === 1 && f.length === 1 ? [f[0].id] : []);
+      setIncluirSaldoSinFactura(totalSeleccionable === 1 && haySaldoSinFactura);
       setEmpresaInfo(e);
     } catch (err) {
       setError(err.message);
@@ -74,20 +88,31 @@ export default function CobroCliente() {
     );
   }
 
-  const montoSeleccionado = facturas
-    .filter((f) => facturaIdsSeleccionadas.includes(f.id))
-    .reduce((acumulado, f) => acumulado + Number(f.saldo_pendiente), 0);
+  const saldoSinFactura = cliente
+    ? Math.max(
+        Number(cliente.saldo) - facturas.reduce((acumulado, f) => acumulado + Number(f.saldo_pendiente), 0),
+        0
+      )
+    : 0;
+  const haySaldoSinFactura = saldoSinFactura > 0.01;
+  const totalSeleccionable = facturas.length + (haySaldoSinFactura ? 1 : 0);
+
+  const montoSeleccionado =
+    facturas
+      .filter((f) => facturaIdsSeleccionadas.includes(f.id))
+      .reduce((acumulado, f) => acumulado + Number(f.saldo_pendiente), 0) +
+    (incluirSaldoSinFactura ? saldoSinFactura : 0);
 
   const totalPagos = pagos.reduce((acumulado, p) => acumulado + Number(p.monto), 0);
 
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
     if (!nuevoPagoMonto) {
-      // Si no hay ninguna factura para elegir (deuda migrada/ajustada sin
-      // ventas asociadas), no hay nada de que restar montoSeleccionado -
-      // se completa con el saldo total del cliente, igual que antes de
-      // que existiera el selector de facturas.
-      const base = facturas.length > 0 ? montoSeleccionado : Number(cliente.saldo);
+      // Si no hay nada para elegir (ni facturas ni saldo sin factura
+      // detectado - no deberia pasar si el saldo es > 0, pero por las
+      // dudas), se completa con el saldo total del cliente, igual que
+      // antes de que existiera el selector.
+      const base = totalSeleccionable > 0 ? montoSeleccionado : Number(cliente.saldo);
       const restanteSaldo = base - totalPagos;
       setNuevoPagoMonto(String(Math.max(restanteSaldo, 0)));
     }
@@ -109,7 +134,7 @@ export default function CobroCliente() {
     totalPagos > 0 &&
     cliente &&
     totalPagos <= Number(cliente.saldo) &&
-    (facturas.length === 0 || facturaIdsSeleccionadas.length > 0);
+    (totalSeleccionable === 0 || facturaIdsSeleccionadas.length > 0 || incluirSaldoSinFactura);
 
   async function confirmarCobro() {
     setError("");
@@ -213,16 +238,28 @@ export default function CobroCliente() {
           <p className="text-3xl font-extrabold text-amber-600">Gs {formatoGs.format(cliente.saldo)}</p>
         </div>
 
-        {facturas.length > 0 && (
+        {totalSeleccionable > 0 && (
           <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold text-slate-700">Facturas pendientes</p>
-              {facturas.length > 1 && (
+              {totalSeleccionable > 1 && (
                 <div className="flex gap-3 text-sm font-semibold text-navy">
-                  <button onClick={() => setFacturaIdsSeleccionadas(facturas.map((f) => f.id))} className="hover:text-brand">
+                  <button
+                    onClick={() => {
+                      setFacturaIdsSeleccionadas(facturas.map((f) => f.id));
+                      setIncluirSaldoSinFactura(haySaldoSinFactura);
+                    }}
+                    className="hover:text-brand"
+                  >
                     Seleccionar todas
                   </button>
-                  <button onClick={() => setFacturaIdsSeleccionadas([])} className="hover:text-brand">
+                  <button
+                    onClick={() => {
+                      setFacturaIdsSeleccionadas([]);
+                      setIncluirSaldoSinFactura(false);
+                    }}
+                    className="hover:text-brand"
+                  >
                     Ninguna
                   </button>
                 </div>
@@ -244,6 +281,21 @@ export default function CobroCliente() {
                   <span className="font-semibold text-slate-800">Gs {formatoGs.format(f.saldo_pendiente)}</span>
                 </label>
               ))}
+              {haySaldoSinFactura && (
+                <label className="flex cursor-pointer items-center gap-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={incluirSaldoSinFactura}
+                    onChange={() => setIncluirSaldoSinFactura((actual) => !actual)}
+                    className="h-5 w-5 rounded border-slate-300"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-800">Deuda sin factura asociada</p>
+                    <p className="text-slate-400">Saldo migrado o corregido a mano, sin venta en el sistema</p>
+                  </div>
+                  <span className="font-semibold text-slate-800">Gs {formatoGs.format(saldoSinFactura)}</span>
+                </label>
+              )}
             </div>
             <p className="mt-3 text-xs text-slate-400">Elegí a qué factura(s) corresponde este pago.</p>
           </div>
@@ -314,10 +366,10 @@ export default function CobroCliente() {
               Eso es más de lo que te debe (Gs {formatoGs.format(cliente.saldo)})
             </p>
           ) : (
-            // Solo tiene sentido este aviso si habia algo para elegir - un
-            // cliente con deuda migrada/ajustada (sin ninguna factura
-            // asociada) no tiene "facturas elegidas" con las que comparar.
-            facturas.length > 0 &&
+            // Solo tiene sentido este aviso si habia algo para elegir (sea
+            // factura real o el saldo sin factura) - si no hay nada
+            // seleccionable, no hay nada con que comparar.
+            totalSeleccionable > 0 &&
             totalPagos > montoSeleccionado && (
               <p className="mt-2 text-sm font-semibold text-amber-600">
                 Estás cobrando más de lo que suman las facturas elegidas — el excedente baja la deuda general sin
