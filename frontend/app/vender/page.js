@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import Recibo from "./Recibo";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -606,7 +607,7 @@ export default function Vender() {
             )}
 
             {creandoClienteRapido ? (
-              <form onSubmit={crearClienteRapido} className="mt-3 rounded-xl border border-slate-200 p-3">
+              <form onSubmit={crearClienteRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-3">
                 <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
                 <input
                   required
@@ -686,7 +687,7 @@ export default function Vender() {
         )}
 
         {puedeAgregarProductos && (
-          <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
+          <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
             <form onSubmit={buscarProducto} className="mb-3 flex gap-2">
               <input
                 value={busquedaProducto}
@@ -806,7 +807,7 @@ export default function Vender() {
                         )}
 
                         {creandoClienteRapido ? (
-                          <form onSubmit={crearClienteRapido} className="mt-3 rounded-xl border border-slate-200 p-3">
+                          <form onSubmit={crearClienteRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-3">
                             <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
                             <input
                               required

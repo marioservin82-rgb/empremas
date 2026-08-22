@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -177,7 +178,7 @@ export default function NuevoPresupuesto() {
           </div>
         )}
 
-        <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+        <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
           <p className="mb-2 text-sm font-medium text-slate-500">Lista de precio</p>
           <div className="mb-4 flex gap-2">
             {LISTAS_PRECIO.map((l) => (
@@ -242,7 +243,7 @@ export default function NuevoPresupuesto() {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
+        <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
           <form onSubmit={buscarProducto} className="mb-3 flex gap-2">
             <input
               value={busquedaProducto}

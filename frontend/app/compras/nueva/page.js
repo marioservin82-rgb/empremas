@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -180,15 +181,6 @@ export default function NuevaCompra() {
     setNuevoProductoPrecioContado("");
   }
 
-  // Igual que en Nuevo producto: el lector de codigo de barras manda un
-  // Enter al terminar de escanear, que sin esto enviaria el form entero.
-  function evitarEnvioPorLectorDeCodigo(e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.target.form?.elements?.namedItem("nuevoProductoPrecioContado")?.focus();
-    }
-  }
-
   async function crearProductoRapido(e) {
     e.preventDefault();
     setError("");
@@ -336,7 +328,7 @@ export default function NuevaCompra() {
             )}
 
             {creandoProveedorRapido ? (
-              <form onSubmit={crearProveedorRapido} className="mt-3 rounded-xl border border-slate-200 p-4">
+              <form onSubmit={crearProveedorRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-4">
                 <p className="mb-3 font-semibold text-slate-700">Proveedor nuevo</p>
                 <label className="mb-1 block text-xs text-slate-400">Nombre / Razón social</label>
                 <input
@@ -392,7 +384,7 @@ export default function NuevaCompra() {
           </div>
         ) : (
           <>
-            <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-lg font-bold text-slate-800">{proveedor.nombre}</p>
                 <button onClick={() => setProveedor(null)} className="text-sm font-medium text-navy hover:text-brand">
@@ -432,7 +424,7 @@ export default function NuevaCompra() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
               <form onSubmit={buscarProducto} className="mb-3 flex gap-2">
                 <input
                   value={busquedaProducto}
@@ -461,7 +453,7 @@ export default function NuevaCompra() {
               )}
 
               {creandoProductoRapido ? (
-                <form onSubmit={crearProductoRapido} className="mb-4 rounded-xl border border-slate-200 p-4">
+                <form onSubmit={crearProductoRapido} onKeyDown={avanzarConEnter} className="mb-4 rounded-xl border border-slate-200 p-4">
                   <p className="mb-3 font-semibold text-slate-700">Producto nuevo</p>
                   <label className="mb-1 block text-xs text-slate-400">Nombre</label>
                   <input
@@ -477,7 +469,6 @@ export default function NuevaCompra() {
                       <input
                         value={nuevoProductoCodigoBarras}
                         onChange={(e) => setNuevoProductoCodigoBarras(e.target.value)}
-                        onKeyDown={evitarEnvioPorLectorDeCodigo}
                         placeholder="Opcional (podés escanear acá)"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                       />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
 
 const vacio = {
   nombre: "",
@@ -25,16 +26,6 @@ export default function NuevoProducto() {
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
-  }
-
-  // El lector de código de barras "escribe" el código y manda un Enter,
-  // que sin esto dispara el submit del form apenas se escanea (antes de
-  // cargar precio y stock). Frenamos ese Enter y pasamos el foco solo.
-  function evitarEnvioPorLectorDeCodigo(e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.target.form?.elements?.namedItem("precioContado")?.focus();
-    }
   }
 
   async function enviar(e) {
@@ -79,7 +70,7 @@ export default function NuevoProducto() {
           <h1 className="mt-2 text-2xl font-bold text-navy">Nuevo producto</h1>
         </div>
 
-        <form onSubmit={enviar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+        <form onSubmit={enviar} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>Nombre</label>
           <input required value={form.nombre} onChange={actualizar("nombre")} className={campo} placeholder="Tornillo autoperforante 2 pulg" />
 
@@ -87,7 +78,6 @@ export default function NuevoProducto() {
           <input
             value={form.codigoBarras}
             onChange={actualizar("codigoBarras")}
-            onKeyDown={evitarEnvioPorLectorDeCodigo}
             className={campo}
             placeholder="Opcional (podés escanear acá)"
           />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
 
 const vacio = { nombre: "", documento: "", telefono: "", email: "", direccion: "", saldoInicial: "" };
 
@@ -47,7 +48,7 @@ export default function NuevoProveedor() {
           <h1 className="mt-2 text-2xl font-bold text-navy">Nuevo proveedor</h1>
         </div>
 
-        <form onSubmit={enviar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+        <form onSubmit={enviar} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>RUC</label>
           <input value={form.documento} onChange={actualizar("documento")} className={campo} placeholder="Opcional" autoFocus />
 
