@@ -12,6 +12,16 @@ export function avanzarConEnter(e) {
   const objetivo = e.target;
   if (objetivo.tagName === "BUTTON" || objetivo.tagName === "TEXTAREA") return;
 
+  // Si el campo pertenece a un <form> propio distinto del contenedor donde
+  // esta enganchado este handler (ej. una busqueda de producto/cliente
+  // anidada dentro de la tarjeta mas grande del carrito), se deja que ese
+  // form chico maneje su propio Enter y se envie solo - no se interfiere
+  // desde el contenedor mas amplio. Sin esto, el lector de codigo de
+  // barras (que "escribe" el codigo y manda un Enter) dejaba de agregar el
+  // producto en cuanto ya habia algo en el carrito, porque el Enter se
+  // interceptaba para pasar de campo en campo en vez de enviar la busqueda.
+  if (objetivo.form && objetivo.form !== e.currentTarget) return;
+
   const campos = Array.from(e.currentTarget.querySelectorAll("input, select")).filter(
     (el) => !el.disabled && el.tabIndex !== -1 && el.offsetParent !== null
   );
