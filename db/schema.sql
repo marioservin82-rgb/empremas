@@ -488,12 +488,7 @@ CREATE TABLE venta_items (
     -- Foto de productos.precio_costo (costo promedio ponderado) al momento
     -- de la venta, mismo criterio que salidas_stock.costo_unitario - asi un
     -- cambio de costo posterior no altera el margen de ventas ya cerradas.
-    costo_unitario  NUMERIC(14,2) NOT NULL,
-    -- Marca manual por linea (solo tiene efecto real cuando la venta es al
-    -- contado - ver crearVenta) para vender un producto puntual a precio
-    -- mayorista dentro de una venta que, en todo lo demas, es al contado -
-    -- ej. el cliente compra al menudeo pero se lleva una caja por cantidad.
-    es_mayorista    BOOLEAN NOT NULL DEFAULT false
+    costo_unitario  NUMERIC(14,2) NOT NULL
 );
 
 CREATE INDEX idx_ventas_empresa ON ventas (empresa_id);
