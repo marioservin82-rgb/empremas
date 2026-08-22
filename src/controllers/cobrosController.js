@@ -20,30 +20,46 @@ function validarPagos(pagos, monto) {
     }
 }
 
-// Facturas (ventas a credito) pendientes de un cliente, para mostrar antes
-// de cobrar y para saber a cuales aplicar el pago.
+// Facturas (ventas a credito) pendientes de un cliente, para elegir antes
+// de cobrar a cual(es) corresponde el pago. numero_ticket/numero_formateado
+// van igual que en crearCobro, para armar la misma etiqueta de referencia
+// que ya usa el recibo ("Factura X" / "Ticket N° Y") en el selector.
 export async function facturasPendientes(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT id, total, saldo_pendiente, vencimiento, creado_en
-         FROM ventas
-         WHERE cliente_id = $1 AND tipo_pago = 'credito' AND saldo_pendiente > 0
-         ORDER BY vencimiento ASC, creado_en ASC`,
+        `SELECT v.id, v.total, v.saldo_pendiente, v.vencimiento, v.creado_en,
+                v.numero_ticket, de.numero_formateado AS de_numero_formateado
+         FROM ventas v
+         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
+         WHERE v.cliente_id = $1 AND v.tipo_pago = 'credito' AND v.saldo_pendiente > 0
+         ORDER BY v.vencimiento ASC, v.creado_en ASC`,
         [id]
     );
 
     res.json(resultado.rows);
 }
 
-// Registra un cobro (con recibo numerado) y lo reparte automaticamente
-// entre las facturas mas vencidas del cliente hasta agotar el monto.
+// Registra un cobro (con recibo numerado) y lo aplica a las facturas que el
+// usuario eligio (facturaIds), de la mas vencida a la mas nueva dentro de
+// esa seleccion, hasta agotar el monto. El tope de cuanto se puede cobrar
+// sigue siendo el saldo total del cliente (no la suma de lo seleccionado):
+// clientes.saldo no siempre esta respaldado por una fila de ventas (saldo
+// migrado/ajustado a mano via ajustes_saldo_cliente o importacion CSV), asi
+// que limitar el cobro a la suma de facturas elegidas dejaria imposible de
+// cobrar esa parte no rastreada. Si el monto supera lo que suman las
+// facturas elegidas, el excedente baja clientes.saldo sin quedar aplicado
+// a ninguna factura puntual (mismo comportamiento que ya existia).
 export async function crearCobro(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { id: clienteId } = req.params;
-    const { monto, pagos } = req.body;
+    const { monto, pagos, facturaIds } = req.body;
+
+    if (!Array.isArray(facturaIds)) {
+        return res.status(400).json({ error: 'facturaIds debe ser una lista (puede ser vacía si el cliente no tiene facturas pendientes)' });
+    }
 
     if (!(Number(monto) > 0)) {
         return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
@@ -98,20 +114,35 @@ export async function crearCobro(req, res) {
                 );
             }
 
-            // Reparto automatico: de la factura mas vencida a la mas nueva,
-            // hasta agotar el monto cobrado. numero_ticket/numero_formateado
-            // van con FOR UPDATE de todas formas por el saldo_pendiente de
-            // ventas - de paso se trae la referencia para mostrar en el
-            // recibo (factura legal si esta aprobada, si no el ticket).
-            const facturas = await cliente.query(
-                `SELECT v.id, v.saldo_pendiente, v.numero_ticket, de.numero_formateado AS de_numero_formateado
-                 FROM ventas v
-                 LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
-                 WHERE v.cliente_id = $1 AND v.tipo_pago = 'credito' AND v.saldo_pendiente > 0
-                 ORDER BY v.vencimiento ASC, v.creado_en ASC
-                 FOR UPDATE OF v`,
-                [clienteId]
-            );
+            // Facturas elegidas por el usuario (nunca todas las pendientes
+            // sin preguntar, como antes) - numero_ticket/numero_formateado
+            // se traen para armar la misma referencia que ya usa el recibo.
+            let facturas = { rows: [] };
+            if (facturaIds.length > 0) {
+                facturas = await cliente.query(
+                    `SELECT v.id, v.saldo_pendiente, v.numero_ticket, de.numero_formateado AS de_numero_formateado
+                     FROM ventas v
+                     LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
+                     WHERE v.id = ANY($1::uuid[]) AND v.cliente_id = $2 AND v.tipo_pago = 'credito' AND v.saldo_pendiente > 0
+                     ORDER BY v.vencimiento ASC, v.creado_en ASC
+                     FOR UPDATE OF v`,
+                    [facturaIds, clienteId]
+                );
+                if (facturas.rows.length !== facturaIds.length) {
+                    throw new ErrorNegocio('Una de las facturas elegidas ya no está pendiente — actualizá la pantalla e intentá de nuevo');
+                }
+            } else {
+                // facturaIds vacio solo es valido si el cliente realmente no
+                // tiene ninguna factura pendiente (saldo migrado/ajustado sin
+                // ventas asociadas) - si tiene alguna, hay que elegir.
+                const pendientesResultado = await cliente.query(
+                    `SELECT 1 FROM ventas WHERE cliente_id = $1 AND tipo_pago = 'credito' AND saldo_pendiente > 0 LIMIT 1`,
+                    [clienteId]
+                );
+                if (pendientesResultado.rows.length > 0) {
+                    throw new ErrorNegocio('Elegí a qué factura(s) corresponde este pago');
+                }
+            }
 
             let restante = Number(monto);
             const aplicaciones = [];
@@ -134,12 +165,13 @@ export async function crearCobro(req, res) {
                 });
                 restante -= aplicado;
             }
-            // Si sobra (el cliente pagaba mas de lo que sumaban sus facturas
-            // "abiertas" pero menos que el saldo total — no deberia pasar si
-            // saldo = suma de saldo_pendiente, pero se deja documentado):
-            // el resto simplemente reduce el saldo general sin quedar
-            // aplicado a una factura puntual.
+            // Si sobra (el cliente pago mas de lo que suman las facturas que
+            // eligio, cubriendo tambien saldo no rastreado por ninguna
+            // venta): el resto simplemente reduce el saldo general sin
+            // quedar aplicado a una factura puntual.
 
+            const saldoAnterior = Number(clienteFila.saldo);
+            const saldoRestante = saldoAnterior - Number(monto);
             await cliente.query(`UPDATE clientes SET saldo = saldo - $2 WHERE id = $1`, [clienteId, monto]);
 
             return {
@@ -151,6 +183,9 @@ export async function crearCobro(req, res) {
                 monto: Number(monto),
                 pagos,
                 aplicaciones,
+                saldoAnterior,
+                saldoRestante,
+                clienteSaldoQuedaEnCero: saldoRestante <= 0.01,
             };
         });
 

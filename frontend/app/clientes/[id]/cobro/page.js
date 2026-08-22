@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import ReciboCobro from "./ReciboCobro";
+import ComprobanteInternoCuenta from "./ComprobanteInternoCuenta";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -17,6 +18,10 @@ const FORMAS_PAGO = [
 
 const ETIQUETA_FORMA_PAGO = Object.fromEntries(FORMAS_PAGO.map((f) => [f.valor, f.etiqueta]));
 
+function referenciaFactura(f) {
+  return f.de_numero_formateado ? `Factura ${f.de_numero_formateado}` : `Ticket N° ${f.numero_ticket}`;
+}
+
 export default function CobroCliente() {
   const router = useRouter();
   const { id } = useParams();
@@ -24,6 +29,7 @@ export default function CobroCliente() {
   const [cliente, setCliente] = useState(null);
   const [facturas, setFacturas] = useState([]);
   const [empresaInfo, setEmpresaInfo] = useState(null);
+  const [facturaIdsSeleccionadas, setFacturaIdsSeleccionadas] = useState([]);
 
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
@@ -32,6 +38,7 @@ export default function CobroCliente() {
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [recibo, setRecibo] = useState(null);
+  const [vistaRecibo, setVistaRecibo] = useState("recibo");
 
   async function cargarTodo() {
     try {
@@ -42,6 +49,10 @@ export default function CobroCliente() {
       ]);
       setCliente(c);
       setFacturas(f);
+      // Con una sola factura pendiente, se preselecciona sola (menos
+      // friccion en el caso mas comun) - con varias, arranca sin marcar
+      // ninguna para que sea una eleccion explicita.
+      setFacturaIdsSeleccionadas(f.length === 1 ? [f[0].id] : []);
       setEmpresaInfo(e);
     } catch (err) {
       setError(err.message);
@@ -57,12 +68,22 @@ export default function CobroCliente() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
+  function alternarFactura(facturaId) {
+    setFacturaIdsSeleccionadas((actual) =>
+      actual.includes(facturaId) ? actual.filter((idActual) => idActual !== facturaId) : [...actual, facturaId]
+    );
+  }
+
+  const montoSeleccionado = facturas
+    .filter((f) => facturaIdsSeleccionadas.includes(f.id))
+    .reduce((acumulado, f) => acumulado + Number(f.saldo_pendiente), 0);
+
   const totalPagos = pagos.reduce((acumulado, p) => acumulado + Number(p.monto), 0);
 
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
     if (!nuevoPagoMonto) {
-      const restanteSaldo = cliente ? Number(cliente.saldo) - totalPagos : 0;
+      const restanteSaldo = montoSeleccionado - totalPagos;
       setNuevoPagoMonto(String(Math.max(restanteSaldo, 0)));
     }
   }
@@ -79,7 +100,11 @@ export default function CobroCliente() {
   }
 
   const puedeConfirmar =
-    pagos.length > 0 && totalPagos > 0 && cliente && totalPagos <= Number(cliente.saldo);
+    pagos.length > 0 &&
+    totalPagos > 0 &&
+    cliente &&
+    totalPagos <= Number(cliente.saldo) &&
+    (facturas.length === 0 || facturaIdsSeleccionadas.length > 0);
 
   async function confirmarCobro() {
     setError("");
@@ -87,8 +112,9 @@ export default function CobroCliente() {
     try {
       const cobro = await apiFetch(`/api/clientes/${id}/cobros`, {
         method: "POST",
-        body: JSON.stringify({ monto: totalPagos, pagos }),
+        body: JSON.stringify({ monto: totalPagos, pagos, facturaIds: facturaIdsSeleccionadas }),
       });
+      setVistaRecibo("recibo");
       setRecibo(cobro);
     } catch (err) {
       setError(err.message);
@@ -128,9 +154,40 @@ export default function CobroCliente() {
             </Link>
             <h1 className="text-2xl font-bold text-navy">Cobro registrado</h1>
           </div>
-          {empresaInfo && (
-            <ReciboCobro empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
+
+          {recibo.clienteSaldoQuedaEnCero && (
+            <div className="mb-4 rounded-2xl border border-navy/20 bg-tint p-4 text-center print:hidden">
+              <p className="font-semibold text-navy">
+                ✅ El cliente saldó su deuda — no te olvides de devolverle el pagaré.
+              </p>
+            </div>
           )}
+
+          <div className="mb-4 flex justify-center gap-2 print:hidden">
+            <button
+              onClick={() => setVistaRecibo("recibo")}
+              className={`rounded-xl px-5 py-2 font-semibold transition ${
+                vistaRecibo === "recibo" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Recibo de cobro
+            </button>
+            <button
+              onClick={() => setVistaRecibo("interno")}
+              className={`rounded-xl px-5 py-2 font-semibold transition ${
+                vistaRecibo === "interno" ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Comprobante interno de cuenta
+            </button>
+          </div>
+
+          {empresaInfo &&
+            (vistaRecibo === "recibo" ? (
+              <ReciboCobro empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
+            ) : (
+              <ComprobanteInternoCuenta empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
+            ))}
         </div>
       </main>
     );
@@ -153,20 +210,37 @@ export default function CobroCliente() {
 
         {facturas.length > 0 && (
           <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
-            <p className="mb-3 font-semibold text-slate-700">Facturas pendientes (de la más vencida a la más nueva)</p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-semibold text-slate-700">Facturas pendientes</p>
+              {facturas.length > 1 && (
+                <div className="flex gap-3 text-sm font-semibold text-navy">
+                  <button onClick={() => setFacturaIdsSeleccionadas(facturas.map((f) => f.id))} className="hover:text-brand">
+                    Seleccionar todas
+                  </button>
+                  <button onClick={() => setFacturaIdsSeleccionadas([])} className="hover:text-brand">
+                    Ninguna
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-col divide-y divide-slate-100">
               {facturas.map((f) => (
-                <div key={f.id} className="flex items-center justify-between py-2 text-sm">
-                  <span className="text-slate-500">
-                    Vence {new Date(f.vencimiento).toLocaleDateString("es-PY")}
-                  </span>
+                <label key={f.id} className="flex cursor-pointer items-center gap-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={facturaIdsSeleccionadas.includes(f.id)}
+                    onChange={() => alternarFactura(f.id)}
+                    className="h-5 w-5 rounded border-slate-300"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-800">{referenciaFactura(f)}</p>
+                    <p className="text-slate-400">Vence {new Date(f.vencimiento).toLocaleDateString("es-PY")}</p>
+                  </div>
                   <span className="font-semibold text-slate-800">Gs {formatoGs.format(f.saldo_pendiente)}</span>
-                </div>
+                </label>
               ))}
             </div>
-            <p className="mt-3 text-xs text-slate-400">
-              El cobro se aplica automáticamente a estas facturas en este orden.
-            </p>
+            <p className="mt-3 text-xs text-slate-400">Elegí a qué factura(s) corresponde este pago.</p>
           </div>
         )}
 
@@ -230,10 +304,17 @@ export default function CobroCliente() {
             </div>
           )}
 
-          {totalPagos > Number(cliente.saldo) && (
+          {totalPagos > Number(cliente.saldo) ? (
             <p className="mt-2 text-sm font-semibold text-red-600">
               Eso es más de lo que te debe (Gs {formatoGs.format(cliente.saldo)})
             </p>
+          ) : (
+            totalPagos > montoSeleccionado && (
+              <p className="mt-2 text-sm font-semibold text-amber-600">
+                Estás cobrando más de lo que suman las facturas elegidas — el excedente baja la deuda general sin
+                quedar asociado a una factura puntual.
+              </p>
+            )
           )}
 
           {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
