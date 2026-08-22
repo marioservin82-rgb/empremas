@@ -13,7 +13,6 @@ const ETIQUETA_FORMA_PAGO = {
 };
 
 const SEPARADOR = { texto: "--------------------------------" };
-const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   const lineas = [
@@ -38,12 +37,17 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   }
   lineas.push(
     SEPARADOR,
-    { texto: "¡Gracias por su pago!", alineacion: "centro" },
-    { texto: "*** PAGADO ***", negrita: true, alineacion: "centro" },
+    { texto: "Gracias por su confianza.", alineacion: "centro" },
+    { texto: "Contamos con usted.", alineacion: "centro" },
     SEPARADOR,
     { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" },
     SEPARADOR,
-    FIRMA
+    // Espacio en blanco amplio antes del sello, a proposito, para que no
+    // quede apretado ni se pise con el corte del papel (mismo criterio
+    // que el ticket de credito en Recibo.js).
+    { texto: "" },
+    { texto: "Sello:", alineacion: "centro" },
+    { texto: "*** PAGADO ***", negrita: true, alineacion: "centro" }
   );
   return lineas;
 }
@@ -147,8 +151,9 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
 
           <div className="my-4 border-t border-slate-200" />
 
-          <p className="text-center text-sm text-slate-500">¡Gracias por su pago!</p>
-          <div className="mt-2 flex justify-center">
+          <p className="text-center text-sm text-slate-500">Gracias por su confianza.</p>
+          <p className="text-center text-sm text-slate-500">Contamos con usted.</p>
+          <div className="mb-6 mt-8 flex justify-center">
             <div className="rounded border-2 border-slate-700 px-6 py-2">
               <p className="text-lg font-extrabold tracking-widest text-slate-800">✔ PAGADO</p>
             </div>
@@ -197,8 +202,9 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
-          <p className="text-center text-sm text-slate-500">¡Gracias por su pago!</p>
-          <div className="mt-2 flex justify-center">
+          <p className="text-center text-sm text-slate-500">Gracias por su confianza.</p>
+          <p className="text-center text-sm text-slate-500">Contamos con usted.</p>
+          <div className="mb-4 mt-6 flex justify-center">
             <div className="rounded border-2 border-slate-700 px-4 py-1">
               <p className="text-base font-extrabold tracking-widest text-slate-800">✔ PAGADO</p>
             </div>

@@ -268,7 +268,32 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
 }
 
 const SEPARADOR = { texto: "--------------------------------" };
-const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
+
+// Mensaje de agradecimiento + firma/sello segun tipo de pago: contado (y
+// mayorista, que tambien se cobra en el momento, sin nada que quede a
+// cuenta) no tienen nada que firmar ni sellar - credito si, para
+// respaldar la conformidad de una compra que queda fiada. El espacio en
+// blanco extra antes del sello es a proposito, para que no quede
+// apretado contra el resto del ticket ni se pise con el corte del papel.
+function lineasCierre(tipoPago) {
+  if (tipoPago === "credito") {
+    return [
+      SEPARADOR,
+      { texto: "Gracias por su confianza.", alineacion: "centro" },
+      { texto: "Contamos con usted.", alineacion: "centro" },
+      SEPARADOR,
+      { texto: "Firma: _________________________", alineacion: "centro" },
+      { texto: "" },
+      { texto: "" },
+      { texto: "Sello:", alineacion: "centro" },
+    ];
+  }
+  return [
+    SEPARADOR,
+    { texto: "Gracias por su compra.", alineacion: "centro" },
+    { texto: "¡Lo esperamos pronto!", alineacion: "centro" },
+  ];
+}
 
 // Version en texto plano del ticket de Factura Legal, para el agente de
 // impresion (ver frontend/lib/agenteImpresion.js) - mismas lineas que el
@@ -306,8 +331,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
     SEPARADOR,
     { texto: `CDC: ${venta.de_cdc}` },
     { texto: "Factura Electrónica — documento tributario legal", alineacion: "centro" },
-    SEPARADOR,
-    FIRMA
+    ...lineasCierre(venta.tipo_pago)
   );
   return lineas;
 }
@@ -368,13 +392,33 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
       );
     }
   }
-  lineas.push(
-    SEPARADOR,
-    { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" },
-    SEPARADOR,
-    FIRMA
-  );
+  lineas.push(SEPARADOR, { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" });
+  lineas.push(...lineasCierre(venta.tipoPago));
   return lineas;
+}
+
+// Version visual de lineasCierre() - mismo criterio, mismo texto, para que
+// se vea igual en pantalla/impreso que en el ticket termico via agente.
+function CierreTicket({ tipoPago }) {
+  if (tipoPago === "credito") {
+    return (
+      <>
+        <div className="my-2 border-t-2 border-dashed border-slate-300" />
+        <p className="text-center text-sm text-slate-500">Gracias por su confianza.</p>
+        <p className="text-center text-sm text-slate-500">Contamos con usted.</p>
+        <div className="my-2 border-t-2 border-dashed border-slate-300" />
+        <p className="mt-6 text-center text-sm text-slate-600">Firma: _________________________</p>
+        <p className="mb-4 mt-8 text-center text-sm text-slate-600">Sello:</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="my-2 border-t-2 border-dashed border-slate-300" />
+      <p className="text-center text-sm text-slate-500">Gracias por su compra.</p>
+      <p className="text-center text-sm text-slate-500">¡Lo esperamos pronto!</p>
+    </>
+  );
 }
 
 // Copia de mostrador en 80mm de una Factura Legal ya aprobada - el
@@ -472,6 +516,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         )}
         <p className="break-all text-center text-xs">CDC: {venta.de_cdc}</p>
         <p className="mt-1 text-center text-xs">Factura Electrónica — documento tributario legal</p>
+        <CierreTicket tipoPago={venta.tipo_pago} />
       </div>
 
       <button
@@ -659,6 +704,7 @@ export default function Recibo({
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
         <p className="mt-2 text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
+        <CierreTicket tipoPago={venta.tipoPago} />
       </div>
 
       <div className="flex gap-2">
