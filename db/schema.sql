@@ -338,6 +338,39 @@ ALTER TABLE ajustes_inventario FORCE ROW LEVEL SECURITY;
 CREATE POLICY ajustes_inventario_aislamiento ON ajustes_inventario
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
+-- Venta cruzada: que productos sugerir cuando se agrega otro al carrito.
+-- 'manual' = el dueno la cargo a mano desde la ficha del producto (siempre
+-- activa). 'automatica' = el sistema la detecto por coocurrencia real en
+-- venta_items; nace como fila solo cuando el dueno la aprueba o la
+-- descarta (nunca se pre-genera "pendiente" - la propuesta se calcula al
+-- vuelo cada vez, y una vez descartada queda registrada para no volver a
+-- ofrecerla). Direccional a proposito: producto_id -> producto_asociado_id
+-- no implica la vuelta.
+CREATE TYPE origen_asociacion_producto AS ENUM ('manual', 'automatica');
+CREATE TYPE estado_asociacion_producto AS ENUM ('activa', 'descartada');
+
+CREATE TABLE producto_asociaciones (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id              UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    producto_id             UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    producto_asociado_id    UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    origen                  origen_asociacion_producto NOT NULL DEFAULT 'manual',
+    estado                  estado_asociacion_producto NOT NULL DEFAULT 'activa',
+    usuario_id              UUID NOT NULL REFERENCES usuarios(id),
+    creado_en               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (producto_id, producto_asociado_id),
+    CHECK (producto_id <> producto_asociado_id)
+);
+
+CREATE INDEX idx_producto_asociaciones_empresa ON producto_asociaciones (empresa_id);
+CREATE INDEX idx_producto_asociaciones_producto ON producto_asociaciones (empresa_id, producto_id) WHERE estado = 'activa';
+
+ALTER TABLE producto_asociaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE producto_asociaciones FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY producto_asociaciones_aislamiento ON producto_asociaciones
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- Clientes + fiado (linea de credito). Prerrequisito de la pantalla de
 -- Vender: la "regla de oro" (mostrar credito y saldo antes de cargar
 -- productos) necesita que este dato exista primero.

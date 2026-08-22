@@ -430,3 +430,173 @@ export async function inventarioValorizado(req, res) {
 
     res.json({ productos: resultado.rows, totalCosto, totalVenta });
 }
+
+// Venta cruzada: productos asociados de forma manual (por el dueno, desde
+// la ficha) o automatica (aprobada desde las sugerencias por coocurrencia).
+// Lectura libre para cualquier rol logueado — el cajero necesita esto en
+// Vender para mostrar la sugerencia al agregar un producto al carrito.
+export async function listarAsociados(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT p.id, p.nombre, p.codigo_barras, p.unidad_medida,
+                p.precio_contado, p.precio_credito, p.precio_mayorista, pa.origen
+         FROM producto_asociaciones pa
+         JOIN productos p ON p.id = pa.producto_asociado_id
+         WHERE pa.producto_id = $1 AND pa.estado = 'activa' AND p.activo = true
+         ORDER BY p.nombre`,
+        [id]
+    );
+
+    res.json(resultado.rows);
+}
+
+export async function agregarAsociacion(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { id } = req.params;
+    const { productoAsociadoId } = req.body;
+
+    if (!productoAsociadoId) {
+        return res.status(400).json({ error: 'Falta elegir el producto a asociar' });
+    }
+    if (productoAsociadoId === id) {
+        return res.status(400).json({ error: 'Un producto no puede asociarse consigo mismo' });
+    }
+
+    const productoAsociado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id FROM productos WHERE id = $1 AND activo = true`,
+        [productoAsociadoId]
+    );
+    if (!productoAsociado.rows[0]) {
+        return res.status(404).json({ error: 'El producto a asociar no existe o no está activo' });
+    }
+
+    // ON CONFLICT: si ya existia descartada (de una sugerencia automatica
+    // anterior), cargarla a mano la reactiva en vez de chocar.
+    const insertado = await consultaDeEmpresa(
+        empresaId,
+        `INSERT INTO producto_asociaciones (empresa_id, producto_id, producto_asociado_id, origen, estado, usuario_id)
+         VALUES ($1, $2, $3, 'manual', 'activa', $4)
+         ON CONFLICT (producto_id, producto_asociado_id) DO UPDATE SET estado = 'activa'
+         RETURNING id`,
+        [empresaId, id, productoAsociadoId, usuarioId]
+    );
+
+    res.status(201).json({ id: insertado.rows[0].id });
+}
+
+export async function quitarAsociacion(req, res) {
+    const { empresaId } = req.usuario;
+    const { id, asociadoId } = req.params;
+
+    await consultaDeEmpresa(
+        empresaId,
+        `DELETE FROM producto_asociaciones WHERE producto_id = $1 AND producto_asociado_id = $2`,
+        [id, asociadoId]
+    );
+
+    res.json({ ok: true });
+}
+
+// Sugerencias automaticas: productos que se compran juntos con frecuencia,
+// calculado al vuelo sobre venta_items (no hay scheduler en este proyecto,
+// asi que nunca se pre-genera ni se cachea nada). Umbral fijo: al menos 5
+// ventas juntas y que representen al menos el 20% de las ventas del
+// producto base, para no sugerir por una sola coincidencia aislada.
+const MINIMO_VENTAS_JUNTAS = 5;
+const MINIMO_PORCENTAJE = 0.2;
+
+export async function sugerenciasAsociaciones(req, res) {
+    const { empresaId } = req.usuario;
+
+    const pares = await consultaDeEmpresa(
+        empresaId,
+        `SELECT vi1.producto_id, vi2.producto_id AS producto_asociado_id,
+                COUNT(DISTINCT vi1.venta_id) AS ventas_juntas
+         FROM venta_items vi1
+         JOIN venta_items vi2 ON vi2.venta_id = vi1.venta_id AND vi2.producto_id <> vi1.producto_id
+         JOIN ventas v ON v.id = vi1.venta_id AND v.anulada = false
+         GROUP BY vi1.producto_id, vi2.producto_id
+         HAVING COUNT(DISTINCT vi1.venta_id) >= $1`,
+        [MINIMO_VENTAS_JUNTAS]
+    );
+
+    if (pares.rows.length === 0) {
+        return res.json([]);
+    }
+
+    const totales = await consultaDeEmpresa(
+        empresaId,
+        `SELECT vi.producto_id, COUNT(DISTINCT vi.venta_id) AS total_ventas
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id AND v.anulada = false
+         GROUP BY vi.producto_id`,
+        []
+    );
+    const totalVentasPorProducto = new Map(totales.rows.map((f) => [f.producto_id, Number(f.total_ventas)]));
+
+    const existentes = await consultaDeEmpresa(
+        empresaId,
+        `SELECT producto_id, producto_asociado_id FROM producto_asociaciones`,
+        []
+    );
+    const yaResueltos = new Set(existentes.rows.map((f) => `${f.producto_id}:${f.producto_asociado_id}`));
+
+    const idsProductos = [
+        ...new Set(pares.rows.flatMap((f) => [f.producto_id, f.producto_asociado_id])),
+    ];
+    const nombres = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, nombre FROM productos WHERE id = ANY($1::uuid[]) AND activo = true`,
+        [idsProductos]
+    );
+    const nombrePorId = new Map(nombres.rows.map((f) => [f.id, f.nombre]));
+
+    const candidatas = pares.rows
+        .filter((f) => !yaResueltos.has(`${f.producto_id}:${f.producto_asociado_id}`))
+        .filter((f) => nombrePorId.has(f.producto_id) && nombrePorId.has(f.producto_asociado_id))
+        .map((f) => {
+            const totalVentas = totalVentasPorProducto.get(f.producto_id) || 0;
+            const ventasJuntas = Number(f.ventas_juntas);
+            const porcentaje = totalVentas > 0 ? ventasJuntas / totalVentas : 0;
+            return {
+                productoId: f.producto_id,
+                productoNombre: nombrePorId.get(f.producto_id),
+                asociadoId: f.producto_asociado_id,
+                asociadoNombre: nombrePorId.get(f.producto_asociado_id),
+                ventasJuntas,
+                porcentaje: Math.round(porcentaje * 100),
+            };
+        })
+        .filter((f) => f.porcentaje >= MINIMO_PORCENTAJE * 100)
+        .sort((a, b) => b.porcentaje - a.porcentaje);
+
+    res.json(candidatas);
+}
+
+export async function resolverSugerencia(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { productoId, productoAsociadoId, decision } = req.body;
+
+    if (!productoId || !productoAsociadoId) {
+        return res.status(400).json({ error: 'Faltan los productos de la sugerencia' });
+    }
+    if (!['aprobar', 'descartar'].includes(decision)) {
+        return res.status(400).json({ error: 'decision debe ser aprobar o descartar' });
+    }
+
+    const estado = decision === 'aprobar' ? 'activa' : 'descartada';
+
+    await consultaDeEmpresa(
+        empresaId,
+        `INSERT INTO producto_asociaciones (empresa_id, producto_id, producto_asociado_id, origen, estado, usuario_id)
+         VALUES ($1, $2, $3, 'automatica', $4, $5)
+         ON CONFLICT (producto_id, producto_asociado_id) DO UPDATE SET estado = $4`,
+        [empresaId, productoId, productoAsociadoId, estado, usuarioId]
+    );
+
+    res.json({ ok: true });
+}

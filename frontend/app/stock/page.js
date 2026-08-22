@@ -129,6 +129,12 @@ export default function Stock() {
               Importar CSV
             </Link>
             <Link
+              href="/stock/sugerencias-asociaciones"
+              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+            >
+              Venta cruzada
+            </Link>
+            <Link
               href="/stock/nuevo"
               className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
             >

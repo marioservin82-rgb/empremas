@@ -85,6 +85,7 @@ export default function Vender() {
   const [busquedaProducto, setBusquedaProducto] = useState("");
   const [resultadosProducto, setResultadosProducto] = useState([]);
   const [carrito, setCarrito] = useState([]);
+  const [sugerencia, setSugerencia] = useState(null);
 
   // Pagos ya confirmados para esta venta (puede haber más de uno: ej. una
   // parte efectivo, otra parte tarjeta) + el que se está por agregar.
@@ -330,6 +331,21 @@ export default function Vender() {
     });
     setResultadosProducto([]);
     setBusquedaProducto("");
+    cargarSugerencia(p);
+  }
+
+  // Venta cruzada: al agregar un producto, si tiene asociados configurados
+  // (a mano o aprobados desde las sugerencias automáticas), se los ofrece
+  // al cajero con un toque para sumarlos. No bloquea ni retrasa el agregado
+  // al carrito - es un fetch aparte que reemplaza la sugerencia anterior
+  // (o la limpia, si el producto recién agregado no tiene asociados).
+  async function cargarSugerencia(p) {
+    try {
+      const asociados = await apiFetch(`/api/productos/${p.id}/asociados`);
+      setSugerencia(asociados.length > 0 ? { productoBase: p, asociados } : null);
+    } catch {
+      setSugerencia(null);
+    }
   }
 
   function cambiarCantidad(productoId, cantidad) {
@@ -712,6 +728,31 @@ export default function Vender() {
                     <span className="text-slate-500">Gs {formatoGs.format(p[`precio_${tipoPago}`])}</span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {sugerencia && (
+              <div className="mb-4 rounded-xl bg-tint p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-navy">
+                    Los clientes que llevan <span className="font-semibold">{sugerencia.productoBase.nombre}</span> también
+                    compran:
+                  </p>
+                  <button onClick={() => setSugerencia(null)} className="text-sm text-slate-400 hover:text-slate-600">
+                    ✕
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {sugerencia.asociados.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => agregarAlCarrito(a)}
+                      className="rounded-xl border border-navy/30 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
+                    >
+                      + {a.nombre} · Gs {formatoGs.format(a[`precio_${tipoPago}`])}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

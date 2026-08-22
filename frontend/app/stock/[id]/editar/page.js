@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useDebounced } from "@/lib/useDebounced";
 
 export default function EditarProducto() {
   const router = useRouter();
@@ -13,6 +14,10 @@ export default function EditarProducto() {
   const [costoPromedio, setCostoPromedio] = useState(0);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  const [asociados, setAsociados] = useState([]);
+  const [busquedaAsociado, setBusquedaAsociado] = useState("");
+  const [resultadosAsociado, setResultadosAsociado] = useState([]);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -35,7 +40,49 @@ export default function EditarProducto() {
         });
       })
       .catch((err) => setError(err.message));
+    apiFetch(`/api/productos/${id}/asociados`)
+      .then(setAsociados)
+      .catch(() => {});
   }, [id, router]);
+
+  const busquedaAsociadoDebounced = useDebounced(busquedaAsociado);
+  useEffect(() => {
+    if (!busquedaAsociadoDebounced) {
+      setResultadosAsociado([]);
+      return;
+    }
+    apiFetch(`/api/productos?q=${encodeURIComponent(busquedaAsociadoDebounced)}`)
+      .then((resultados) =>
+        setResultadosAsociado(
+          resultados.filter((p) => p.id !== id && !asociados.some((a) => a.id === p.id))
+        )
+      )
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busquedaAsociadoDebounced, id, asociados]);
+
+  async function agregarAsociado(p) {
+    try {
+      await apiFetch(`/api/productos/${id}/asociados`, {
+        method: "POST",
+        body: JSON.stringify({ productoAsociadoId: p.id }),
+      });
+      setAsociados((actual) => [...actual, { ...p, origen: "manual" }]);
+      setResultadosAsociado([]);
+      setBusquedaAsociado("");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function quitarAsociado(asociadoId) {
+    try {
+      await apiFetch(`/api/productos/${id}/asociados/${asociadoId}`, { method: "DELETE" });
+      setAsociados((actual) => actual.filter((a) => a.id !== asociadoId));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
@@ -178,6 +225,52 @@ export default function EditarProducto() {
             {guardando ? "Guardando..." : "Guardar cambios"}
           </button>
         </form>
+
+        <div className="mt-4 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+          <h2 className="mb-1 text-lg font-bold text-navy">Productos asociados</h2>
+          <p className="mb-4 text-xs text-slate-400">
+            Cuando el cajero agregue "{form.nombre}" al carrito en Vender, se le va a sugerir agregar estos también.
+            La asociación es en este sentido — no hace falta que sea recíproca.
+          </p>
+
+          {asociados.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2">
+              {asociados.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                  <span className="font-semibold text-slate-800">
+                    {a.nombre}
+                    {a.origen === "automatica" && (
+                      <span className="ml-2 text-xs font-normal text-slate-400">(sugerida automáticamente)</span>
+                    )}
+                  </span>
+                  <button onClick={() => quitarAsociado(a.id)} className="text-red-500 hover:text-red-700">
+                    ✕ Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            value={busquedaAsociado}
+            onChange={(e) => setBusquedaAsociado(e.target.value)}
+            placeholder="Buscar producto para asociar..."
+            className={campo}
+          />
+          {resultadosAsociado.length > 0 && (
+            <div className="-mt-2 flex flex-col gap-2">
+              {resultadosAsociado.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => agregarAsociado(p)}
+                  className="rounded-xl border border-slate-200 p-3 text-left font-semibold hover:bg-slate-50"
+                >
+                  {p.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
