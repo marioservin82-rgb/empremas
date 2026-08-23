@@ -8,6 +8,7 @@ import { adminFetch } from "@/lib/adminApi";
 export default function AdminConfiguracion() {
   const router = useRouter();
   const [whatsappSoporte, setWhatsappSoporte] = useState("");
+  const [umbralAlertaContador, setUmbralAlertaContador] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
@@ -19,7 +20,10 @@ export default function AdminConfiguracion() {
       return;
     }
     adminFetch("/api/admin/configuracion")
-      .then((c) => setWhatsappSoporte(c.whatsappSoporte || ""))
+      .then((c) => {
+        setWhatsappSoporte(c.whatsappSoporte || "");
+        setUmbralAlertaContador(c.umbralAlertaContador ?? 15);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false));
   }, [router]);
@@ -32,9 +36,13 @@ export default function AdminConfiguracion() {
     try {
       const actualizado = await adminFetch("/api/admin/configuracion", {
         method: "PATCH",
-        body: JSON.stringify({ whatsappSoporte: whatsappSoporte || null }),
+        body: JSON.stringify({
+          whatsappSoporte: whatsappSoporte || null,
+          umbralAlertaContador: Number(umbralAlertaContador) || 15,
+        }),
       });
       setWhatsappSoporte(actualizado.whatsappSoporte || "");
+      setUmbralAlertaContador(actualizado.umbralAlertaContador ?? 15);
       setExito(true);
     } catch (err) {
       setError(err.message);
@@ -71,6 +79,19 @@ export default function AdminConfiguracion() {
               className={campo}
               placeholder="0981234567"
             />
+
+            <label className={etiqueta}>Umbral de clientes para alertar facturación formal (contadores aliados)</label>
+            <input
+              type="number"
+              min="1"
+              value={umbralAlertaContador}
+              onChange={(e) => setUmbralAlertaContador(e.target.value)}
+              className={campo}
+            />
+            <p className="-mt-3 mb-4 text-xs text-slate-400">
+              Cuando un contador aliado acumula esta cantidad de clientes activos referidos, aparece una alerta en su
+              ficha sugiriendo pedirle que empiece a facturar su comisión de forma formal.
+            </p>
 
             {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             {exito && (

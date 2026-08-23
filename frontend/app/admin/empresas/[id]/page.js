@@ -22,6 +22,7 @@ export default function AdminEmpresaDetalle() {
   const { id } = useParams();
 
   const [empresa, setEmpresa] = useState(null);
+  const [contadores, setContadores] = useState([]);
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -31,6 +32,8 @@ export default function AdminEmpresaDetalle() {
   const [limiteUsuarios, setLimiteUsuarios] = useState(3);
   const [limiteSucursales, setLimiteSucursales] = useState(1);
   const [venceEn, setVenceEn] = useState("");
+  const [montoPlanMensual, setMontoPlanMensual] = useState("");
+  const [contadorId, setContadorId] = useState("");
 
   const [monto, setMonto] = useState("");
   const [periodoDesde, setPeriodoDesde] = useState("");
@@ -46,6 +49,8 @@ export default function AdminEmpresaDetalle() {
       setLimiteUsuarios(e.limite_usuarios);
       setLimiteSucursales(e.limite_sucursales);
       setVenceEn(paraInput(e.vence_en));
+      setMontoPlanMensual(e.monto_plan_mensual ?? "");
+      setContadorId(e.contador_id || "");
     });
   }
 
@@ -55,6 +60,9 @@ export default function AdminEmpresaDetalle() {
       return;
     }
     cargar().catch((err) => setError(err.message));
+    adminFetch("/api/admin/contadores")
+      .then((r) => setContadores(r.contadores.filter((c) => c.activo)))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
@@ -71,6 +79,8 @@ export default function AdminEmpresaDetalle() {
           limiteUsuarios: Number(limiteUsuarios),
           limiteSucursales: Number(limiteSucursales),
           venceEn: venceEn || null,
+          montoPlanMensual: montoPlanMensual === "" ? null : Number(montoPlanMensual),
+          contadorId: contadorId || null,
         }),
       });
       await cargar();
@@ -181,6 +191,29 @@ export default function AdminEmpresaDetalle() {
 
           <label className={etiqueta}>Vence el</label>
           <input type="date" value={venceEn} onChange={(e) => setVenceEn(e.target.value)} className={campo} />
+
+          <label className={etiqueta}>Monto de plan mensual (Gs)</label>
+          <input
+            type="number"
+            min="0"
+            value={montoPlanMensual}
+            onChange={(e) => setMontoPlanMensual(e.target.value)}
+            className={campo}
+            placeholder="Sin configurar"
+          />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">
+            Base sobre la que se calcula la comisión del contador aliado que haya referido a esta empresa (si tiene).
+          </p>
+
+          <label className={etiqueta}>Contador que lo refirió</label>
+          <select value={contadorId} onChange={(e) => setContadorId(e.target.value)} className={campo}>
+            <option value="">Ninguno</option>
+            {contadores.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre} ({c.codigo_referido})
+              </option>
+            ))}
+          </select>
 
           <button
             onClick={guardarConfiguracion}

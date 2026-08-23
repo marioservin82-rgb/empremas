@@ -29,7 +29,7 @@ function normalizarTelefono(valor) {
 // Da de alta una empresa nueva junto con su primer usuario (el dueño).
 // Es el único lugar donde se crea una empresa sin tener ya una sesión.
 export async function registrarEmpresa(req, res) {
-    const { razonSocial, ruc, nombreDueno, email, telefono, password } = req.body;
+    const { razonSocial, ruc, nombreDueno, email, telefono, password, codigoReferido } = req.body;
 
     if (!razonSocial || !ruc || !nombreDueno || !password) {
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
@@ -43,13 +43,27 @@ export async function registrarEmpresa(req, res) {
     try {
         await cliente.query('BEGIN');
 
+        // Programa de referidos: si vino un codigo, se busca el contador
+        // aliado dueño de ese codigo (sin RLS, no hace falta contexto de
+        // empresa). Un codigo vacio, mal tipeado o de un contador
+        // desactivado NUNCA frena el alta - simplemente queda sin
+        // vincular, como si no se hubiera puesto nada.
+        let contadorId = null;
+        if (codigoReferido) {
+            const contador = await cliente.query(
+                `SELECT id FROM contadores_aliados WHERE upper(codigo_referido) = upper($1) AND activo = true`,
+                [codigoReferido.trim()]
+            );
+            contadorId = contador.rows[0]?.id || null;
+        }
+
         // El mismo dato que se usa para registrarse (telefono o email) se
         // guarda tambien en la empresa - asi el panel de super-admin ya lo
         // ve sin que el dueño tenga que volver a cargarlo en Perfil de
         // Empresa.
         const empresa = await cliente.query(
-            `INSERT INTO empresas (razon_social, ruc, telefono, email) VALUES ($1, $2, $3, $4) RETURNING id`,
-            [razonSocial, ruc, telefonoNormalizado, email || null]
+            `INSERT INTO empresas (razon_social, ruc, telefono, email, contador_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [razonSocial, ruc, telefonoNormalizado, email || null, contadorId]
         );
         const empresaId = empresa.rows[0].id;
 

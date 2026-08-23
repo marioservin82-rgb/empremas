@@ -39,6 +39,15 @@ CREATE TABLE empresas (
     -- Hasta cuando cubre el ultimo pago registrado - lo actualiza
     -- pagos_plataforma al registrar un pago. Null hasta el primer pago.
     vence_en            DATE,
+    -- Monto mensual (Gs) del plan de esta empresa - Mario lo carga a mano
+    -- al configurar cada cliente. Es el numero base sobre el que se
+    -- calcula la comision del contador aliado que la haya referido (ver
+    -- comisiones_contador). Null = todavia sin configurar.
+    monto_plan_mensual     NUMERIC(14,2),
+    -- Contador/profesional aliado que trajo a esta empresa (programa de
+    -- referidos) - vinculo permanente, solo Mario lo cambia a mano desde
+    -- el panel. Null = se registro por su cuenta, sin referido.
+    contador_id             UUID REFERENCES contadores_aliados(id),
     -- Configuracion de facturacion electronica (SIFEN via Sifende). Nulo =
     -- todavia no configurado - asi decide el frontend si "Factura Legal"
     -- esta habilitada, sin necesitar una columna booleana aparte. El
@@ -879,8 +888,54 @@ CREATE TABLE pagos_plataforma (
 CREATE TABLE configuracion_plataforma (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     whatsapp_soporte    TEXT,
+    -- Cantidad de clientes activos referidos por un mismo contador aliado
+    -- a partir de la cual el panel de admin muestra una alerta sugiriendo
+    -- pedirle que empiece a facturar su comision de forma formal. Un solo
+    -- numero global (no por contador), ajustable con el tiempo.
+    umbral_alerta_contador  INTEGER NOT NULL DEFAULT 15,
     actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Programa de referidos: contadores/profesionales aliados que le traen
+-- clientes nuevos a la plataforma. codigo_referido identifica sin
+-- ambiguedad que cliente trajo cada uno (via el campo empresas.
+-- contador_id, mas abajo) - no depende de que nadie escriba bien un
+-- nombre. Vinculo permanente: una vez asignado, solo Mario lo reasigna a
+-- mano desde el panel, nada lo cambia solo despues.
+CREATE TABLE contadores_aliados (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre              TEXT NOT NULL,
+    telefono            TEXT NOT NULL,
+    email               TEXT,
+    ruc                 TEXT,
+    codigo_referido     TEXT NOT NULL UNIQUE,
+    activo              BOOLEAN NOT NULL DEFAULT true,
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Comision mensual de cada contador, generada de forma perezosa (mismo
+-- mecanismo que gastos_recurrentes -> gastos en obtenerBalanceMensual):
+-- una fila por (contador, empresa, mes), creada la primera vez que se
+-- consulta ese periodo, con el monto_plan_mensual vigente de la empresa
+-- en ese momento - foto congelada, igual que venta_items.costo_unitario.
+-- Asi el mes siguiente recalcula solo con el monto que corresponda, y un
+-- cliente dado de baja simplemente deja de generar filas nuevas sin
+-- borrar el historial ya generado. "pagado" se piensa por (contador,
+-- periodo) en conjunto (com Mario paga la comision de un mes entero, no
+-- cliente por cliente) aunque vive repetido en cada fila del periodo.
+CREATE TABLE comisiones_contador (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contador_id     UUID NOT NULL REFERENCES contadores_aliados(id) ON DELETE CASCADE,
+    empresa_id      UUID NOT NULL REFERENCES empresas(id),
+    periodo         DATE NOT NULL,
+    monto_plan      NUMERIC(14,2) NOT NULL,
+    comision        NUMERIC(14,2) NOT NULL,
+    pagado          BOOLEAN NOT NULL DEFAULT false,
+    pagado_en       TIMESTAMPTZ,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (contador_id, empresa_id, periodo)
+);
+CREATE INDEX idx_comisiones_contador_contador ON comisiones_contador (contador_id, periodo);
 
 -- Novedades que Mario publica para avisar mejoras/funciones nuevas/
 -- correcciones a todos los negocios de la plataforma a la vez. Contenido

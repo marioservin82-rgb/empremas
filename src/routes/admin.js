@@ -13,6 +13,14 @@ import {
     listarNovedades,
     crearNovedad,
 } from '../controllers/adminController.js';
+import {
+    listarContadores,
+    crearContador,
+    obtenerContador,
+    actualizarContador,
+    comisionesDelPeriodo,
+    marcarPagado,
+} from '../controllers/contadoresController.js';
 
 const router = Router();
 
@@ -30,5 +38,11 @@ router.get('/configuracion', obtenerConfiguracion);
 router.patch('/configuracion', actualizarConfiguracion);
 router.get('/novedades', listarNovedades);
 router.post('/novedades', crearNovedad);
+router.get('/contadores', listarContadores);
+router.post('/contadores', crearContador);
+router.get('/contadores/:id', obtenerContador);
+router.patch('/contadores/:id', actualizarContador);
+router.get('/contadores/:id/comisiones', comisionesDelPeriodo);
+router.post('/contadores/:id/comisiones/marcar-pagado', marcarPagado);
 
 export default router;

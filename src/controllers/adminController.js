@@ -104,8 +104,10 @@ export async function obtenerEmpresa(req, res) {
 
     const empresa = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
+                e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
+         LEFT JOIN contadores_aliados c ON c.id = e.contador_id
          WHERE e.id = $1`,
         [id]
     );
@@ -130,7 +132,7 @@ const ESTADOS_VALIDOS = ['prueba', 'activa', 'mora', 'suspendida'];
 
 export async function actualizarEmpresa(req, res) {
     const { id } = req.params;
-    const { plan, estado, limiteUsuarios, limiteSucursales, venceEn } = req.body;
+    const { plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
         return res.status(400).json({ error: 'Estado inválido' });
@@ -141,6 +143,17 @@ export async function actualizarEmpresa(req, res) {
     if (limiteSucursales !== undefined && !(Number(limiteSucursales) >= 1)) {
         return res.status(400).json({ error: 'El límite de sucursales debe ser al menos 1' });
     }
+    if (montoPlanMensual !== undefined && montoPlanMensual !== null && !(Number(montoPlanMensual) >= 0)) {
+        return res.status(400).json({ error: 'El monto de plan mensual debe ser 0 o mayor' });
+    }
+    // contadorId puede venir null a proposito (desvincular) - se valida
+    // que exista solo cuando viene un id de verdad, no en el caso null.
+    if (contadorId) {
+        const contador = await pool.query(`SELECT id FROM contadores_aliados WHERE id = $1 AND activo = true`, [contadorId]);
+        if (!contador.rows[0]) {
+            return res.status(400).json({ error: 'El contador aliado elegido no existe o no está activo' });
+        }
+    }
 
     const resultado = await pool.query(
         `UPDATE empresas SET
@@ -148,10 +161,12 @@ export async function actualizarEmpresa(req, res) {
             estado = COALESCE($3, estado),
             limite_usuarios = COALESCE($4, limite_usuarios),
             limite_sucursales = COALESCE($5, limite_sucursales),
-            vence_en = COALESCE($6, vence_en)
+            vence_en = COALESCE($6, vence_en),
+            monto_plan_mensual = COALESCE($7, monto_plan_mensual),
+            contador_id = CASE WHEN $8 THEN $9::uuid ELSE contador_id END
          WHERE id = $1
-         RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en`,
-        [id, plan, estado, limiteUsuarios, limiteSucursales, venceEn]
+         RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en, monto_plan_mensual, contador_id`,
+        [id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId !== undefined, contadorId]
     );
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Empresa no encontrada' });
@@ -164,26 +179,40 @@ export async function actualizarEmpresa(req, res) {
 // fila (o null si todavia no existe ninguna) y PATCH la actualiza si
 // existe o la crea si es la primera vez que se guarda.
 export async function obtenerConfiguracion(req, res) {
-    const resultado = await pool.query(`SELECT whatsapp_soporte FROM configuracion_plataforma LIMIT 1`);
-    res.json({ whatsappSoporte: resultado.rows[0]?.whatsapp_soporte ?? null });
+    const resultado = await pool.query(`SELECT whatsapp_soporte, umbral_alerta_contador FROM configuracion_plataforma LIMIT 1`);
+    res.json({
+        whatsappSoporte: resultado.rows[0]?.whatsapp_soporte ?? null,
+        umbralAlertaContador: resultado.rows[0]?.umbral_alerta_contador ?? 15,
+    });
 }
 
 export async function actualizarConfiguracion(req, res) {
-    const { whatsappSoporte } = req.body;
+    const { whatsappSoporte, umbralAlertaContador } = req.body;
+    if (umbralAlertaContador !== undefined && !(Number(umbralAlertaContador) >= 1)) {
+        return res.status(400).json({ error: 'El umbral debe ser 1 o mayor' });
+    }
 
     const existente = await pool.query(`SELECT id FROM configuracion_plataforma LIMIT 1`);
     const resultado = existente.rows[0]
         ? await pool.query(
-              `UPDATE configuracion_plataforma SET whatsapp_soporte = $2, actualizado_en = now()
-               WHERE id = $1 RETURNING whatsapp_soporte`,
-              [existente.rows[0].id, whatsappSoporte || null]
+              `UPDATE configuracion_plataforma SET
+                  whatsapp_soporte = $2,
+                  umbral_alerta_contador = COALESCE($3, umbral_alerta_contador),
+                  actualizado_en = now()
+               WHERE id = $1 RETURNING whatsapp_soporte, umbral_alerta_contador`,
+              [existente.rows[0].id, whatsappSoporte || null, umbralAlertaContador]
           )
         : await pool.query(
-              `INSERT INTO configuracion_plataforma (whatsapp_soporte) VALUES ($1) RETURNING whatsapp_soporte`,
-              [whatsappSoporte || null]
+              `INSERT INTO configuracion_plataforma (whatsapp_soporte, umbral_alerta_contador)
+               VALUES ($1, COALESCE($2, 15))
+               RETURNING whatsapp_soporte, umbral_alerta_contador`,
+              [whatsappSoporte || null, umbralAlertaContador]
           );
 
-    res.json({ whatsappSoporte: resultado.rows[0].whatsapp_soporte });
+    res.json({
+        whatsappSoporte: resultado.rows[0].whatsapp_soporte,
+        umbralAlertaContador: resultado.rows[0].umbral_alerta_contador,
+    });
 }
 
 const CATEGORIAS_NOVEDAD_VALIDAS = ['nueva_funcion', 'mejora', 'correccion'];

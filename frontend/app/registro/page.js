@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function Registro() {
+  return (
+    <Suspense fallback={null}>
+      <FormularioRegistro />
+    </Suspense>
+  );
+}
+
+function FormularioRegistro() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     razonSocial: "",
     ruc: "",
@@ -13,10 +22,19 @@ export default function Registro() {
     email: "",
     telefono: "",
     password: "",
+    codigoReferido: "",
   });
   const [metodoContacto, setMetodoContacto] = useState("telefono");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+
+  // Si llega por el link propio de un contador aliado
+  // (empremas.../registro?ref=CONT-JPEREZ-01), precarga el codigo sin que
+  // el cliente tenga que escribirlo a mano.
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) setForm((actual) => ({ ...actual, codigoReferido: ref }));
+  }, [searchParams]);
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
@@ -37,6 +55,7 @@ export default function Registro() {
           password: form.password,
           email: metodoContacto === "email" ? form.email : undefined,
           telefono: metodoContacto === "telefono" ? form.telefono : undefined,
+          codigoReferido: form.codigoReferido || undefined,
         }),
       });
       const datos = await resp.json();
@@ -123,6 +142,14 @@ export default function Registro() {
 
           <label className={etiqueta}>Contraseña</label>
           <input type="password" required value={form.password} onChange={actualizar("password")} className={campo} placeholder="••••••••" />
+
+          <label className={etiqueta}>¿Te recomendó un contador o profesional? Código de referido (opcional)</label>
+          <input
+            value={form.codigoReferido}
+            onChange={actualizar("codigoReferido")}
+            className={campo}
+            placeholder="Opcional"
+          />
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
