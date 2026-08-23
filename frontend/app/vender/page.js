@@ -281,7 +281,10 @@ export default function Vender() {
   // Capa personalizada de sugerencia: que productos compra siempre ESTE
   // cliente en particular (distinto de la venta cruzada general, que es
   // sobre el producto). No bloquea ni retrasa la seleccion del cliente.
+  // Apagable desde Perfil de Empresa (algunos dueños la encuentran molesta
+  // para una venta rapida) - default true, ya existia antes del casillero.
   async function cargarProductosFrecuentes(c) {
+    if (empresaInfo?.sugerencias_venta_habilitadas === false) return;
     try {
       const productos = await apiFetch(`/api/clientes/${c.id}/productos-frecuentes`);
       setProductosFrecuentes(productos);
@@ -366,7 +369,9 @@ export default function Vender() {
   // al cajero con un toque para sumarlos. No bloquea ni retrasa el agregado
   // al carrito - es un fetch aparte que reemplaza la sugerencia anterior
   // (o la limpia, si el producto recién agregado no tiene asociados).
+  // Apagable desde Perfil de Empresa - ver cargarProductosFrecuentes.
   async function cargarSugerencia(p) {
+    if (empresaInfo?.sugerencias_venta_habilitadas === false) return;
     try {
       const asociados = await apiFetch(`/api/productos/${p.id}/asociados`);
       setSugerencia(asociados.length > 0 ? { productoBase: p, asociados } : null);

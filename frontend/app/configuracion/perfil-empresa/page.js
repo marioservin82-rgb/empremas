@@ -42,6 +42,7 @@ export default function PerfilEmpresa() {
   const [guardando, setGuardando] = useState(false);
 
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+  const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -66,6 +67,7 @@ export default function PerfilEmpresa() {
         setCertVencimiento(e.sifen_cert_vencimiento ? e.sifen_cert_vencimiento.slice(0, 10) : "");
         setCertNota(e.sifen_cert_nota || "");
         setProduccionHabilitada(!!e.produccion_habilitada);
+        setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -132,6 +134,19 @@ export default function PerfilEmpresa() {
       });
     } catch (err) {
       setProduccionHabilitada(!valor);
+      setError(err.message);
+    }
+  }
+
+  async function cambiarSugerenciasVenta(valor) {
+    setSugerenciasVentaHabilitadas(valor);
+    try {
+      await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ sugerenciasVentaHabilitadas: valor }),
+      });
+    } catch (err) {
+      setSugerenciasVentaHabilitadas(!valor);
       setError(err.message);
     }
   }
@@ -262,6 +277,29 @@ export default function PerfilEmpresa() {
               <span
                 className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
                   produccionHabilitada ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <div>
+              <p className="font-semibold text-slate-800">Sugerencias inteligentes en Vender</p>
+              <p className="text-sm text-slate-400">
+                Al agregar un producto o elegir un cliente, muestra qué se compra junto y qué suele llevar ese
+                cliente. Si te resulta molesto para vender rápido, podés apagarlo acá.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => cambiarSugerenciasVenta(!sugerenciasVentaHabilitadas)}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                sugerenciasVentaHabilitadas ? "bg-emerald-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                  sugerenciasVentaHabilitadas ? "left-7" : "left-1"
                 }`}
               />
             </button>

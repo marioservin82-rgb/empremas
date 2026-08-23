@@ -26,6 +26,12 @@ CREATE TABLE empresas (
     -- dueno lo activa desde Perfil de Empresa. Un almacenero/ferretero
     -- comun no lo necesita nunca.
     produccion_habilitada    BOOLEAN NOT NULL DEFAULT false,
+    -- Las dos franjas de sugerencia en Vender (venta cruzada al agregar un
+    -- producto, y "este cliente suele llevar" al elegir un cliente) - en
+    -- true por defecto porque ya existian antes de este casillero, pero
+    -- algunos dueños las encuentran molestas para una venta rapida y
+    -- quieren poder apagarlas.
+    sugerencias_venta_habilitadas   BOOLEAN NOT NULL DEFAULT true,
     -- Dias de plazo para el vencimiento de una venta a credito (fiado).
     plazo_credito_dias         INTEGER NOT NULL DEFAULT 30,
     -- Numeracion correlativa de los recibos de cobro (1, 2, 3...). Se
