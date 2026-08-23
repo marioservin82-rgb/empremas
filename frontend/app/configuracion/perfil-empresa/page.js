@@ -41,6 +41,8 @@ export default function PerfilEmpresa() {
   const [exito, setExito] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
+  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
       router.push("/");
@@ -63,6 +65,7 @@ export default function PerfilEmpresa() {
         setEmail(e.email || "");
         setCertVencimiento(e.sifen_cert_vencimiento ? e.sifen_cert_vencimiento.slice(0, 10) : "");
         setCertNota(e.sifen_cert_nota || "");
+        setProduccionHabilitada(!!e.produccion_habilitada);
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -117,6 +120,19 @@ export default function PerfilEmpresa() {
       setErrorLogo(err.message);
     } finally {
       setGuardandoLogo(false);
+    }
+  }
+
+  async function cambiarProduccionHabilitada(valor) {
+    setProduccionHabilitada(valor);
+    try {
+      await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ produccionHabilitada: valor }),
+      });
+    } catch (err) {
+      setProduccionHabilitada(!valor);
+      setError(err.message);
     }
   }
 
@@ -226,6 +242,29 @@ export default function PerfilEmpresa() {
               className={campo}
               placeholder="Si es distinta a la dirección fiscal"
             />
+          </div>
+
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <div>
+              <p className="font-semibold text-slate-800">Módulo de Producción</p>
+              <p className="text-sm text-slate-400">
+                Para negocios que fabrican (ladrillera, chipería...): insumos, recetas, órdenes de producción y
+                costo real por unidad. Si está apagado, no aparece en ningún lado de la app.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => cambiarProduccionHabilitada(!produccionHabilitada)}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                produccionHabilitada ? "bg-emerald-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                  produccionHabilitada ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
           </div>
 
           <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

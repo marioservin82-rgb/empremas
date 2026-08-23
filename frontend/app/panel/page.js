@@ -38,6 +38,7 @@ export default function Panel() {
   const [yo, setYo] = useState(null);
   const [multiSucursal, setMultiSucursal] = useState(false);
   const [venceEn, setVenceEn] = useState(null);
+  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -51,6 +52,7 @@ export default function Panel() {
       .then((e) => {
         setMultiSucursal(e.limite_sucursales > 1);
         setVenceEn(e.vence_en);
+        setProduccionHabilitada(!!e.produccion_habilitada);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -199,6 +201,13 @@ export default function Panel() {
         }
         if (yo?.rol === "dueno" || yo?.rol === "encargado") {
           secundarios.push({ nombre: "Cuentas por cobrar/pagar", icono: "🧾", href: "/reportes/saldos" });
+        }
+        // Modulo de Produccion: oculto por completo si la empresa no lo
+        // activo desde Perfil de Empresa - el permiso extra
+        // gestionar_produccion lo evalua el backend en cada endpoint, acá
+        // alcanza con dueño/encargado (mismo criterio que Pedido inteligente).
+        if (produccionHabilitada && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
+          secundarios.push({ nombre: "Producción", icono: "🏭", href: "/produccion" });
         }
         secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
 

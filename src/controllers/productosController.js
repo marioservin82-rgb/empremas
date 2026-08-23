@@ -13,8 +13,13 @@ async function ocultarCostoSiCorresponde(productos, rol, empresaId, usuarioId) {
 }
 
 export async function listarProductos(req, res) {
-    const { q, limit, offset } = req.query;
+    const { q, limit, offset, excluirInsumos } = req.query;
     const { empresaId, usuarioId, rol, sucursalId } = req.usuario;
+    // Vender manda excluirInsumos=true (un insumo de produccion nunca se
+    // vende directo al publico) - Stock y el resto de las pantallas de
+    // catalogo lo siguen viendo normalmente, se cargan/editan igual que
+    // cualquier producto.
+    const condicionInsumo = excluirInsumos === 'true' ? 'AND p.es_insumo = false' : '';
 
     // LEFT JOIN: un producto sin fila todavia en producto_stock para esta
     // sucursal (ej. recien creado en otra sucursal) muestra 0, no se cae.
@@ -24,7 +29,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $3
-               WHERE p.activo = true AND (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2)))
+               WHERE p.activo = true AND (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionInsumo}
                ORDER BY p.nombre LIMIT 50`,
               [q, `%${q}%`, sucursalId]
           )
@@ -41,7 +46,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE p.activo = true ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+               WHERE p.activo = true ${condicionInsumo} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
               [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 
@@ -202,6 +207,9 @@ export async function crearProducto(req, res) {
         tasaIva,
         stock,
         stockMinimo,
+        esInsumo,
+        unidadCompra,
+        equivalenciaUnidadCompra,
     } = req.body;
 
     if (!nombre) {
@@ -210,7 +218,9 @@ export async function crearProducto(req, res) {
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
     }
-    if (!(Number(precioContado) > 0)) {
+    // Un insumo de produccion nunca se vende directo - no tiene sentido
+    // exigirle un precio de venta.
+    if (!esInsumo && !(Number(precioContado) > 0)) {
         return res.status(400).json({ error: 'El precio contado (precio de venta) es obligatorio y debe ser mayor a 0' });
     }
 
@@ -218,9 +228,10 @@ export async function crearProducto(req, res) {
         const productoInsertado = await cliente.query(
             `INSERT INTO productos (
                 empresa_id, codigo_barras, nombre, unidad_medida,
-                precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo
+                precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
+                es_insumo, unidad_compra, equivalencia_unidad_compra
              )
-             VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10)
+             VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13)
              RETURNING *`,
             [
                 empresaId,
@@ -233,6 +244,9 @@ export async function crearProducto(req, res) {
                 precioMayorista,
                 tasaIva,
                 stockMinimo || null,
+                esInsumo,
+                unidadCompra || null,
+                equivalenciaUnidadCompra || null,
             ]
         );
         const nuevoProducto = productoInsertado.rows[0];
@@ -266,6 +280,9 @@ export async function actualizarProducto(req, res) {
         tasaIva,
         stockMinimo,
         activo,
+        esInsumo,
+        unidadCompra,
+        equivalenciaUnidadCompra,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
@@ -274,7 +291,12 @@ export async function actualizarProducto(req, res) {
 
     // precio_costo NO se acepta aca a proposito: desde que es un costo
     // promedio ponderado (ver crearCompra), solo lo actualiza una compra
-    // nueva - permitir pisarlo a mano rompería el calculo.
+    // nueva - permitir pisarlo a mano rompería el calculo. Todo con
+    // COALESCE (incluida la conversion de unidad de compra) porque este
+    // endpoint tambien se usa para PATCHes parciales de un solo campo
+    // (ej. {activo:false}) en varios lugares de la app - un COALESCE
+    // simple evita que un PATCH parcial borre sin querer un campo que no
+    // vino en ese request puntual.
     const resultado = await consultaDeEmpresa(
         empresaId,
         `UPDATE productos SET
@@ -286,7 +308,10 @@ export async function actualizarProducto(req, res) {
             precio_mayorista = COALESCE($8, precio_mayorista),
             tasa_iva = COALESCE($9, tasa_iva),
             stock_minimo = COALESCE($10, stock_minimo),
-            activo = COALESCE($11, activo)
+            activo = COALESCE($11, activo),
+            es_insumo = COALESCE($12, es_insumo),
+            unidad_compra = COALESCE($13, unidad_compra),
+            equivalencia_unidad_compra = COALESCE($14, equivalencia_unidad_compra)
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
         [
@@ -301,6 +326,9 @@ export async function actualizarProducto(req, res) {
             tasaIva,
             stockMinimo,
             activo,
+            esInsumo,
+            unidadCompra || null,
+            equivalenciaUnidadCompra || null,
         ]
     );
 

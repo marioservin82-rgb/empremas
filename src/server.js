@@ -16,6 +16,7 @@ import adminRoutes from './routes/admin.js';
 import configuracionRoutes from './routes/configuracion.js';
 import gastosRoutes from './routes/gastos.js';
 import novedadesRoutes from './routes/novedades.js';
+import produccionRoutes from './routes/produccion.js';
 
 const app = express();
 app.use(cors());
@@ -43,6 +44,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/gastos', gastosRoutes);
 app.use('/api/novedades', novedadesRoutes);
+app.use('/api/produccion', produccionRoutes);
 
 app.use((error, req, res, next) => {
     console.error(error);

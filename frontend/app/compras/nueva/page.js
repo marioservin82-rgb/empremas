@@ -165,6 +165,9 @@ export default function NuevaCompra() {
           precioContado: Number(p.precio_contado) || 0,
           precioCredito: Number(p.precio_credito) || 0,
           precioMayorista: Number(p.precio_mayorista) || 0,
+          unidadCompra: p.unidad_compra || null,
+          equivalenciaUnidadCompra: p.equivalencia_unidad_compra ? Number(p.equivalencia_unidad_compra) : null,
+          cantidadUnidadCompra: "",
         },
         ...actual,
       ];
@@ -206,6 +209,25 @@ export default function NuevaCompra() {
 
   function actualizarItem(productoId, campo, valor) {
     setCarrito((actual) => actual.map((i) => (i.productoId === productoId ? { ...i, [campo]: valor } : i)));
+  }
+
+  // Ayuda de carga (modulo de Produccion): si el insumo se compra en una
+  // unidad distinta a la que se consume (ej. "bolsa" vs "kg"), cargar
+  // "cuantas bolsas" calcula sola la cantidad real (unidad base) que va
+  // al item - nunca cambia el payload que ya se manda, solo autocompleta
+  // el campo cantidad.
+  function actualizarCantidadPorUnidadCompra(productoId, cantidadUnidadCompra) {
+    setCarrito((actual) =>
+      actual.map((i) =>
+        i.productoId === productoId
+          ? {
+              ...i,
+              cantidadUnidadCompra,
+              cantidad: (Number(cantidadUnidadCompra) || 0) * (i.equivalenciaUnidadCompra || 0),
+            }
+          : i
+      )
+    );
   }
 
   function quitarDelCarrito(productoId) {
@@ -535,9 +557,26 @@ export default function NuevaCompra() {
                         </button>
                       </div>
 
+                      {i.unidadCompra && i.equivalenciaUnidadCompra > 0 && (
+                        <div className="mb-3">
+                          <label className="mb-1 block text-xs text-slate-400">
+                            ¿Cuántas {i.unidadCompra}? (1 {i.unidadCompra} = {i.equivalenciaUnidadCompra} {i.unidadMedida})
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.0001"
+                            value={i.cantidadUnidadCompra}
+                            onChange={(e) => actualizarCantidadPorUnidadCompra(i.productoId, e.target.value)}
+                            className="w-32 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
+                            placeholder="Opcional"
+                          />
+                        </div>
+                      )}
+
                       <div className="mb-3 flex items-center gap-3">
                         <div>
-                          <label className="mb-1 block text-xs text-slate-400">Cantidad</label>
+                          <label className="mb-1 block text-xs text-slate-400">Cantidad ({i.unidadMedida})</label>
                           <input
                             type="number"
                             min="0.001"

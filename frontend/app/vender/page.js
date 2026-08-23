@@ -296,7 +296,7 @@ export default function Vender() {
       return;
     }
     try {
-      setResultadosProducto(await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`));
+      setResultadosProducto(await apiFetch(`/api/productos?excluirInsumos=true&q=${encodeURIComponent(q)}`));
     } catch (err) {
       setError(err.message);
     }
@@ -314,7 +314,7 @@ export default function Vender() {
     const q = busquedaProducto;
     if (!q) return;
     try {
-      const resultados = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
+      const resultados = await apiFetch(`/api/productos?excluirInsumos=true&q=${encodeURIComponent(q)}`);
       const porCodigoExacto = resultados.filter((p) => p.codigo_barras === q);
       if (porCodigoExacto.length === 1) {
         agregarAlCarrito(porCodigoExacto[0]);

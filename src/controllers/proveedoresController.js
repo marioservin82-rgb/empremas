@@ -390,11 +390,36 @@ export async function listaPedido(req, res) {
         });
     }
 
+    // Modulo de Produccion (punto 6): ademas de la alerta reactiva por
+    // stock bajo, proyecta cuanto de este insumo hace falta para la
+    // produccion ya planificada (produccion_planificada), via la receta
+    // de cada linea que lo usa. Solo tiene sentido si la empresa tiene el
+    // modulo activo - se deja vacio (sin tocar el resto del comportamiento
+    // ya existente) para cualquier otra empresa.
+    const empresaResultado = await consultaDeEmpresa(empresaId, `SELECT produccion_habilitada FROM empresas WHERE id = $1`, [empresaId]);
+    const necesidadPorInsumo = new Map();
+    if (empresaResultado.rows[0]?.produccion_habilitada) {
+        const necesidad = await consultaDeEmpresa(
+            empresaId,
+            `SELECT ri.insumo_id, SUM(ri.cantidad * pp.cantidad_planificada / l.cantidad_referencia) AS necesidad
+             FROM produccion_planificada pp
+             JOIN lineas_produccion l ON l.id = pp.linea_produccion_id
+             JOIN receta_items ri ON ri.linea_produccion_id = l.id
+             WHERE ri.insumo_id = ANY($1::uuid[])
+             GROUP BY ri.insumo_id`,
+            [productoIds]
+        );
+        for (const fila of necesidad.rows) {
+            necesidadPorInsumo.set(fila.insumo_id, Number(fila.necesidad));
+        }
+    }
+
     const lista = productos.rows.map((p) => {
         const stock = Number(p.stock);
         const stockMinimo = p.stock_minimo != null ? Number(p.stock_minimo) : null;
         const preciosProducto = (preciosPorProducto.get(p.id) || []).sort((a, b) => a.precio - b.precio);
         const precioMasBarato = preciosProducto.length > 0 ? preciosProducto[0].precio : null;
+        const necesidadProduccionPlanificada = necesidadPorInsumo.get(p.id) ?? null;
 
         return {
             id: p.id,
@@ -404,6 +429,9 @@ export async function listaPedido(req, res) {
             costoPromedio: Number(p.precio_costo),
             bajoPuntoPedido: stockMinimo != null && stock < stockMinimo,
             precios: preciosProducto.map((precio) => ({ ...precio, masBarato: precio.precio === precioMasBarato })),
+            necesidadProduccionPlanificada,
+            faltanteProduccionPlanificada:
+                necesidadProduccionPlanificada != null ? Math.max(0, necesidadProduccionPlanificada - stock) : null,
         };
     });
 

@@ -121,6 +121,11 @@ export default function ListaPedido() {
                               <span className="ml-1 hidden font-bold print:inline">¡URGENTE!</span>
                             </>
                           )}
+                          {p.faltanteProduccionPlanificada > 0 && (
+                            <p className="mt-1 text-xs text-amber-700">
+                              Para tu producción planificada te faltan {p.faltanteProduccionPlanificada.toLocaleString("es-PY")}
+                            </p>
+                          )}
                         </td>
                         <td className="py-2 pr-2 text-slate-500">
                           {p.costoPromedio > 0 ? `Gs ${formatoGs.format(p.costoPromedio)}` : "—"}

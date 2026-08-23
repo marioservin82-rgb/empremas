@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -16,6 +16,9 @@ const vacio = {
   precioMayorista: "",
   tasaIva: 10,
   stock: "",
+  esInsumo: false,
+  unidadCompra: "",
+  equivalenciaUnidadCompra: "",
 };
 
 export default function NuevoProducto() {
@@ -23,15 +26,25 @@ export default function NuevoProducto() {
   const [form, setForm] = useState(vacio);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/empresas/actual")
+      .then((e) => setProduccionHabilitada(!!e.produccion_habilitada))
+      .catch(() => {});
+  }, []);
 
   function actualizar(campo) {
-    return (e) => setForm({ ...form, [campo]: e.target.value });
+    return (e) => {
+      const valor = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+      setForm({ ...form, [campo]: valor });
+    };
   }
 
   async function enviar(e) {
     e.preventDefault();
     setError("");
-    if (!(Number(form.precioContado) > 0)) {
+    if (!form.esInsumo && !(Number(form.precioContado) > 0)) {
       setError("El precio contado (precio de venta) es obligatorio y debe ser mayor a 0");
       return;
     }
@@ -47,6 +60,8 @@ export default function NuevoProducto() {
           precioCredito: Number(form.precioCredito) || 0,
           precioMayorista: Number(form.precioMayorista) || 0,
           stock: Number(form.stock) || 0,
+          unidadCompra: form.esInsumo ? form.unidadCompra || undefined : undefined,
+          equivalenciaUnidadCompra: form.esInsumo ? Number(form.equivalenciaUnidadCompra) || undefined : undefined,
         }),
       });
       router.push("/stock");
@@ -85,15 +100,54 @@ export default function NuevoProducto() {
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} placeholder="unidad, kilo, metro, caja..." />
 
+          {produccionHabilitada && (
+            <>
+              <label className="mb-4 flex items-center gap-2">
+                <input type="checkbox" checked={form.esInsumo} onChange={actualizar("esInsumo")} className="h-5 w-5" />
+                <span className="text-sm font-medium text-slate-700">
+                  Insumo de producción (no se vende directo, se consume en recetas)
+                </span>
+              </label>
+              {form.esInsumo && (
+                <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3">
+                  <div>
+                    <label className={etiqueta}>Unidad de compra</label>
+                    <input
+                      value={form.unidadCompra}
+                      onChange={actualizar("unidadCompra")}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      placeholder="Ej: bolsa"
+                    />
+                  </div>
+                  <div>
+                    <label className={etiqueta}>Equivale a ({form.unidadMedida || "unidad"})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={form.equivalenciaUnidadCompra}
+                      onChange={actualizar("equivalenciaUnidadCompra")}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      placeholder="Ej: 50"
+                    />
+                  </div>
+                  <p className="col-span-2 text-xs text-slate-400">
+                    Opcional — solo si se compra en una unidad distinta a la que se consume (ej. 1 bolsa = 50 kg).
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
           <label className={etiqueta}>Precio de costo (Gs, lo que pagaste)</label>
           <input type="number" min="0" value={form.precioCosto} onChange={actualizar("precioCosto")} className={campo} placeholder="0" />
 
-          <label className={etiqueta}>Precio contado (Gs, IVA incluido)</label>
+          <label className={etiqueta}>Precio contado (Gs, IVA incluido){form.esInsumo && " — opcional para un insumo"}</label>
           <input
-            required
+            required={!form.esInsumo}
             name="precioContado"
             type="number"
-            min="1"
+            min="0"
             value={form.precioContado}
             onChange={actualizar("precioContado")}
             className={campo}

@@ -21,6 +21,11 @@ CREATE TABLE empresas (
     -- producto no tiene stock suficiente. El dueno puede activarlo si
     -- prefiere permitir vender igual (el stock queda en negativo).
     permitir_venta_sin_stock BOOLEAN NOT NULL DEFAULT false,
+    -- Modulo de Produccion (insumos, recetas, ordenes de produccion) -
+    -- apagado por defecto, oculto por completo en la app hasta que el
+    -- dueno lo activa desde Perfil de Empresa. Un almacenero/ferretero
+    -- comun no lo necesita nunca.
+    produccion_habilitada    BOOLEAN NOT NULL DEFAULT false,
     -- Dias de plazo para el vencimiento de una venta a credito (fiado).
     plazo_credito_dias         INTEGER NOT NULL DEFAULT 30,
     -- Numeracion correlativa de los recibos de cobro (1, 2, 3...). Se
@@ -176,7 +181,8 @@ CREATE TYPE permiso_extra AS ENUM (
     'gestionar_inventario',
     'gestionar_compras',
     'gestionar_clientes',
-    'anular_sin_pin'
+    'anular_sin_pin',
+    'gestionar_produccion'
 );
 
 CREATE TABLE usuario_permisos (
@@ -283,6 +289,19 @@ CREATE TABLE productos (
     -- si sigue siendo unico por producto (no por sucursal) es el umbral
     -- de alerta de reposicion.
     stock_minimo    NUMERIC(14,3),
+    -- Modulo de Produccion: marca este producto como insumo/materia prima
+    -- (arena, cemento, harina...) - nunca se vende directo, no aparece en
+    -- el buscador de Vender. Se sigue cargando/comprando igual que
+    -- cualquier producto, con el mismo costo promedio ponderado.
+    es_insumo       BOOLEAN NOT NULL DEFAULT false,
+    -- Ayuda de carga al comprar este insumo, NUNCA una segunda unidad de
+    -- stock: si se compra en una unidad distinta a la que se consume en
+    -- la receta (ej. "bolsa" vs "kg"), estos dos campos permiten
+    -- calcular la cantidad real (unidad_medida, la de consumo) a partir
+    -- de "cuantas bolsas" - el stock y el costo siempre viven en una sola
+    -- unidad (unidad_medida).
+    unidad_compra                   TEXT,
+    equivalencia_unidad_compra      NUMERIC(14,4),
     activo          BOOLEAN NOT NULL DEFAULT true,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -378,6 +397,134 @@ ALTER TABLE producto_asociaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE producto_asociaciones FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY producto_asociaciones_aislamiento ON producto_asociaciones
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- =====================================================================
+-- Modulo de Produccion (empresas.produccion_habilitada) - insumos,
+-- recetas, ordenes de produccion. Solo relevante para negocios que
+-- fabrican (ladrilleras, chiperias) - una empresa de reventa simple
+-- nunca crea filas aca.
+-- =====================================================================
+
+-- Que se fabrica (ej. "Ladrillos", "Chipa"). La receta y las categorias
+-- de calidad cuelgan de la linea, no de un producto puntual - los
+-- productos de calidad (Primera, Segunda...) todavia no existen cuando
+-- se define la receta.
+CREATE TABLE lineas_produccion (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    nombre              TEXT NOT NULL,
+    -- Cantidad de referencia que rinde la receta de abajo (ej. "1 lote" =
+    -- 1000 ladrillos) - una orden real se escala proporcionalmente.
+    cantidad_referencia NUMERIC(14,3) NOT NULL DEFAULT 1,
+    unidad_referencia   TEXT NOT NULL DEFAULT 'unidad',
+    activa              BOOLEAN NOT NULL DEFAULT true,
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (empresa_id, nombre)
+);
+CREATE INDEX idx_lineas_produccion_empresa ON lineas_produccion (empresa_id);
+ALTER TABLE lineas_produccion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lineas_produccion FORCE ROW LEVEL SECURITY;
+CREATE POLICY lineas_produccion_aislamiento ON lineas_produccion
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TABLE receta_items (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    linea_produccion_id UUID NOT NULL REFERENCES lineas_produccion(id) ON DELETE CASCADE,
+    insumo_id           UUID NOT NULL REFERENCES productos(id),
+    -- Cantidad de este insumo (en su unidad de consumo) para UNA
+    -- cantidad_referencia de la linea.
+    cantidad            NUMERIC(14,4) NOT NULL,
+    UNIQUE (linea_produccion_id, insumo_id)
+);
+CREATE INDEX idx_receta_items_empresa ON receta_items (empresa_id);
+CREATE INDEX idx_receta_items_linea ON receta_items (linea_produccion_id);
+ALTER TABLE receta_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE receta_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY receta_items_aislamiento ON receta_items
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Categorias de calidad definidas por el dueno, por linea (ej. Primera,
+-- Segunda, Descarte). producto_id null = descarte sin valor: nunca entra
+-- a stock de venta, su costo queda absorbido en el costo por unidad de
+-- las categorias con valor (ver orden_produccion_clasificacion) en vez de
+-- registrarse como una merma aparte, para no contar la perdida dos veces.
+CREATE TABLE categorias_calidad (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    linea_produccion_id UUID NOT NULL REFERENCES lineas_produccion(id) ON DELETE CASCADE,
+    nombre              TEXT NOT NULL,
+    producto_id         UUID REFERENCES productos(id),
+    orden               SMALLINT NOT NULL DEFAULT 0,
+    activa              BOOLEAN NOT NULL DEFAULT true,
+    UNIQUE (linea_produccion_id, nombre)
+);
+CREATE INDEX idx_categorias_calidad_empresa ON categorias_calidad (empresa_id);
+CREATE INDEX idx_categorias_calidad_linea ON categorias_calidad (linea_produccion_id);
+ALTER TABLE categorias_calidad ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categorias_calidad FORCE ROW LEVEL SECURITY;
+CREATE POLICY categorias_calidad_aislamiento ON categorias_calidad
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Orden real de produccion. estado 'abierta': ya consumio insumos segun
+-- receta (costo_insumos queda como foto congelada, igual criterio que
+-- venta_items.costo_unitario), todavia sin clasificar por calidad.
+-- 'cerrada': ya clasificada, costo_unitario_calculado listo y el stock de
+-- los productos de calidad ya actualizado (ver clasificarOrden).
+CREATE TABLE ordenes_produccion (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id                  UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    linea_produccion_id         UUID NOT NULL REFERENCES lineas_produccion(id),
+    sucursal_id                 UUID NOT NULL REFERENCES sucursales(id),
+    usuario_id                  UUID NOT NULL REFERENCES usuarios(id),
+    cantidad_producida          NUMERIC(14,3) NOT NULL,
+    costo_insumos                NUMERIC(14,2) NOT NULL,
+    costo_unitario_calculado    NUMERIC(14,2),
+    estado                       TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta', 'cerrada')),
+    fecha                        DATE NOT NULL DEFAULT CURRENT_DATE,
+    creado_en                    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    cerrada_en                   TIMESTAMPTZ
+);
+CREATE INDEX idx_ordenes_produccion_empresa ON ordenes_produccion (empresa_id);
+CREATE INDEX idx_ordenes_produccion_linea ON ordenes_produccion (linea_produccion_id);
+ALTER TABLE ordenes_produccion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ordenes_produccion FORCE ROW LEVEL SECURITY;
+CREATE POLICY ordenes_produccion_aislamiento ON ordenes_produccion
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TABLE orden_produccion_clasificacion (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id              UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    orden_produccion_id     UUID NOT NULL REFERENCES ordenes_produccion(id) ON DELETE CASCADE,
+    categoria_calidad_id    UUID NOT NULL REFERENCES categorias_calidad(id),
+    cantidad                NUMERIC(14,3) NOT NULL,
+    UNIQUE (orden_produccion_id, categoria_calidad_id)
+);
+CREATE INDEX idx_orden_clasificacion_empresa ON orden_produccion_clasificacion (empresa_id);
+CREATE INDEX idx_orden_clasificacion_orden ON orden_produccion_clasificacion (orden_produccion_id);
+ALTER TABLE orden_produccion_clasificacion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orden_produccion_clasificacion FORCE ROW LEVEL SECURITY;
+CREATE POLICY orden_produccion_clasificacion_aislamiento ON orden_produccion_clasificacion
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Declaracion simple de "esto planeo producir" - liviana a proposito,
+-- nunca se "convierte" en una orden real: solo alimenta la lista de
+-- pedido inteligente con la necesidad de insumos proyectada (ver
+-- proveedoresController.listaPedido).
+CREATE TABLE produccion_planificada (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id              UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    linea_produccion_id     UUID NOT NULL REFERENCES lineas_produccion(id),
+    cantidad_planificada    NUMERIC(14,3) NOT NULL,
+    fecha_aproximada        DATE,
+    usuario_id              UUID NOT NULL REFERENCES usuarios(id),
+    creado_en                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_produccion_planificada_empresa ON produccion_planificada (empresa_id);
+ALTER TABLE produccion_planificada ENABLE ROW LEVEL SECURITY;
+ALTER TABLE produccion_planificada FORCE ROW LEVEL SECURITY;
+CREATE POLICY produccion_planificada_aislamiento ON produccion_planificada
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 -- Clientes + fiado (linea de credito). Prerrequisito de la pantalla de
@@ -1061,6 +1208,11 @@ CREATE TABLE gastos (
     -- ese mes - pero es una fila independiente y editable, no una
     -- referencia viva a la plantilla.
     recurrente_id       UUID REFERENCES gastos_recurrentes(id),
+    -- Modulo de Produccion (opcional): si este gasto de mano de obra
+    -- corresponde a una orden puntual, en vez de quedar solo como gasto
+    -- general del mes - mismo espiritu que recurrente_id, fila propia y
+    -- editable, no una referencia viva.
+    orden_produccion_id UUID REFERENCES ordenes_produccion(id),
     usuario_id          UUID NOT NULL REFERENCES usuarios(id),
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -28,7 +28,10 @@ export default function NuevoGasto() {
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState("");
   const [fechaGasto, setFechaGasto] = useState("");
+  const [ordenProduccionId, setOrdenProduccionId] = useState("");
   const [gastos, setGastos] = useState([]);
+  const [ordenes, setOrdenes] = useState([]);
+  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -44,6 +47,16 @@ export default function NuevoGasto() {
       return;
     }
     cargarGastos();
+    apiFetch("/api/empresas/actual")
+      .then((e) => {
+        setProduccionHabilitada(!!e.produccion_habilitada);
+        if (e.produccion_habilitada) {
+          apiFetch("/api/produccion/ordenes")
+            .then(setOrdenes)
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -63,12 +76,14 @@ export default function NuevoGasto() {
           descripcion,
           monto: Number(monto),
           fechaGasto: fechaGasto || undefined,
+          ordenProduccionId: ordenProduccionId || undefined,
         }),
       });
       setCategoria("");
       setDescripcion("");
       setMonto("");
       setFechaGasto("");
+      setOrdenProduccionId("");
       cargarGastos();
     } catch (err) {
       setError(err.message);
@@ -124,6 +139,20 @@ export default function NuevoGasto() {
 
           <label className={etiqueta}>Fecha</label>
           <input type="date" value={fechaGasto} onChange={(e) => setFechaGasto(e.target.value)} className={campo} />
+
+          {produccionHabilitada && categoria === "personal" && (
+            <>
+              <label className={etiqueta}>Asociar a una orden de producción (opcional)</label>
+              <select value={ordenProduccionId} onChange={(e) => setOrdenProduccionId(e.target.value)} className={campo}>
+                <option value="">Sin asociar — gasto general del mes</option>
+                {ordenes.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.linea_nombre} · {new Date(o.fecha).toLocaleDateString("es-PY")} · {o.cantidad_producida}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

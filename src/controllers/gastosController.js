@@ -40,7 +40,7 @@ export async function listarGastos(req, res) {
 
 export async function crearGasto(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { categoria, descripcion, monto, fechaGasto } = req.body;
+    const { categoria, descripcion, monto, fechaGasto, ordenProduccionId } = req.body;
 
     if (!validarCategoria(categoria)) {
         return res.status(400).json({ error: 'Categoría inválida' });
@@ -54,10 +54,10 @@ export async function crearGasto(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id)
-         VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6)
+        `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id, orden_produccion_id)
+         VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7)
          RETURNING *`,
-        [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId]
+        [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId, ordenProduccionId || null]
     );
     res.status(201).json(resultado.rows[0]);
 }

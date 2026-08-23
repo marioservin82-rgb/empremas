@@ -6,7 +6,7 @@ export async function obtenerEmpresaActual(req, res) {
 
     const resultado = await pool.query(
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
-                permitir_venta_sin_stock, limite_sucursales, vence_en, ticket_escala,
+                permitir_venta_sin_stock, produccion_habilitada, limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
                 recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -117,6 +117,7 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioIncluirRuc, recordatorioIncluirTelefono,
         recordatorioMensajePrevio, recordatorioMensajeHoy,
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
+        produccionHabilitada,
     } = req.body;
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
@@ -159,6 +160,7 @@ export async function actualizarConfiguracion(req, res) {
             recordatorio_mensaje_hoy = COALESCE($19, recordatorio_mensaje_hoy),
             recordatorio_mensaje_mora_leve = COALESCE($20, recordatorio_mensaje_mora_leve),
             recordatorio_mensaje_mora_prolongada = COALESCE($21, recordatorio_mensaje_mora_prolongada),
+            produccion_habilitada = COALESCE($22, produccion_habilitada),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -167,7 +169,7 @@ export async function actualizarConfiguracion(req, res) {
                 THEN $12 ELSE datos_fiscales_modificado_por END
          WHERE id = $1
          RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
-                   permitir_venta_sin_stock, ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
+                   permitir_venta_sin_stock, produccion_habilitada, ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
                    recordatorio_incluir_ruc, recordatorio_incluir_telefono,
@@ -177,7 +179,8 @@ export async function actualizarConfiguracion(req, res) {
             direccionAtencion, telefono, email, sifenCertVencimiento, sifenCertNota, usuarioId,
             impresoraAgenteNombre, recordatorioDiasAvisoPrevio, recordatorioDiasMoraProlongada,
             recordatorioIncluirRuc, recordatorioIncluirTelefono, recordatorioMensajePrevio,
-            recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada]
+            recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
+            produccionHabilitada]
     );
 
     res.json(resultado.rows[0]);

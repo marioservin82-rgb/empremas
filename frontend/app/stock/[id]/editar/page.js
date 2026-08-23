@@ -18,6 +18,7 @@ export default function EditarProducto() {
   const [asociados, setAsociados] = useState([]);
   const [busquedaAsociado, setBusquedaAsociado] = useState("");
   const [resultadosAsociado, setResultadosAsociado] = useState([]);
+  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -37,11 +38,17 @@ export default function EditarProducto() {
           tasaIva: p.tasa_iva,
           stock: p.stock,
           stockMinimo: p.stock_minimo ?? "",
+          esInsumo: p.es_insumo,
+          unidadCompra: p.unidad_compra || "",
+          equivalenciaUnidadCompra: p.equivalencia_unidad_compra ?? "",
         });
       })
       .catch((err) => setError(err.message));
     apiFetch(`/api/productos/${id}/asociados`)
       .then(setAsociados)
+      .catch(() => {});
+    apiFetch("/api/empresas/actual")
+      .then((e) => setProduccionHabilitada(!!e.produccion_habilitada))
       .catch(() => {});
   }, [id, router]);
 
@@ -85,7 +92,10 @@ export default function EditarProducto() {
   }
 
   function actualizar(campo) {
-    return (e) => setForm({ ...form, [campo]: e.target.value });
+    return (e) => {
+      const valor = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+      setForm({ ...form, [campo]: valor });
+    };
   }
 
   async function enviar(e) {
@@ -102,6 +112,8 @@ export default function EditarProducto() {
           precioCredito: Number(form.precioCredito),
           precioMayorista: Number(form.precioMayorista),
           stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
+          unidadCompra: form.esInsumo ? form.unidadCompra || undefined : undefined,
+          equivalenciaUnidadCompra: form.esInsumo ? Number(form.equivalenciaUnidadCompra) || undefined : undefined,
         }),
       });
       router.push("/stock");
@@ -162,6 +174,42 @@ export default function EditarProducto() {
 
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} />
+
+          {produccionHabilitada && (
+            <>
+              <label className="mb-4 flex items-center gap-2">
+                <input type="checkbox" checked={form.esInsumo} onChange={actualizar("esInsumo")} className="h-5 w-5" />
+                <span className="text-sm font-medium text-slate-700">
+                  Insumo de producción (no se vende directo, se consume en recetas)
+                </span>
+              </label>
+              {form.esInsumo && (
+                <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3">
+                  <div>
+                    <label className={etiqueta}>Unidad de compra</label>
+                    <input
+                      value={form.unidadCompra}
+                      onChange={actualizar("unidadCompra")}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      placeholder="Ej: bolsa"
+                    />
+                  </div>
+                  <div>
+                    <label className={etiqueta}>Equivale a ({form.unidadMedida || "unidad"})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={form.equivalenciaUnidadCompra}
+                      onChange={actualizar("equivalenciaUnidadCompra")}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      placeholder="Ej: 50"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           <label className={etiqueta}>Costo promedio actual</label>
           <div className="mb-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
