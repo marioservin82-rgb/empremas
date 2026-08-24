@@ -795,7 +795,10 @@ export default function Vender() {
                     className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"
                   >
                     <span className="font-semibold">{p.nombre}</span>
-                    <span className="text-slate-500">Gs {formatoGs.format(p[`precio_${tipoPago}`])}</span>
+                    <span className="text-right text-slate-500">
+                      <span className="block">Gs {formatoGs.format(p[`precio_${tipoPago}`])}</span>
+                      <span className="block text-xs">stock {formatoGs.format(p.stock)} {p.unidad_medida}</span>
+                    </span>
                   </button>
                 ))}
               </div>
