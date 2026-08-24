@@ -478,15 +478,23 @@ export default function Vender() {
     }
   }
 
-  // Atajo Ctrl+Enter: "cobro rápido" para el caso más común (venta de
-  // contado/mayorista pagada toda en efectivo) - completa el pago en
-  // efectivo por lo que falte y confirma, todo en un solo gesto de
-  // teclado, sin tener que bajar con el cursor hasta el botón. Si ya se
-  // cargó algún pago a mano (parcial o con otra forma de pago), no lo
-  // pisa - solo cubre el resto con efectivo. En crédito no aplica (no
-  // hay pago que cobrar en el momento).
+  // Atajo de cierre rápido, un solo gesto de teclado sin bajar con el
+  // cursor hasta el botón. Contado/mayorista (Ctrl+Enter): completa el
+  // pago en efectivo por lo que falte y confirma - si ya se cargó algún
+  // pago a mano (parcial o con otra forma de pago), no lo pisa, solo
+  // cubre el resto con efectivo. Crédito (Ctrl+Shift+Enter, el Shift de
+  // más a propósito - fiar toda la venta es una acción de más peso que
+  // cobrar en efectivo, no conviene que salga con la misma combinación
+  // liviana): confirma directo con los pagos ya cargados (si no se cargó
+  // ninguno, el total completo queda fiado - ya es lo que hace el botón
+  // "Confirmar venta" en este caso, el atajo solo evita tener que
+  // clickearlo).
   function cierreRapido() {
-    if (enviando || carrito.length === 0 || tipoPago === "credito") return;
+    if (enviando || carrito.length === 0) return;
+    if (tipoPago === "credito") {
+      confirmarVenta(pagos);
+      return;
+    }
     const pagosFinal = restante > 0 ? [...pagos, { formaPago: "efectivo", monto: restante }] : pagos;
     setPagos(pagosFinal);
     confirmarVenta(pagosFinal);
@@ -495,6 +503,8 @@ export default function Vender() {
   useEffect(() => {
     function alPresionarTecla(e) {
       if (!(e.ctrlKey && e.key === "Enter")) return;
+      if (tipoPago === "credito" && !e.shiftKey) return;
+      if (tipoPago !== "credito" && e.shiftKey) return;
       e.preventDefault();
       if (recibo || cajaAbierta === false) return;
       cierreRapido();
@@ -1152,11 +1162,11 @@ export default function Vender() {
                 >
                   {enviando ? "Guardando..." : "Confirmar venta"}
                 </button>
-                {tipoPago !== "credito" && (
-                  <p className="mt-2 text-center text-xs text-slate-400">
-                    Atajo: Ctrl+Enter cobra en efectivo y confirma de una
-                  </p>
-                )}
+                <p className="mt-2 text-center text-xs text-slate-400">
+                  {tipoPago === "credito"
+                    ? "Atajo: Ctrl+Shift+Enter fía toda la venta y confirma de una"
+                    : "Atajo: Ctrl+Enter cobra en efectivo y confirma de una"}
+                </p>
               </>
             )}
           </div>
