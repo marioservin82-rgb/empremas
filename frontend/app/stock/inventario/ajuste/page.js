@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -118,12 +119,9 @@ export default function AjusteInventario() {
             <p className="mb-4 text-sm text-slate-400">Stock actual: {formatoGs.format(producto.stock)} {producto.unidad_medida}</p>
 
             <label className="mb-1 block text-sm font-medium text-slate-700">Cantidad real (contada)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.001"
+            <CampoCantidad
               value={cantidadNueva}
-              onChange={(e) => setCantidadNueva(e.target.value)}
+              onChange={(valor) => setCantidadNueva(valor)}
               className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100"
             />
             {cantidadNueva !== "" && diferencia !== 0 && (

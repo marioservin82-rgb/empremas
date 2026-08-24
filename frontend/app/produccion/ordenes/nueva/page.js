@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 export default function NuevaOrdenProduccion() {
   const router = useRouter();
@@ -61,7 +63,7 @@ export default function NuevaOrdenProduccion() {
           </p>
         </div>
 
-        <form onSubmit={crear} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+        <form onSubmit={crear} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>Línea de producción</label>
           <select value={lineaId} onChange={(e) => setLineaId(e.target.value)} className={campo} required>
             <option value="">Elegí una línea</option>
@@ -75,13 +77,10 @@ export default function NuevaOrdenProduccion() {
           <label className={etiqueta}>
             Cantidad producida {linea && `(${linea.unidad_referencia})`}
           </label>
-          <input
-            type="number"
-            min="0.001"
-            step="0.001"
+          <CampoCantidad
             required
             value={cantidadProducida}
-            onChange={(e) => setCantidadProducida(e.target.value)}
+            onChange={(valor) => setCantidadProducida(valor)}
             className={campo}
             placeholder="0"
           />

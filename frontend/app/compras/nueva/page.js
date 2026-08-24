@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -223,7 +224,7 @@ export default function NuevaCompra() {
           ? {
               ...i,
               cantidadUnidadCompra,
-              cantidad: (Number(cantidadUnidadCompra) || 0) * (i.equivalenciaUnidadCompra || 0),
+              cantidad: cantidadUnidadCompra * (i.equivalenciaUnidadCompra || 0),
             }
           : i
       )
@@ -562,12 +563,9 @@ export default function NuevaCompra() {
                           <label className="mb-1 block text-xs text-slate-400">
                             ¿Cuántas {i.unidadCompra}? (1 {i.unidadCompra} = {i.equivalenciaUnidadCompra} {i.unidadMedida})
                           </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.0001"
+                          <CampoCantidad
                             value={i.cantidadUnidadCompra}
-                            onChange={(e) => actualizarCantidadPorUnidadCompra(i.productoId, e.target.value)}
+                            onChange={(valor) => actualizarCantidadPorUnidadCompra(i.productoId, valor)}
                             className="w-32 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
                             placeholder="Opcional"
                           />
@@ -577,12 +575,9 @@ export default function NuevaCompra() {
                       <div className="mb-3 flex items-center gap-3">
                         <div>
                           <label className="mb-1 block text-xs text-slate-400">Cantidad ({i.unidadMedida})</label>
-                          <input
-                            type="number"
-                            min="0.001"
-                            step="0.001"
+                          <CampoCantidad
                             value={i.cantidad}
-                            onChange={(e) => actualizarItem(i.productoId, "cantidad", Number(e.target.value) || 0)}
+                            onChange={(valor) => actualizarItem(i.productoId, "cantidad", Number(valor) || 0)}
                             className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
                           />
                         </div>

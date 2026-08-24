@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -109,7 +111,7 @@ export default function DetalleOrdenProduccion() {
         </div>
 
         {orden.estado === "abierta" ? (
-          <form onSubmit={clasificar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+          <form onSubmit={clasificar} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
             <h2 className="mb-1 text-lg font-bold text-slate-800">Clasificar por calidad</h2>
             <p className="mb-4 text-sm text-slate-500">
               La suma tiene que coincidir con lo producido ({orden.cantidad_producida}).
@@ -125,12 +127,9 @@ export default function DetalleOrdenProduccion() {
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     {c.nombre} {c.producto_id ? `→ ${c.producto_nombre}` : "(descarte, sin valor)"}
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.001"
+                  <CampoCantidad
                     value={cantidades[c.id] ?? ""}
-                    onChange={(e) => setCantidades({ ...cantidades, [c.id]: e.target.value })}
+                    onChange={(valor) => setCantidades({ ...cantidades, [c.id]: valor })}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                     placeholder="0"
                   />

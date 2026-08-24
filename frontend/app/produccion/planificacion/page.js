@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 export default function PlanificacionProduccion() {
   const router = useRouter();
@@ -87,7 +89,7 @@ export default function PlanificacionProduccion() {
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-        <form onSubmit={crear} className="mb-6 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+        <form onSubmit={crear} onKeyDown={avanzarConEnter} className="mb-6 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>Línea de producción</label>
           <select value={lineaId} onChange={(e) => setLineaId(e.target.value)} className={campo}>
             <option value="">Elegí una línea</option>
@@ -99,7 +101,7 @@ export default function PlanificacionProduccion() {
           </select>
 
           <label className={etiqueta}>Cantidad planificada</label>
-          <input type="number" min="0.001" step="0.001" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className={campo} />
+          <CampoCantidad value={cantidad} onChange={(valor) => setCantidad(valor)} className={campo} />
 
           <label className={etiqueta}>Fecha aproximada (opcional)</label>
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={campo} />

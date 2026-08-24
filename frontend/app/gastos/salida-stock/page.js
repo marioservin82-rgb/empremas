@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -158,12 +159,9 @@ function SalidaStockContenido() {
             </p>
 
             <label className="mb-1 block text-sm font-medium text-slate-700">Cantidad</label>
-            <input
-              type="number"
-              min="0.001"
-              step="0.001"
+            <CampoCantidad
               value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
+              onChange={(valor) => setCantidad(valor)}
               className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-100"
             />
 

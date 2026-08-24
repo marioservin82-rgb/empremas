@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const vacio = { nombre: "", cantidadReferencia: "1", unidadReferencia: "unidad" };
 
@@ -88,12 +89,9 @@ export default function LineasProduccion() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={etiqueta}>Cantidad de referencia</label>
-                <input
-                  type="number"
-                  min="0.001"
-                  step="0.001"
+                <CampoCantidad
                   value={form.cantidadReferencia}
-                  onChange={(e) => setForm({ ...form, cantidadReferencia: e.target.value })}
+                  onChange={(valor) => setForm({ ...form, cantidadReferencia: valor })}
                   className={campo}
                 />
               </div>

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import CampoCantidad from "@/components/CampoCantidad";
 
 export default function DetalleLineaProduccion() {
   const router = useRouter();
@@ -224,12 +225,9 @@ export default function DetalleLineaProduccion() {
                   <label className={etiqueta}>
                     Cantidad ({insumoElegido.unidad_medida}) para {linea.cantidad_referencia} {linea.unidad_referencia}
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
+                  <CampoCantidad
                     value={cantidadInsumo}
-                    onChange={(e) => setCantidadInsumo(e.target.value)}
+                    onChange={(valor) => setCantidadInsumo(valor)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                   />
                 </div>

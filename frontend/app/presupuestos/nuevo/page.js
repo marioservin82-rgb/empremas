@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -122,7 +123,7 @@ export default function NuevoPresupuesto() {
   }
 
   function cambiarCantidad(productoId, cantidad) {
-    setCarrito((actual) => actual.map((i) => (i.productoId === productoId ? { ...i, cantidad } : i)));
+    setCarrito((actual) => actual.map((i) => (i.productoId === productoId ? { ...i, cantidad: Number(cantidad) || 0 } : i)));
   }
 
   function cambiarPrecio(productoId, precioUnitario) {
@@ -281,12 +282,9 @@ export default function NuevoPresupuesto() {
                     <p className="font-semibold text-slate-800">{i.nombre}</p>
                     <p className="text-sm text-slate-400">{i.unidadMedida}</p>
                   </div>
-                  <input
-                    type="number"
-                    min="0.001"
-                    step="0.001"
+                  <CampoCantidad
                     value={i.cantidad}
-                    onChange={(e) => cambiarCantidad(i.productoId, Number(e.target.value) || 0)}
+                    onChange={(valor) => cambiarCantidad(i.productoId, valor)}
                     className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
                     title="Cantidad"
                   />

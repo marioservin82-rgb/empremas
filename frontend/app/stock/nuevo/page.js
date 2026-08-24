@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import CampoCantidad from "@/components/CampoCantidad";
 
 const vacio = {
   nombre: "",
@@ -121,12 +122,9 @@ export default function NuevoProducto() {
                   </div>
                   <div>
                     <label className={etiqueta}>Equivale a ({form.unidadMedida || "unidad"})</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
+                    <CampoCantidad
                       value={form.equivalenciaUnidadCompra}
-                      onChange={actualizar("equivalenciaUnidadCompra")}
+                      onChange={(valor) => setForm({ ...form, equivalenciaUnidadCompra: valor })}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2"
                       placeholder="Ej: 50"
                     />
@@ -168,7 +166,7 @@ export default function NuevoProducto() {
           </select>
 
           <label className={etiqueta}>Stock inicial</label>
-          <input type="number" min="0" step="0.001" value={form.stock} onChange={actualizar("stock")} className={campo} placeholder="0" />
+          <CampoCantidad value={form.stock} onChange={(valor) => setForm({ ...form, stock: valor })} className={campo} placeholder="0" />
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

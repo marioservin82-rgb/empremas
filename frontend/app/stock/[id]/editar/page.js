@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import CampoCantidad from "@/components/CampoCantidad";
 
 export default function EditarProducto() {
   const router = useRouter();
@@ -196,12 +197,9 @@ export default function EditarProducto() {
                   </div>
                   <div>
                     <label className={etiqueta}>Equivale a ({form.unidadMedida || "unidad"})</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
+                    <CampoCantidad
                       value={form.equivalenciaUnidadCompra}
-                      onChange={actualizar("equivalenciaUnidadCompra")}
+                      onChange={(valor) => setForm({ ...form, equivalenciaUnidadCompra: valor })}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2"
                       placeholder="Ej: 50"
                     />
@@ -261,7 +259,7 @@ export default function EditarProducto() {
           </p>
 
           <label className={etiqueta}>Stock mínimo (alerta de reposición)</label>
-          <input type="number" min="0" step="0.001" value={form.stockMinimo} onChange={actualizar("stockMinimo")} className={campo} placeholder="Opcional" />
+          <CampoCantidad value={form.stockMinimo} onChange={(valor) => setForm({ ...form, stockMinimo: valor })} className={campo} placeholder="Opcional" />
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
