@@ -14,6 +14,12 @@ const ETIQUETA_FORMA_PAGO = {
   tarjeta_debito: "Tarjeta de débito",
 };
 
+const ETIQUETA_TIPO_PAGO = {
+  contado: "Contado",
+  credito: "Crédito",
+  mayorista: "Mayorista",
+};
+
 function fecha(dias) {
   return new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
 }
@@ -166,6 +172,24 @@ export default function ReporteVentas() {
                         <span className="font-semibold text-slate-800">{p.cantidad_vendida}</span>
                         <span className="ml-2 text-slate-400">Gs {formatoGs.format(p.total_vendido)}</span>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+              <p className="mb-3 font-semibold text-slate-700">Por tipo de venta</p>
+              {reporte.porTipoPago.length === 0 ? (
+                <p className="text-sm text-slate-400">Sin ventas en este período.</p>
+              ) : (
+                <div className="flex flex-col divide-y divide-slate-100">
+                  {reporte.porTipoPago.map((t, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 text-sm">
+                      <span className="text-slate-700">
+                        {ETIQUETA_TIPO_PAGO[t.tipo_pago] || t.tipo_pago} <span className="text-slate-400">({t.cantidad_ventas})</span>
+                      </span>
+                      <span className="font-semibold text-slate-800">Gs {formatoGs.format(t.total)}</span>
                     </div>
                   ))}
                 </div>

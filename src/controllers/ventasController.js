@@ -879,6 +879,21 @@ export async function reporteVentas(req, res) {
         [desde, hasta]
     );
 
+    // Distinto de porFormaPago (esa es la forma en que se cobró - efectivo/
+    // tarjeta/transferencia - y una venta a crédito recién cargada no tiene
+    // ningún venta_pagos todavía). Esto es tipo_pago (contado/credito/
+    // mayorista), la clasificación de la venta en sí - mismo campo que ya
+    // usa el resumen de "Ventas de hoy" (resumenDia, más arriba en este
+    // archivo) para su desglose Contado/Crédito.
+    const porTipoPago = await consultaDeEmpresa(
+        empresaId,
+        `SELECT tipo_pago, COUNT(*) AS cantidad_ventas, COALESCE(SUM(total), 0) AS total
+         FROM ventas
+         WHERE anulada = false AND creado_en >= $1::date AND creado_en < ($2::date + INTERVAL '1 day')
+         GROUP BY tipo_pago`,
+        [desde, hasta]
+    );
+
     const cantidadVentas = Number(totales.rows[0].cantidad_ventas);
     const totalVendido = Number(totales.rows[0].total_vendido);
 
@@ -890,5 +905,6 @@ export async function reporteVentas(req, res) {
         ticketPromedio: cantidadVentas > 0 ? totalVendido / cantidadVentas : 0,
         topProductos: topProductos.rows,
         porFormaPago: porFormaPago.rows,
+        porTipoPago: porTipoPago.rows,
     });
 }
