@@ -255,7 +255,8 @@ export default function NuevaCompra() {
     setPagos((actual) => actual.filter((_, i) => i !== indice));
   }
 
-  const puedeConfirmarCredito = proveedor && carrito.length > 0;
+  const carritoValido = carrito.every((i) => i.cantidad > 0 && i.precioUnitario >= 0);
+  const puedeConfirmarCredito = proveedor && carrito.length > 0 && carritoValido;
   const puedeConfirmarContado = puedeConfirmarCredito && pagos.length > 0 && restante === 0;
 
   async function confirmarCompra(tipoPago) {
@@ -581,7 +582,9 @@ export default function NuevaCompra() {
                           <CampoCantidad
                             value={i.cantidad}
                             onChange={(valor) => actualizarItem(i.productoId, "cantidad", Number(valor) || 0)}
-                            className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
+                            className={`w-20 rounded-lg border px-2 py-2 text-center text-lg ${
+                              i.cantidad > 0 ? "border-slate-300" : "border-red-400 bg-red-50"
+                            }`}
                           />
                         </div>
                         <div>
@@ -719,6 +722,12 @@ export default function NuevaCompra() {
                     <p className="text-lg font-semibold text-slate-600">Total</p>
                     <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                   </div>
+
+                  {!carritoValido && (
+                    <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                      Falta la cantidad de algún producto (marcado en rojo arriba) — completala para poder confirmar.
+                    </p>
+                  )}
 
                   {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
