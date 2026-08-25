@@ -70,8 +70,17 @@ export async function crearCompra(req, res) {
                         [productoId]
                     );
                     const stockActual = Number(stockResultado.rows[0].total);
+                    // Si el stock quedo en negativo (se vendio sin stock con
+                    // "permitir_venta_sin_stock") y esta compra lo trae de
+                    // vuelta a cero o menos, diluir contra ese stock negativo
+                    // da division por cero o un promedio sin sentido - en ese
+                    // caso el costo de esta compra pasa a ser el nuevo costo
+                    // promedio directo, mismo criterio que cuando nunca hubo
+                    // costo cargado.
                     costoPromedioNuevo =
-                        (stockActual * costoPromedioActual + cantidad * precioUnitario) / (stockActual + cantidad);
+                        stockActual + cantidad > 0
+                            ? (stockActual * costoPromedioActual + cantidad * precioUnitario) / (stockActual + cantidad)
+                            : precioUnitario;
                 }
                 const subtotal = precioUnitario * cantidad;
                 total += subtotal;
