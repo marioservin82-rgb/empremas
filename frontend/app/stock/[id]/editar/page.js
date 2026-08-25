@@ -20,6 +20,8 @@ export default function EditarProducto() {
   const [busquedaAsociado, setBusquedaAsociado] = useState("");
   const [resultadosAsociado, setResultadosAsociado] = useState([]);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+  const [busquedaIngrediente, setBusquedaIngrediente] = useState("");
+  const [resultadosIngrediente, setResultadosIngrediente] = useState([]);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -42,6 +44,13 @@ export default function EditarProducto() {
           esInsumo: p.es_insumo,
           unidadCompra: p.unidad_compra || "",
           equivalenciaUnidadCompra: p.equivalencia_unidad_compra ?? "",
+          esCompuesto: p.es_compuesto,
+          receta: (p.receta || []).map((r) => ({
+            insumoId: r.insumo_id,
+            nombre: r.nombre,
+            unidadMedida: r.unidad_medida,
+            cantidad: r.cantidad,
+          })),
         });
       })
       .catch((err) => setError(err.message));
@@ -52,6 +61,38 @@ export default function EditarProducto() {
       .then((e) => setProduccionHabilitada(!!e.produccion_habilitada))
       .catch(() => {});
   }, [id, router]);
+
+  const busquedaIngredienteDebounced = useDebounced(busquedaIngrediente);
+  useEffect(() => {
+    if (!busquedaIngredienteDebounced) {
+      setResultadosIngrediente([]);
+      return;
+    }
+    apiFetch(`/api/productos?q=${encodeURIComponent(busquedaIngredienteDebounced)}`)
+      .then((r) => setResultadosIngrediente(r.filter((p) => !p.es_compuesto && p.id !== id)))
+      .catch(() => {});
+  }, [busquedaIngredienteDebounced, id]);
+
+  function agregarIngrediente(p) {
+    if (form.receta.some((r) => r.insumoId === p.id)) return;
+    setForm({
+      ...form,
+      receta: [...form.receta, { insumoId: p.id, nombre: p.nombre, unidadMedida: p.unidad_medida, cantidad: "" }],
+    });
+    setBusquedaIngrediente("");
+    setResultadosIngrediente([]);
+  }
+
+  function cambiarCantidadIngrediente(insumoId, cantidad) {
+    setForm({
+      ...form,
+      receta: form.receta.map((r) => (r.insumoId === insumoId ? { ...r, cantidad } : r)),
+    });
+  }
+
+  function quitarIngrediente(insumoId) {
+    setForm({ ...form, receta: form.receta.filter((r) => r.insumoId !== insumoId) });
+  }
 
   const busquedaAsociadoDebounced = useDebounced(busquedaAsociado);
   useEffect(() => {
@@ -102,6 +143,16 @@ export default function EditarProducto() {
   async function enviar(e) {
     e.preventDefault();
     setError("");
+    if (form.esCompuesto) {
+      if (form.receta.length === 0) {
+        setError("Un producto compuesto necesita al menos un ingrediente en la receta");
+        return;
+      }
+      if (form.receta.some((r) => !(Number(r.cantidad) > 0))) {
+        setError("Cargá la cantidad de cada ingrediente de la receta");
+        return;
+      }
+    }
     setGuardando(true);
     try {
       await apiFetch(`/api/productos/${id}`, {
@@ -115,6 +166,9 @@ export default function EditarProducto() {
           stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
           unidadCompra: form.esInsumo ? form.unidadCompra || undefined : undefined,
           equivalenciaUnidadCompra: form.esInsumo ? Number(form.equivalenciaUnidadCompra) || undefined : undefined,
+          receta: form.esCompuesto
+            ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
+            : undefined,
         }),
       });
       router.push("/stock");
@@ -209,13 +263,81 @@ export default function EditarProducto() {
             </>
           )}
 
-          <label className={etiqueta}>Costo promedio actual</label>
-          <div className="mb-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
-            <span className="font-semibold text-slate-700">Gs {formatoGs.format(costoPromedio)}</span>
-          </div>
-          <p className="mb-4 text-xs text-slate-400">
-            Se actualiza solo con cada compra (promedio ponderado por cantidad) — no se edita a mano.
-          </p>
+          <label className="mb-4 flex items-center gap-2">
+            <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} className="h-5 w-5" />
+            <span className="text-sm font-medium text-slate-700">
+              Producto compuesto (se arma con su receta al vender, ej. sándwich, torta casera)
+            </span>
+          </label>
+          {form.esCompuesto && (
+            <div className="mb-4 rounded-xl border border-slate-200 p-3">
+              <label className={etiqueta}>Ingredientes</label>
+              <input
+                value={busquedaIngrediente}
+                onChange={(e) => setBusquedaIngrediente(e.target.value)}
+                className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="Buscar producto para agregar como ingrediente..."
+              />
+              {resultadosIngrediente.length > 0 && (
+                <div className="mb-2 flex flex-col gap-1">
+                  {resultadosIngrediente.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => agregarIngrediente(p)}
+                      className="rounded-lg border border-slate-200 p-2 text-left text-sm font-semibold hover:bg-slate-50"
+                    >
+                      {p.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {form.receta.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {form.receta.map((r) => (
+                    <div key={r.insumoId} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm font-semibold text-slate-700">{r.nombre}</span>
+                      <CampoCantidad
+                        value={r.cantidad}
+                        onChange={(valor) => cambiarCantidadIngrediente(r.insumoId, valor)}
+                        className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-center text-sm"
+                        placeholder="0"
+                      />
+                      <span className="w-16 text-xs text-slate-400">{r.unidadMedida}</span>
+                      <button
+                        type="button"
+                        onClick={() => quitarIngrediente(r.insumoId)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-400">
+                Cuánto de cada ingrediente lleva UNA unidad de este producto — se descuenta del stock del ingrediente
+                cada vez que se vende, sin que este producto tenga stock propio.
+              </p>
+            </div>
+          )}
+
+          {form.esCompuesto ? (
+            <p className="mb-4 text-sm text-slate-400">
+              Costo: Gs {formatoGs.format(costoPromedio)} — se calcula solo, sumando el costo de cada ingrediente de
+              la receta al guardar.
+            </p>
+          ) : (
+            <>
+              <label className={etiqueta}>Costo promedio actual</label>
+              <div className="mb-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
+                <span className="font-semibold text-slate-700">Gs {formatoGs.format(costoPromedio)}</span>
+              </div>
+              <p className="mb-4 text-xs text-slate-400">
+                Se actualiza solo con cada compra (promedio ponderado por cantidad) — no se edita a mano.
+              </p>
+            </>
+          )}
 
           {preciosBajoCosto.length > 0 && (
             <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -247,19 +369,27 @@ export default function EditarProducto() {
             <option value={0}>Exento (0%)</option>
           </select>
 
-          <label className={etiqueta}>Stock actual</label>
-          <div className="mb-1 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
-            <span className="font-semibold text-slate-700">{form.stock}</span>
-            <Link href="/stock/inventario/ajuste" className="text-sm font-semibold text-navy hover:text-brand">
-              Ajustar
-            </Link>
-          </div>
-          <p className="mb-4 text-xs text-slate-400">
-            El stock se corrige desde Ajuste de inventario, para dejar registrado el motivo.
-          </p>
+          {form.esCompuesto ? (
+            <p className="mb-4 text-sm text-slate-400">
+              Este producto no tiene stock propio — se arma con la receta de arriba en cada venta.
+            </p>
+          ) : (
+            <>
+              <label className={etiqueta}>Stock actual</label>
+              <div className="mb-1 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
+                <span className="font-semibold text-slate-700">{form.stock}</span>
+                <Link href="/stock/inventario/ajuste" className="text-sm font-semibold text-navy hover:text-brand">
+                  Ajustar
+                </Link>
+              </div>
+              <p className="mb-4 text-xs text-slate-400">
+                El stock se corrige desde Ajuste de inventario, para dejar registrado el motivo.
+              </p>
 
-          <label className={etiqueta}>Stock mínimo (alerta de reposición)</label>
-          <CampoCantidad value={form.stockMinimo} onChange={(valor) => setForm({ ...form, stockMinimo: valor })} className={campo} placeholder="Opcional" />
+              <label className={etiqueta}>Stock mínimo (alerta de reposición)</label>
+              <CampoCantidad value={form.stockMinimo} onChange={(valor) => setForm({ ...form, stockMinimo: valor })} className={campo} placeholder="Opcional" />
+            </>
+          )}
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

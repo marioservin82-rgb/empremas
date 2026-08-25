@@ -216,7 +216,7 @@ export async function crearVenta(req, res) {
                     throw new ErrorNegocio('La cantidad debe ser mayor a cero');
                 }
                 const productoResultado = await cliente.query(
-                    `SELECT nombre, tasa_iva, precio_costo, ${columnaPrecio} AS precio, precio_mayorista FROM productos WHERE id = $1`,
+                    `SELECT nombre, tasa_iva, precio_costo, es_compuesto, ${columnaPrecio} AS precio, precio_mayorista FROM productos WHERE id = $1`,
                     [productoId]
                 );
                 const producto = productoResultado.rows[0];
@@ -224,23 +224,58 @@ export async function crearVenta(req, res) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
                 }
 
-                // Si esta sucursal todavia no tiene fila de stock para este
-                // producto (ej. nunca se vendio ahi), la crea en 0 antes de
-                // bloquearla.
-                await cliente.query(
-                    `INSERT INTO producto_stock (empresa_id, producto_id, sucursal_id, stock)
-                     VALUES ($1, $2, $3, 0)
-                     ON CONFLICT (producto_id, sucursal_id) DO NOTHING`,
-                    [empresaId, productoId, sucursalId]
-                );
-                const stockResultado = await cliente.query(
-                    `SELECT stock FROM producto_stock WHERE producto_id = $1 AND sucursal_id = $2 FOR UPDATE`,
-                    [productoId, sucursalId]
-                );
-                const stockActual = Number(stockResultado.rows[0].stock);
+                // Producto compuesto (ej. Sandwich): nunca tiene stock
+                // propio, se arma al vender - en vez de chequear/bloquear
+                // su propia fila de producto_stock, se chequea cada
+                // ingrediente de su receta (multiplicado por la cantidad
+                // vendida) y se guarda la lista para descontarla mas abajo,
+                // despues de insertar la venta (ver segundo loop).
+                let consumosInsumo = null;
+                if (producto.es_compuesto) {
+                    const recetaResultado = await cliente.query(
+                        `SELECT insumo_id, cantidad FROM producto_receta_items WHERE producto_id = $1`,
+                        [productoId]
+                    );
+                    consumosInsumo = [];
+                    for (const recetaItem of recetaResultado.rows) {
+                        const cantidadNecesaria = Number(recetaItem.cantidad) * cantidad;
+                        await cliente.query(
+                            `INSERT INTO producto_stock (empresa_id, producto_id, sucursal_id, stock)
+                             VALUES ($1, $2, $3, 0)
+                             ON CONFLICT (producto_id, sucursal_id) DO NOTHING`,
+                            [empresaId, recetaItem.insumo_id, sucursalId]
+                        );
+                        const stockInsumoResultado = await cliente.query(
+                            `SELECT stock FROM producto_stock WHERE producto_id = $1 AND sucursal_id = $2 FOR UPDATE`,
+                            [recetaItem.insumo_id, sucursalId]
+                        );
+                        const stockInsumoActual = Number(stockInsumoResultado.rows[0].stock);
+                        if (!permitirVentaSinStock && stockInsumoActual < cantidadNecesaria) {
+                            throw new ErrorNegocio(
+                                `No hay suficiente stock de un ingrediente de "${producto.nombre}"`
+                            );
+                        }
+                        consumosInsumo.push({ insumoId: recetaItem.insumo_id, cantidad: cantidadNecesaria });
+                    }
+                } else {
+                    // Si esta sucursal todavia no tiene fila de stock para
+                    // este producto (ej. nunca se vendio ahi), la crea en 0
+                    // antes de bloquearla.
+                    await cliente.query(
+                        `INSERT INTO producto_stock (empresa_id, producto_id, sucursal_id, stock)
+                         VALUES ($1, $2, $3, 0)
+                         ON CONFLICT (producto_id, sucursal_id) DO NOTHING`,
+                        [empresaId, productoId, sucursalId]
+                    );
+                    const stockResultado = await cliente.query(
+                        `SELECT stock FROM producto_stock WHERE producto_id = $1 AND sucursal_id = $2 FOR UPDATE`,
+                        [productoId, sucursalId]
+                    );
+                    const stockActual = Number(stockResultado.rows[0].stock);
 
-                if (!permitirVentaSinStock && stockActual < cantidad) {
-                    throw new ErrorNegocio(`No hay suficiente stock de "${producto.nombre}"`);
+                    if (!permitirVentaSinStock && stockActual < cantidad) {
+                        throw new ErrorNegocio(`No hay suficiente stock de "${producto.nombre}"`);
+                    }
                 }
                 // El precio cotizado en un presupuesto (posiblemente editado a
                 // mano) se respeta al convertir a venta, en vez de recalcular
@@ -296,6 +331,7 @@ export async function crearVenta(req, res) {
                     subtotal,
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
+                    consumosInsumo,
                 });
             }
 
@@ -422,10 +458,23 @@ export async function crearVenta(req, res) {
                         item.comisionMonto,
                     ]
                 );
-                await cliente.query(
-                    `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,
-                    [item.productoId, sucursalId, item.cantidad]
-                );
+                // Producto compuesto: nunca se toca su propio stock (no
+                // tiene) - se descuenta cada ingrediente de su receta en su
+                // lugar, ya multiplicado por la cantidad vendida (ver
+                // consumosInsumo, calculado en el primer loop).
+                if (item.consumosInsumo) {
+                    for (const consumo of item.consumosInsumo) {
+                        await cliente.query(
+                            `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,
+                            [consumo.insumoId, sucursalId, consumo.cantidad]
+                        );
+                    }
+                } else {
+                    await cliente.query(
+                        `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,
+                        [item.productoId, sucursalId, item.cantidad]
+                    );
+                }
             }
 
             if (comprobante === 'factura_legal') {

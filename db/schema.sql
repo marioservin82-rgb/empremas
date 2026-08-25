@@ -318,6 +318,12 @@ CREATE TABLE productos (
     -- unidad (unidad_medida).
     unidad_compra                   TEXT,
     equivalencia_unidad_compra      NUMERIC(14,4),
+    -- Producto que se arma con una receta al momento de venderlo (ej.
+    -- sandwich, torta casera) - nunca tiene stock propio, se vende
+    -- normal pero descuenta sus ingredientes (ver producto_receta_items,
+    -- mas abajo). Distinto del modulo de Produccion: los ingredientes
+    -- ACA son productos normales, vendibles sueltos, no es_insumo.
+    es_compuesto    BOOLEAN NOT NULL DEFAULT false,
     activo          BOOLEAN NOT NULL DEFAULT true,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -330,6 +336,30 @@ ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY productos_aislamiento ON productos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Receta de un producto compuesto (es_compuesto=true) - insumo_id apunta
+-- a un producto NORMAL, vendible por su cuenta (a diferencia de
+-- receta_items del modulo de Produccion, que cuelga de
+-- lineas_produccion y usa insumos es_insumo=true, nunca vendibles
+-- directo). Sin composicion anidada: insumo_id nunca puede ser a su vez
+-- un producto es_compuesto=true (validado en el backend, no aca).
+CREATE TABLE producto_receta_items (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    producto_id     UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    insumo_id       UUID NOT NULL REFERENCES productos(id),
+    cantidad        NUMERIC(14,4) NOT NULL,
+    UNIQUE (producto_id, insumo_id),
+    CHECK (producto_id <> insumo_id)
+);
+CREATE INDEX idx_producto_receta_items_empresa ON producto_receta_items (empresa_id);
+CREATE INDEX idx_producto_receta_items_producto ON producto_receta_items (producto_id);
+
+ALTER TABLE producto_receta_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE producto_receta_items FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY producto_receta_items_aislamiento ON producto_receta_items
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 -- Stock de un producto en una sucursal puntual. Una empresa con una sola

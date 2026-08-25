@@ -13,13 +13,16 @@ async function ocultarCostoSiCorresponde(productos, rol, empresaId, usuarioId) {
 }
 
 export async function listarProductos(req, res) {
-    const { q, limit, offset, excluirInsumos } = req.query;
+    const { q, limit, offset, excluirInsumos, excluirCompuestos } = req.query;
     const { empresaId, usuarioId, rol, sucursalId } = req.usuario;
     // Vender manda excluirInsumos=true (un insumo de produccion nunca se
     // vende directo al publico) - Stock y el resto de las pantallas de
     // catalogo lo siguen viendo normalmente, se cargan/editan igual que
     // cualquier producto.
     const condicionInsumo = excluirInsumos === 'true' ? 'AND p.es_insumo = false' : '';
+    // Ajuste de inventario manda excluirCompuestos=true: un producto
+    // compuesto nunca tiene stock propio para ajustar (ver ajustarInventario).
+    const condicionCompuesto = excluirCompuestos === 'true' ? 'AND p.es_compuesto = false' : '';
 
     // LEFT JOIN: un producto sin fila todavia en producto_stock para esta
     // sucursal (ej. recien creado en otra sucursal) muestra 0, no se cae.
@@ -29,7 +32,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $3
-               WHERE p.activo = true AND (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionInsumo}
+               WHERE p.activo = true AND (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionInsumo} ${condicionCompuesto}
                ORDER BY p.nombre LIMIT 50`,
               [q, `%${q}%`, sucursalId]
           )
@@ -46,7 +49,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE p.activo = true ${condicionInsumo} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+               WHERE p.activo = true ${condicionInsumo} ${condicionCompuesto} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
               [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 
@@ -191,7 +194,73 @@ export async function obtenerProducto(req, res) {
         return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
-    res.json((await ocultarCostoSiCorresponde([resultado.rows[0]], rol, empresaId, usuarioId))[0]);
+    let receta = [];
+    if (resultado.rows[0].es_compuesto) {
+        const recetaResultado = await consultaDeEmpresa(
+            empresaId,
+            `SELECT pri.insumo_id, pri.cantidad, p.nombre, p.unidad_medida
+             FROM producto_receta_items pri
+             JOIN productos p ON p.id = pri.insumo_id
+             WHERE pri.producto_id = $1`,
+            [id]
+        );
+        receta = recetaResultado.rows;
+    }
+
+    const productoFinal = (await ocultarCostoSiCorresponde([resultado.rows[0]], rol, empresaId, usuarioId))[0];
+    res.json({ ...productoFinal, receta });
+}
+
+// Guarda la receta completa de un producto compuesto (ej. Sandwich):
+// valida cada ingrediente, reemplaza producto_receta_items entero (el
+// formulario siempre reenvia la lista completa, mismo criterio que
+// categorias_cliente/producto_asociaciones) y recalcula precio_costo
+// como la suma de costo de cada ingrediente x su cantidad en la receta -
+// una foto al guardar, no algo que se siga moviendo solo despues (a
+// diferencia del costo promedio ponderado normal, que se actualiza via
+// crearCompra - un compuesto nunca se "compra").
+async function guardarRecetaCompuesto(cliente, empresaId, productoId, receta) {
+    if (!Array.isArray(receta) || receta.length === 0) {
+        throw new ErrorNegocio('Un producto compuesto necesita al menos un ingrediente en la receta');
+    }
+    for (const item of receta) {
+        if (item.insumoId === productoId) {
+            throw new ErrorNegocio('Un producto no puede ser ingrediente de sí mismo');
+        }
+        if (!(Number(item.cantidad) > 0)) {
+            throw new ErrorNegocio('Cada ingrediente necesita una cantidad mayor a cero');
+        }
+    }
+
+    const insumoIds = receta.map((item) => item.insumoId);
+    const insumosResultado = await cliente.query(
+        `SELECT id, precio_costo, es_compuesto FROM productos WHERE id = ANY($1::uuid[])`,
+        [insumoIds]
+    );
+    const insumosPorId = new Map(insumosResultado.rows.map((p) => [p.id, p]));
+    let costoTotal = 0;
+    for (const item of receta) {
+        const insumo = insumosPorId.get(item.insumoId);
+        if (!insumo) {
+            throw new ErrorNegocio('Uno de los ingredientes elegidos ya no existe');
+        }
+        // Sin composicion anidada: evita recursividad infinita al
+        // descontar stock en una venta.
+        if (insumo.es_compuesto) {
+            throw new ErrorNegocio('Un producto compuesto no puede usar otro producto compuesto como ingrediente');
+        }
+        costoTotal += Number(insumo.precio_costo) * Number(item.cantidad);
+    }
+
+    await cliente.query(`DELETE FROM producto_receta_items WHERE producto_id = $1`, [productoId]);
+    for (const item of receta) {
+        await cliente.query(
+            `INSERT INTO producto_receta_items (empresa_id, producto_id, insumo_id, cantidad) VALUES ($1, $2, $3, $4)`,
+            [empresaId, productoId, item.insumoId, item.cantidad]
+        );
+    }
+
+    return costoTotal;
 }
 
 export async function crearProducto(req, res) {
@@ -210,6 +279,8 @@ export async function crearProducto(req, res) {
         esInsumo,
         unidadCompra,
         equivalenciaUnidadCompra,
+        esCompuesto,
+        receta,
     } = req.body;
 
     if (!nombre) {
@@ -223,45 +294,65 @@ export async function crearProducto(req, res) {
     if (!esInsumo && !(Number(precioContado) > 0)) {
         return res.status(400).json({ error: 'El precio contado (precio de venta) es obligatorio y debe ser mayor a 0' });
     }
+    if (esCompuesto && esInsumo) {
+        return res.status(400).json({ error: 'Un producto compuesto no puede ser a la vez un insumo de Producción' });
+    }
 
-    const producto = await transaccionDeEmpresa(empresaId, async (cliente) => {
-        const productoInsertado = await cliente.query(
-            `INSERT INTO productos (
-                empresa_id, codigo_barras, nombre, unidad_medida,
-                precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
-                es_insumo, unidad_compra, equivalencia_unidad_compra
-             )
-             VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13)
-             RETURNING *`,
-            [
-                empresaId,
-                codigoBarras || null,
-                nombre,
-                unidadMedida,
-                precioCosto,
-                precioContado,
-                precioCredito,
-                precioMayorista,
-                tasaIva,
-                stockMinimo || null,
-                esInsumo,
-                unidadCompra || null,
-                equivalenciaUnidadCompra || null,
-            ]
-        );
-        const nuevoProducto = productoInsertado.rows[0];
+    try {
+        const producto = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const productoInsertado = await cliente.query(
+                `INSERT INTO productos (
+                    empresa_id, codigo_barras, nombre, unidad_medida,
+                    precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
+                    es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto
+                 )
+                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false))
+                 RETURNING *`,
+                [
+                    empresaId,
+                    codigoBarras || null,
+                    nombre,
+                    unidadMedida,
+                    precioCosto,
+                    precioContado,
+                    precioCredito,
+                    precioMayorista,
+                    tasaIva,
+                    stockMinimo || null,
+                    esInsumo,
+                    unidadCompra || null,
+                    equivalenciaUnidadCompra || null,
+                    esCompuesto,
+                ]
+            );
+            let nuevoProducto = productoInsertado.rows[0];
 
-        // El stock inicial se carga en la sucursal de quien crea el
-        // producto (con una sola sucursal, es simplemente "el" stock).
-        await cliente.query(
-            `INSERT INTO producto_stock (empresa_id, producto_id, sucursal_id, stock) VALUES ($1, $2, $3, $4)`,
-            [empresaId, nuevoProducto.id, sucursalId, stock || 0]
-        );
+            // Un compuesto nunca tiene stock propio (se arma con la receta al
+            // vender) - se salta el insert de producto_stock.
+            if (!esCompuesto) {
+                await cliente.query(
+                    `INSERT INTO producto_stock (empresa_id, producto_id, sucursal_id, stock) VALUES ($1, $2, $3, $4)`,
+                    [empresaId, nuevoProducto.id, sucursalId, stock || 0]
+                );
+            } else {
+                const costoCalculado = await guardarRecetaCompuesto(cliente, empresaId, nuevoProducto.id, receta);
+                const actualizado = await cliente.query(
+                    `UPDATE productos SET precio_costo = $2 WHERE id = $1 RETURNING *`,
+                    [nuevoProducto.id, costoCalculado]
+                );
+                nuevoProducto = actualizado.rows[0];
+            }
 
-        return { ...nuevoProducto, stock: Number(stock) || 0 };
-    });
+            return { ...nuevoProducto, stock: esCompuesto ? 0 : Number(stock) || 0 };
+        });
 
-    res.status(201).json(producto);
+        res.status(201).json(producto);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
 }
 
 // El stock deliberadamente NO se puede tocar desde aca (ver
@@ -283,66 +374,94 @@ export async function actualizarProducto(req, res) {
         esInsumo,
         unidadCompra,
         equivalenciaUnidadCompra,
+        esCompuesto,
+        receta,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
     }
-
-    // precio_costo NO se acepta aca a proposito: desde que es un costo
-    // promedio ponderado (ver crearCompra), solo lo actualiza una compra
-    // nueva - permitir pisarlo a mano rompería el calculo. Todo con
-    // COALESCE (incluida la conversion de unidad de compra) porque este
-    // endpoint tambien se usa para PATCHes parciales de un solo campo
-    // (ej. {activo:false}) en varios lugares de la app - un COALESCE
-    // simple evita que un PATCH parcial borre sin querer un campo que no
-    // vino en ese request puntual.
-    const resultado = await consultaDeEmpresa(
-        empresaId,
-        `UPDATE productos SET
-            codigo_barras = COALESCE($3, codigo_barras),
-            nombre = COALESCE($4, nombre),
-            unidad_medida = COALESCE($5, unidad_medida),
-            precio_contado = COALESCE($6, precio_contado),
-            precio_credito = COALESCE($7, precio_credito),
-            precio_mayorista = COALESCE($8, precio_mayorista),
-            tasa_iva = COALESCE($9, tasa_iva),
-            stock_minimo = COALESCE($10, stock_minimo),
-            activo = COALESCE($11, activo),
-            es_insumo = COALESCE($12, es_insumo),
-            unidad_compra = COALESCE($13, unidad_compra),
-            equivalencia_unidad_compra = COALESCE($14, equivalencia_unidad_compra)
-         WHERE id = $1 AND empresa_id = $2
-         RETURNING *`,
-        [
-            id,
-            empresaId,
-            codigoBarras,
-            nombre,
-            unidadMedida,
-            precioContado,
-            precioCredito,
-            precioMayorista,
-            tasaIva,
-            stockMinimo,
-            activo,
-            esInsumo,
-            unidadCompra || null,
-            equivalenciaUnidadCompra || null,
-        ]
-    );
-
-    if (!resultado.rows[0]) {
-        return res.status(404).json({ error: 'Producto no encontrado' });
+    if (esCompuesto && esInsumo) {
+        return res.status(400).json({ error: 'Un producto compuesto no puede ser a la vez un insumo de Producción' });
     }
 
-    const stockActual = await consultaDeEmpresa(
-        empresaId,
-        `SELECT COALESCE(stock, 0) AS stock FROM producto_stock WHERE producto_id = $1 AND sucursal_id = $2`,
-        [id, sucursalId]
-    );
+    try {
+        const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            // precio_costo NO se acepta aca a proposito para un producto
+            // normal (es un costo promedio ponderado, solo lo actualiza una
+            // compra nueva) - pero SI se recalcula mas abajo cuando el
+            // producto es compuesto y se reenvia su receta. Todo con
+            // COALESCE (incluida la conversion de unidad de compra) porque
+            // este endpoint tambien se usa para PATCHes parciales de un
+            // solo campo (ej. {activo:false}) en varios lugares de la app.
+            let actualizado = await cliente.query(
+                `UPDATE productos SET
+                    codigo_barras = COALESCE($3, codigo_barras),
+                    nombre = COALESCE($4, nombre),
+                    unidad_medida = COALESCE($5, unidad_medida),
+                    precio_contado = COALESCE($6, precio_contado),
+                    precio_credito = COALESCE($7, precio_credito),
+                    precio_mayorista = COALESCE($8, precio_mayorista),
+                    tasa_iva = COALESCE($9, tasa_iva),
+                    stock_minimo = COALESCE($10, stock_minimo),
+                    activo = COALESCE($11, activo),
+                    es_insumo = COALESCE($12, es_insumo),
+                    unidad_compra = COALESCE($13, unidad_compra),
+                    equivalencia_unidad_compra = COALESCE($14, equivalencia_unidad_compra),
+                    es_compuesto = COALESCE($15, es_compuesto)
+                 WHERE id = $1 AND empresa_id = $2
+                 RETURNING *`,
+                [
+                    id,
+                    empresaId,
+                    codigoBarras,
+                    nombre,
+                    unidadMedida,
+                    precioContado,
+                    precioCredito,
+                    precioMayorista,
+                    tasaIva,
+                    stockMinimo,
+                    activo,
+                    esInsumo,
+                    unidadCompra || null,
+                    equivalenciaUnidadCompra || null,
+                    esCompuesto,
+                ]
+            );
 
-    res.json({ ...resultado.rows[0], stock: Number(stockActual.rows[0]?.stock ?? 0) });
+            if (!actualizado.rows[0]) {
+                throw new ErrorNegocio('Producto no encontrado');
+            }
+
+            // receta viene siempre que se edita un compuesto (el formulario
+            // reenvia la lista completa) - se recalcula el costo con los
+            // valores actuales de cada ingrediente.
+            if (receta !== undefined) {
+                const costoCalculado = await guardarRecetaCompuesto(cliente, empresaId, id, receta);
+                actualizado = await cliente.query(`UPDATE productos SET precio_costo = $2 WHERE id = $1 RETURNING *`, [
+                    id,
+                    costoCalculado,
+                ]);
+            }
+
+            return actualizado.rows[0];
+        });
+
+        const stockActual = await consultaDeEmpresa(
+            empresaId,
+            `SELECT COALESCE(stock, 0) AS stock FROM producto_stock WHERE producto_id = $1 AND sucursal_id = $2`,
+            [id, sucursalId]
+        );
+
+        res.json({ ...resultado, stock: Number(stockActual.rows[0]?.stock ?? 0) });
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            const status = error.message === 'Producto no encontrado' ? 404 : 400;
+            return res.status(status).json({ error: error.message });
+        }
+        throw error;
+    }
 }
 
 // Ajuste de inventario: corrige el stock a un conteo real, con motivo
@@ -362,10 +481,15 @@ export async function ajustarInventario(req, res) {
 
     try {
         const ajuste = await transaccionDeEmpresa(empresaId, async (cliente) => {
-            const productoResultado = await cliente.query(`SELECT nombre FROM productos WHERE id = $1`, [id]);
+            const productoResultado = await cliente.query(`SELECT nombre, es_compuesto FROM productos WHERE id = $1`, [id]);
             const producto = productoResultado.rows[0];
             if (!producto) {
                 throw new ErrorNegocio('El producto no existe');
+            }
+            if (producto.es_compuesto) {
+                throw new ErrorNegocio(
+                    'Este producto se arma con su receta al vender — no tiene stock propio. Ajustá el stock de sus ingredientes.'
+                );
             }
 
             // Si el producto todavia no tiene fila de stock en esta
