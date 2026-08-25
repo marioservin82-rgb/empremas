@@ -20,6 +20,7 @@ export default function Stock() {
   const [error, setError] = useState("");
   const [permitirVentaSinStock, setPermitirVentaSinStock] = useState(null);
   const [sucursalActual, setSucursalActual] = useState(null);
+  const [valorStock, setValorStock] = useState(null);
 
   async function cambiarPermitirVentaSinStock(valor) {
     setPermitirVentaSinStock(valor);
@@ -84,6 +85,12 @@ export default function Stock() {
         }
       })
       .catch((err) => setError(err.message));
+    // Silencioso a proposito: este endpoint es dueno/encargado con
+    // ver_reportes - un cajero visitando /stock simplemente no ve la
+    // tarjeta, sin que aparezca un error de permiso en pantalla.
+    apiFetch("/api/productos/inventario-valorizado")
+      .then((r) => setValorStock(r.totalCosto))
+      .catch(() => {});
   }, [router]);
 
   const busquedaDebounced = useDebounced(busqueda);
@@ -142,6 +149,19 @@ export default function Stock() {
             </Link>
           </div>
         </div>
+
+        {valorStock !== null && (
+          <Link
+            href="/stock/inventario/valorizado"
+            className="mb-6 flex items-center justify-between rounded-2xl bg-navy p-5 text-white shadow-lg shadow-slate-200 transition hover:bg-navy-2"
+          >
+            <div>
+              <p className="text-sm text-white/70">Valor de stock (a costo)</p>
+              <p className="text-2xl font-extrabold">Gs {formatoGs.format(valorStock)}</p>
+            </div>
+            <span className="text-sm font-semibold text-white/80">Ver detalle →</span>
+          </Link>
+        )}
 
         <form onSubmit={onSubmitBusqueda} className="mb-6 flex gap-2">
           <input
