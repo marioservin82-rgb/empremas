@@ -29,8 +29,9 @@ export async function categoriaYVolumenDeCliente(ejecutarConsulta, empresaId, cl
 
 function conSaldoDisponibleYCategoria(cliente, categoria) {
     const lineaCreditoEfectiva = Number(cliente.linea_credito) + Number(categoria?.beneficio_linea_credito_extra || 0);
+    const { vendedor_nombre_join, ...resto } = cliente;
     return {
-        ...cliente,
+        ...resto,
         // Se manda tambien el beneficio de mayorista/descuento (no solo el
         // nombre) para que Vender pueda mostrar el precio ya con el
         // beneficio aplicado ANTES de confirmar la venta - el cajero
@@ -44,6 +45,10 @@ function conSaldoDisponibleYCategoria(cliente, categoria) {
                   beneficioDescuentoAdicionalPct: Number(categoria.beneficio_descuento_adicional_pct || 0),
               }
             : null,
+        // Modulo de Vendedores por comision: quien atiende habitualmente a
+        // este cliente - Vender lo usa para atribuir la venta sin que el
+        // cajero tenga que elegir nada (ver crearVenta).
+        vendedorAsignado: cliente.vendedor_id ? { id: cliente.vendedor_id, nombre: vendedor_nombre_join } : null,
         volumenMes: Number(cliente.volumen_mes ?? 0),
         saldo_disponible: lineaCreditoEfectiva - Number(cliente.saldo),
     };
@@ -70,10 +75,12 @@ export async function listarClientes(req, res) {
     // vez, aparte, y la clasificacion de cada fila se resuelve en JS.
     const columnasVentaUrgente = `v.numero_ticket AS recordatorio_numero,
               v.saldo_pendiente AS recordatorio_monto, v.vencimiento AS recordatorio_vencimiento,
+              vend.nombre AS vendedor_nombre_join,
               COALESCE((
                   SELECT SUM(total) FROM ventas
                   WHERE cliente_id = c.id AND anulada = false AND creado_en >= date_trunc('month', now())
               ), 0) AS volumen_mes`;
+    const vendedorJoin = `LEFT JOIN vendedores vend ON vend.id = c.vendedor_id`;
 
     const [resultado, categorias] = await Promise.all([
         q
@@ -82,6 +89,7 @@ export async function listarClientes(req, res) {
                   `SELECT c.*, ${columnasVentaUrgente}
                    FROM clientes c
                    ${ventaUrgenteJoin}
+                   ${vendedorJoin}
                    WHERE c.activo = true AND (c.documento LIKE $1 OR unaccent(lower(c.nombre)) LIKE unaccent(lower($2)))
                    ORDER BY c.nombre LIMIT 50`,
                   [`%${q}%`, `%${q}%`]
@@ -91,6 +99,7 @@ export async function listarClientes(req, res) {
                   `SELECT c.*, ${columnasVentaUrgente}
                    FROM clientes c
                    ${ventaUrgenteJoin}
+                   ${vendedorJoin}
                    WHERE c.activo = true ORDER BY c.nombre LIMIT 100`,
                   []
               ),
@@ -116,7 +125,9 @@ export async function obtenerCliente(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT * FROM clientes WHERE id = $1`,
+        `SELECT c.*, vend.nombre AS vendedor_nombre_join FROM clientes c
+         LEFT JOIN vendedores vend ON vend.id = c.vendedor_id
+         WHERE c.id = $1`,
         [id]
     );
 
@@ -138,7 +149,13 @@ export async function extractoCliente(req, res) {
     const { id } = req.params;
     const { desde, hasta } = req.query;
 
-    const cliente = await consultaDeEmpresa(empresaId, `SELECT * FROM clientes WHERE id = $1`, [id]);
+    const cliente = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.*, vend.nombre AS vendedor_nombre_join FROM clientes c
+         LEFT JOIN vendedores vend ON vend.id = c.vendedor_id
+         WHERE c.id = $1`,
+        [id]
+    );
     if (!cliente.rows[0]) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
     }
@@ -199,7 +216,7 @@ export async function extractoCliente(req, res) {
 
 export async function crearCliente(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial } = req.body;
+    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial, vendedorId } = req.body;
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
@@ -214,8 +231,8 @@ export async function crearCliente(req, res) {
     // igual de auditado que cualquier otro ajuste posterior.
     const cliente = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
-            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric))
+            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, vendedor_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric), $10)
              RETURNING *`,
             [
                 empresaId,
@@ -227,6 +244,7 @@ export async function crearCliente(req, res) {
                 direccion || null,
                 lineaCredito,
                 saldoInicial,
+                vendedorId || null,
             ]
         );
         const nuevoCliente = insertado.rows[0];
@@ -417,8 +435,15 @@ export async function historialAjustesSaldo(req, res) {
 export async function actualizarCliente(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
-    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, activo } = req.body;
+    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, activo, vendedorId } = req.body;
 
+    // vendedor_id se asigna directo (sin COALESCE): es nulleable a
+    // proposito, para poder desasignar mandando "" - la pantalla de
+    // edicion siempre reenvia el formulario completo, no es un PATCH
+    // parcial de un campo suelto (mismo criterio que los beneficios de
+    // categorias_cliente). Solo se omite del UPDATE si directamente no
+    // vino en el body (undefined), para no romper otros llamadores de
+    // este mismo endpoint (ej. el toggle de activo/inactivo).
     const resultado = await consultaDeEmpresa(
         empresaId,
         `UPDATE clientes SET
@@ -429,21 +454,43 @@ export async function actualizarCliente(req, res) {
             email = COALESCE($7, email),
             direccion = COALESCE($8, direccion),
             linea_credito = COALESCE($9, linea_credito),
-            activo = COALESCE($10, activo)
+            activo = COALESCE($10, activo),
+            vendedor_id = CASE WHEN $11::boolean THEN $12 ELSE vendedor_id END
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
-        [id, empresaId, nombre, documento, telefono, celular, email, direccion, lineaCredito, activo]
+        [
+            id,
+            empresaId,
+            nombre,
+            documento,
+            telefono,
+            celular,
+            email,
+            direccion,
+            lineaCredito,
+            activo,
+            vendedorId !== undefined,
+            vendedorId || null,
+        ]
     );
 
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
     }
+    const vendedorFila = resultado.rows[0].vendedor_id
+        ? await consultaDeEmpresa(empresaId, `SELECT nombre FROM vendedores WHERE id = $1`, [resultado.rows[0].vendedor_id])
+        : null;
     const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
         (sql, params) => consultaDeEmpresa(empresaId, sql, params),
         empresaId,
         id
     );
-    res.json(conSaldoDisponibleYCategoria({ ...resultado.rows[0], volumen_mes: volumenMes }, categoria));
+    res.json(
+        conSaldoDisponibleYCategoria(
+            { ...resultado.rows[0], volumen_mes: volumenMes, vendedor_nombre_join: vendedorFila?.rows[0]?.nombre },
+            categoria
+        )
+    );
 }
 
 // ---------------------------------------------------------------------

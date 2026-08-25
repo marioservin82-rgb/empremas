@@ -11,6 +11,7 @@ export default function EditarCliente() {
   const [form, setForm] = useState(null);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [vendedores, setVendedores] = useState([]);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -27,9 +28,19 @@ export default function EditarCliente() {
           email: c.email || "",
           direccion: c.direccion || "",
           lineaCredito: c.linea_credito ?? "",
+          vendedorId: c.vendedorAsignado?.id || "",
         })
       )
       .catch((err) => setError(err.message));
+    apiFetch("/api/empresas/actual")
+      .then((e) => {
+        if (e.comisiones_habilitadas) {
+          apiFetch("/api/vendedores?activo=true")
+            .then(setVendedores)
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, [id, router]);
 
   function actualizar(campo) {
@@ -97,6 +108,20 @@ export default function EditarCliente() {
 
             <label className={etiqueta}>Línea de crédito (Gs)</label>
             <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />
+
+            {vendedores.length > 0 && (
+              <>
+                <label className={etiqueta}>Vendedor asignado</label>
+                <select value={form.vendedorId} onChange={actualizar("vendedorId")} className={campo}>
+                  <option value="">— Ninguno —</option>
+                  {vendedores.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.nombre}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
 
             {error && (
               <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

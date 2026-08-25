@@ -111,6 +111,8 @@ export default function Vender() {
   const [enviando, setEnviando] = useState(false);
 
   const [empresaInfo, setEmpresaInfo] = useState(null);
+  const [vendedores, setVendedores] = useState([]);
+  const [vendedorId, setVendedorId] = useState("");
   const [recibo, setRecibo] = useState(null);
   const [restaurado, setRestaurado] = useState(false);
   const [sifenConfigurado, setSifenConfigurado] = useState(false);
@@ -162,6 +164,17 @@ export default function Vender() {
     setListo(true);
   }, [router]);
 
+  // Modulo de Vendedores por comision: lista de vendedores activos para
+  // que el cajero elija a quien atribuir la venta cuando el cliente no
+  // tiene uno propio asignado (ver seleccionarCliente).
+  useEffect(() => {
+    if (empresaInfo?.comisiones_habilitadas) {
+      apiFetch("/api/vendedores?activo=true")
+        .then(setVendedores)
+        .catch(() => {});
+    }
+  }, [empresaInfo]);
+
   async function refrescarPreciosCarrito(carritoRestaurado) {
     const aRefrescar = carritoRestaurado.filter((i) => i.precioFijo == null);
     if (aRefrescar.length === 0) return;
@@ -211,6 +224,7 @@ export default function Vender() {
     setCliente(null);
     setProductosFrecuentes([]);
     setBuscandoClienteOpcional(false);
+    setVendedorId("");
     setPagos([]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
@@ -276,6 +290,7 @@ export default function Vender() {
     setBusquedaCliente("");
     setBuscandoClienteOpcional(false);
     setCreandoClienteRapido(false);
+    setVendedorId("");
     cargarProductosFrecuentes(c);
   }
 
@@ -447,6 +462,7 @@ export default function Vender() {
           tipoComprobante,
           presupuestoId,
           clienteId: cliente?.id,
+          vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
           pagos: pagosParaEnviar,
           items: carrito.map((i) => ({
             productoId: i.productoId,
@@ -522,6 +538,7 @@ export default function Vender() {
     setCliente(null);
     setProductosFrecuentes([]);
     setBuscandoClienteOpcional(false);
+    setVendedorId("");
     setPagos([]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
@@ -736,10 +753,30 @@ export default function Vender() {
                     </span>
                   )}
                 </p>
+                {empresaInfo?.comisiones_habilitadas &&
+                  (cliente.vendedorAsignado ? (
+                    <p className="text-xs text-slate-400">Vendedor: {cliente.vendedorAsignado.nombre}</p>
+                  ) : (
+                    vendedores.length > 0 && (
+                      <select
+                        value={vendedorId}
+                        onChange={(e) => setVendedorId(e.target.value)}
+                        className="mb-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                      >
+                        <option value="">Vendedor (opcional)</option>
+                        {vendedores.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    )
+                  ))}
                 <button
                   onClick={() => {
                     setCliente(null);
                     setProductosFrecuentes([]);
+                    setVendedorId("");
                   }}
                   className="text-sm font-medium text-navy hover:text-brand"
                 >
@@ -888,11 +925,31 @@ export default function Vender() {
                                 </span>
                               )}
                             </p>
+                            {empresaInfo?.comisiones_habilitadas &&
+                              (cliente.vendedorAsignado ? (
+                                <p className="text-xs text-slate-400">Vendedor: {cliente.vendedorAsignado.nombre}</p>
+                              ) : (
+                                vendedores.length > 0 && (
+                                  <select
+                                    value={vendedorId}
+                                    onChange={(e) => setVendedorId(e.target.value)}
+                                    className="mt-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                                  >
+                                    <option value="">Vendedor (opcional)</option>
+                                    {vendedores.map((v) => (
+                                      <option key={v.id} value={v.id}>
+                                        {v.nombre}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )
+                              ))}
                           </div>
                           <button
                             onClick={() => {
                               setCliente(null);
                               setProductosFrecuentes([]);
+                              setVendedorId("");
                             }}
                             className="text-sm font-medium text-red-500 hover:text-red-700"
                           >

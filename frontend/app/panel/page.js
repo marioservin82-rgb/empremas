@@ -39,6 +39,7 @@ export default function Panel() {
   const [multiSucursal, setMultiSucursal] = useState(false);
   const [venceEn, setVenceEn] = useState(null);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+  const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -53,6 +54,7 @@ export default function Panel() {
         setMultiSucursal(e.limite_sucursales > 1);
         setVenceEn(e.vence_en);
         setProduccionHabilitada(!!e.produccion_habilitada);
+        setComisionesHabilitadas(!!e.comisiones_habilitadas);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -208,6 +210,10 @@ export default function Panel() {
         // alcanza con dueño/encargado (mismo criterio que Pedido inteligente).
         if (produccionHabilitada && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
           secundarios.push({ nombre: "Producción", icono: "🏭", href: "/produccion" });
+        }
+        // Modulo de Vendedores por comision: mismo criterio que Produccion.
+        if (comisionesHabilitadas && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
+          secundarios.push({ nombre: "Vendedores", icono: "🤝", href: "/vendedores" });
         }
         secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
 

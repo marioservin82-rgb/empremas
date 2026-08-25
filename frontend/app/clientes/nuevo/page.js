@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -15,6 +15,7 @@ const vacio = {
   direccion: "",
   lineaCredito: "",
   saldoInicial: "",
+  vendedorId: "",
 };
 
 export default function NuevoCliente() {
@@ -22,6 +23,19 @@ export default function NuevoCliente() {
   const [form, setForm] = useState(vacio);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [vendedores, setVendedores] = useState([]);
+
+  useEffect(() => {
+    apiFetch("/api/empresas/actual")
+      .then((e) => {
+        if (e.comisiones_habilitadas) {
+          apiFetch("/api/vendedores?activo=true")
+            .then(setVendedores)
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
@@ -89,6 +103,20 @@ export default function NuevoCliente() {
           <label className={etiqueta}>Saldo inicial (Gs)</label>
           <input type="number" min="0" value={form.saldoInicial} onChange={actualizar("saldoInicial")} className={campo} placeholder="0" />
           <p className="-mt-3 mb-4 text-xs text-slate-400">Si ya te debía algo antes de pasarte a EMPREMAS, cargalo acá.</p>
+
+          {vendedores.length > 0 && (
+            <>
+              <label className={etiqueta}>Vendedor asignado</label>
+              <select value={form.vendedorId} onChange={actualizar("vendedorId")} className={campo}>
+                <option value="">— Ninguno —</option>
+                {vendedores.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nombre}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

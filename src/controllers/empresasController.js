@@ -7,6 +7,7 @@ export async function obtenerEmpresaActual(req, res) {
     const resultado = await pool.query(
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
+                comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -119,7 +120,12 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioMensajePrevio, recordatorioMensajeHoy,
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
         produccionHabilitada, sugerenciasVentaHabilitadas,
+        comisionesHabilitadas, politicaClientesVendedorInactivo,
     } = req.body;
+
+    if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
+        return res.status(400).json({ error: 'Política inválida' });
+    }
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
         return res.status(400).json({ error: 'La escala del ticket debe estar entre 50% y 300%' });
@@ -163,6 +169,8 @@ export async function actualizarConfiguracion(req, res) {
             recordatorio_mensaje_mora_prolongada = COALESCE($21, recordatorio_mensaje_mora_prolongada),
             produccion_habilitada = COALESCE($22, produccion_habilitada),
             sugerencias_venta_habilitadas = COALESCE($23, sugerencias_venta_habilitadas),
+            comisiones_habilitadas = COALESCE($24, comisiones_habilitadas),
+            politica_clientes_vendedor_inactivo = COALESCE($25, politica_clientes_vendedor_inactivo),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -172,6 +180,7 @@ export async function actualizarConfiguracion(req, res) {
          WHERE id = $1
          RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
+                   comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -183,7 +192,8 @@ export async function actualizarConfiguracion(req, res) {
             impresoraAgenteNombre, recordatorioDiasAvisoPrevio, recordatorioDiasMoraProlongada,
             recordatorioIncluirRuc, recordatorioIncluirTelefono, recordatorioMensajePrevio,
             recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
-            produccionHabilitada, sugerenciasVentaHabilitadas]
+            produccionHabilitada, sugerenciasVentaHabilitadas,
+            comisionesHabilitadas, politicaClientesVendedorInactivo]
     );
 
     res.json(resultado.rows[0]);

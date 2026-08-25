@@ -43,6 +43,8 @@ export default function PerfilEmpresa() {
 
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
+  const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
+  const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -68,6 +70,8 @@ export default function PerfilEmpresa() {
         setCertNota(e.sifen_cert_nota || "");
         setProduccionHabilitada(!!e.produccion_habilitada);
         setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
+        setComisionesHabilitadas(!!e.comisiones_habilitadas);
+        setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -147,6 +151,33 @@ export default function PerfilEmpresa() {
       });
     } catch (err) {
       setSugerenciasVentaHabilitadas(!valor);
+      setError(err.message);
+    }
+  }
+
+  async function cambiarComisionesHabilitadas(valor) {
+    setComisionesHabilitadas(valor);
+    try {
+      await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ comisionesHabilitadas: valor }),
+      });
+    } catch (err) {
+      setComisionesHabilitadas(!valor);
+      setError(err.message);
+    }
+  }
+
+  async function cambiarPoliticaVendedorInactivo(valor) {
+    const anterior = politicaVendedorInactivo;
+    setPoliticaVendedorInactivo(valor);
+    try {
+      await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ politicaClientesVendedorInactivo: valor }),
+      });
+    } catch (err) {
+      setPoliticaVendedorInactivo(anterior);
       setError(err.message);
     }
   }
@@ -303,6 +334,67 @@ export default function PerfilEmpresa() {
                 }`}
               />
             </button>
+          </div>
+
+          <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-slate-800">Módulo de Vendedores por comisión</p>
+                <p className="text-sm text-slate-400">
+                  Para negocios con vendedores que cobran por resultado: atribuir cada venta a un vendedor y calcular
+                  su comisión sola. Si está apagado, no aparece en ningún lado de la app.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => cambiarComisionesHabilitadas(!comisionesHabilitadas)}
+                className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                  comisionesHabilitadas ? "bg-emerald-600" : "bg-slate-300"
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                    comisionesHabilitadas ? "left-7" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {comisionesHabilitadas && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="mb-2 text-sm font-medium text-slate-700">
+                  Si desactivo un vendedor, sus clientes quedan...
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cambiarPoliticaVendedorInactivo("mantener")}
+                    className={`rounded-xl py-2 text-sm font-semibold transition ${
+                      politicaVendedorInactivo === "mantener"
+                        ? "bg-navy text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Asignados a él (los reasigno yo después)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cambiarPoliticaVendedorInactivo("desasignar")}
+                    className={`rounded-xl py-2 text-sm font-semibold transition ${
+                      politicaVendedorInactivo === "desasignar"
+                        ? "bg-navy text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Sin vendedor asignado
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  Esto es solo lo que pasa por defecto — al desactivar un vendedor puntual siempre podés elegir algo
+                  distinto ahí mismo.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

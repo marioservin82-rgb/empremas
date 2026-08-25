@@ -7,6 +7,8 @@ CREATE EXTENSION IF NOT EXISTS "unaccent";
 
 CREATE TYPE rol_usuario AS ENUM ('dueno', 'encargado', 'cajero');
 CREATE TYPE estado_empresa AS ENUM ('prueba', 'activa', 'mora', 'suspendida');
+-- Modulo de Vendedores por comision (ver tabla empresas y vendedores, mas abajo).
+CREATE TYPE politica_clientes_vendedor_inactivo AS ENUM ('mantener', 'desasignar');
 
 -- Empresa = tenant. Todo lo demás cuelga de aca via empresa_id.
 CREATE TABLE empresas (
@@ -109,6 +111,13 @@ CREATE TABLE empresas (
     recordatorio_mensaje_hoy               TEXT,
     recordatorio_mensaje_mora_leve         TEXT,
     recordatorio_mensaje_mora_prolongada   TEXT,
+    -- Modulo de Vendedores por comision - apagado por defecto, oculto
+    -- por completo en la app hasta que el dueno lo activa desde Perfil
+    -- de Empresa. Un comercio que no vende por comision no lo necesita.
+    comisiones_habilitadas         BOOLEAN NOT NULL DEFAULT false,
+    -- Que pasa con los clientes de un vendedor al desactivarlo, si el
+    -- dueno no elige algo puntual en ese momento (ver vendedores.activo).
+    politica_clientes_vendedor_inactivo politica_clientes_vendedor_inactivo NOT NULL DEFAULT 'mantener',
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -188,7 +197,8 @@ CREATE TYPE permiso_extra AS ENUM (
     'gestionar_compras',
     'gestionar_clientes',
     'anular_sin_pin',
-    'gestionar_produccion'
+    'gestionar_produccion',
+    'gestionar_comisiones'
 );
 
 CREATE TABLE usuario_permisos (
@@ -535,6 +545,77 @@ CREATE POLICY produccion_planificada_aislamiento ON produccion_planificada
 
 -- Clientes + fiado (linea de credito). Prerrequisito de la pantalla de
 -- Vender: la "regla de oro" (mostrar credito y saldo antes de cargar
+-- Modulo de Vendedores por comision. Entidad propia, independiente de
+-- usuarios (un vendedor no necesita ni deberia tener login solo por
+-- serlo) - usuario_id es opcional, solo para cuando un cajero/encargado
+-- real tambien vende por comision.
+CREATE TYPE tipo_comision_vendedor AS ENUM ('porcentaje', 'monto_fijo_unidad');
+
+CREATE TABLE vendedores (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    nombre          TEXT NOT NULL,
+    telefono        TEXT,
+    tipo_comision   tipo_comision_vendedor NOT NULL DEFAULT 'porcentaje',
+    -- porcentaje: 0-100. monto_fijo_unidad: Gs por unidad vendida. Solo
+    -- aplica a productos que NO esten en productos_comision_fija (esa
+    -- lista pisa esto sin importar el vendedor, ver mas abajo).
+    valor_comision  NUMERIC(14,2) NOT NULL DEFAULT 0,
+    usuario_id      UUID REFERENCES usuarios(id),
+    activo          BOOLEAN NOT NULL DEFAULT true,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_vendedores_empresa ON vendedores (empresa_id);
+
+ALTER TABLE vendedores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendedores FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY vendedores_aislamiento ON vendedores
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Lista de productos con comision fija, a nivel empresa (nunca por
+-- vendedor - evita una matriz producto x vendedor innecesariamente
+-- compleja). Cualquier producto que no este aca usa el tipo de comision
+-- del vendedor que hizo la venta.
+CREATE TABLE productos_comision_fija (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id  UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    producto_id UUID NOT NULL REFERENCES productos(id),
+    monto       NUMERIC(14,2) NOT NULL,
+    usuario_id  UUID NOT NULL REFERENCES usuarios(id),
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (empresa_id, producto_id)
+);
+CREATE INDEX idx_productos_comision_fija_empresa ON productos_comision_fija (empresa_id);
+
+ALTER TABLE productos_comision_fija ENABLE ROW LEVEL SECURITY;
+ALTER TABLE productos_comision_fija FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY productos_comision_fija_aislamiento ON productos_comision_fija
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Marca manual de "ya le pague la comision de este periodo a este
+-- vendedor". El monto NUNCA se congela aca (se calcula siempre en vivo
+-- desde venta_items.comision_monto + el estado de cobro de cada venta a
+-- credito, ver ventasController) porque una venta a credito puede
+-- saldarse recien varios meses despues de vendida.
+CREATE TABLE comisiones_vendedor_pagos (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    vendedor_id     UUID NOT NULL REFERENCES vendedores(id),
+    periodo         DATE NOT NULL, -- primer dia del mes de la VENTA, no del cobro
+    pagado          BOOLEAN NOT NULL DEFAULT false,
+    pagado_en       TIMESTAMPTZ,
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    UNIQUE (empresa_id, vendedor_id, periodo)
+);
+
+ALTER TABLE comisiones_vendedor_pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comisiones_vendedor_pagos FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY comisiones_vendedor_pagos_aislamiento ON comisiones_vendedor_pagos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 -- productos) necesita que este dato exista primero.
 CREATE TABLE clientes (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -559,6 +640,11 @@ CREATE TABLE clientes (
     -- true) que se usa automaticamente cuando no se elige ninguno.
     es_generico     BOOLEAN NOT NULL DEFAULT false,
     activo          BOOLEAN NOT NULL DEFAULT true,
+    -- Vendedor que atiende habitualmente a este cliente (modulo de
+    -- Vendedores por comision) - si esta cargado, protege su comision:
+    -- una compra de este cliente se atribuye siempre a este vendedor,
+    -- sin importar quien la proceso en caja.
+    vendedor_id     UUID REFERENCES vendedores(id),
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -687,6 +773,12 @@ CREATE TABLE ventas (
     anulada_en      TIMESTAMPTZ,
     anulada_por     UUID REFERENCES usuarios(id),
     motivo_anulacion TEXT,
+    -- Vendedor al que se atribuye esta venta (modulo de Vendedores por
+    -- comision) - uno solo por venta, nunca por linea. Prioridad: el
+    -- vendedor asignado al cliente (clientes.vendedor_id) si tiene uno,
+    -- si no el que eligio el cajero al vender. NULL = sin comision para
+    -- nadie.
+    vendedor_id     UUID REFERENCES vendedores(id),
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -719,7 +811,14 @@ CREATE TABLE venta_items (
     -- contado - ver crearVenta) para vender un producto puntual a precio
     -- mayorista dentro de una venta que, en todo lo demas, es al contado -
     -- ej. el cliente compra al menudeo pero se lleva una caja por cantidad.
-    es_mayorista    BOOLEAN NOT NULL DEFAULT false
+    es_mayorista    BOOLEAN NOT NULL DEFAULT false,
+    -- Comision congelada de esta linea (modulo de Vendedores por
+    -- comision), calculada una sola vez al momento de la venta con las
+    -- reglas vigentes en ese momento (mismo criterio que costo_unitario)
+    -- - si despues cambia el % del vendedor o la lista de comision fija,
+    -- las ventas ya hechas no se recalculan solas. 0 si la venta no
+    -- tiene vendedor atribuido.
+    comision_monto  NUMERIC(14,2) NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_ventas_empresa ON ventas (empresa_id);

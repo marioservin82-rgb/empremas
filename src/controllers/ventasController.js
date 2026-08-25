@@ -101,7 +101,7 @@ function validarYSumarPagos(pagos) {
 
 export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId } = req.usuario;
-    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId } = req.body;
+    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
     if (!COLUMNA_PRECIO[tipoPago]) {
@@ -122,7 +122,7 @@ export async function crearVenta(req, res) {
     try {
         const venta = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const empresaResultado = await cliente.query(
-                `SELECT permitir_venta_sin_stock, plazo_credito_dias, sifen_api_key, sifen_establecimiento
+                `SELECT permitir_venta_sin_stock, plazo_credito_dias, sifen_api_key, sifen_establecimiento, comisiones_habilitadas
                  FROM empresas WHERE id = $1`,
                 [empresaId]
             );
@@ -130,6 +130,7 @@ export async function crearVenta(req, res) {
             const plazoCreditoDias = empresaResultado.rows[0]?.plazo_credito_dias ?? 30;
             const sifenApiKey = empresaResultado.rows[0]?.sifen_api_key;
             const sifenEstablecimiento = empresaResultado.rows[0]?.sifen_establecimiento;
+            const comisionesHabilitadas = empresaResultado.rows[0]?.comisiones_habilitadas ?? false;
 
             if (comprobante === 'factura_legal' && !sifenApiKey) {
                 throw new ErrorNegocio(
@@ -174,6 +175,36 @@ export async function crearVenta(req, res) {
                         descuentoPct: Number(categoria.beneficio_descuento_adicional_pct || 0),
                         lineaCreditoExtra: Number(categoria.beneficio_linea_credito_extra || 0),
                     };
+                }
+            }
+
+            // Vendedor por comision (modulo opcional): prioridad al vendedor
+            // asignado al cliente (protege su comision aunque el cliente
+            // compre sin pasar por el) - un vendedorId mandado por el cajero
+            // nunca lo pisa. Si el cliente no tiene uno asignado, se usa el
+            // que eligio el cajero (opcional). Resuelto ANTES del loop de
+            // items, mismo motivo que beneficios: la comision de cada linea
+            // depende de esto.
+            let vendedorIdFinal = null;
+            let datosVendedor = null;
+            let mapaComisionFija = new Map();
+            if (comisionesHabilitadas) {
+                const clienteFila = await cliente.query(`SELECT vendedor_id FROM clientes WHERE id = $1`, [clienteIdFinal]);
+                vendedorIdFinal = clienteFila.rows[0]?.vendedor_id || vendedorId || null;
+                if (vendedorIdFinal) {
+                    const vendedorFila = await cliente.query(
+                        `SELECT tipo_comision, valor_comision FROM vendedores WHERE id = $1 AND activo = true`,
+                        [vendedorIdFinal]
+                    );
+                    datosVendedor = vendedorFila.rows[0] || null;
+                    if (!datosVendedor) vendedorIdFinal = null; // vendedor invalido/inactivo, sin comision
+                }
+                if (vendedorIdFinal) {
+                    const fijos = await cliente.query(
+                        `SELECT producto_id, monto FROM productos_comision_fija WHERE empresa_id = $1`,
+                        [empresaId]
+                    );
+                    mapaComisionFija = new Map(fijos.rows.map((f) => [f.producto_id, Number(f.monto)]));
                 }
             }
 
@@ -236,6 +267,21 @@ export async function crearVenta(req, res) {
                 }
                 const subtotal = precioUnitario * cantidad;
                 total += subtotal;
+
+                // Comision congelada de esta linea (ver venta_items.comision_monto):
+                // producto con comision fija a nivel empresa pisa el tipo de
+                // comision del vendedor, sin importar cual sea.
+                let comisionMonto = 0;
+                if (vendedorIdFinal) {
+                    const fija = mapaComisionFija.get(productoId);
+                    comisionMonto =
+                        fija != null
+                            ? fija * cantidad
+                            : datosVendedor.tipo_comision === 'porcentaje'
+                            ? subtotal * (Number(datosVendedor.valor_comision) / 100)
+                            : Number(datosVendedor.valor_comision) * cantidad;
+                }
+
                 itemsCalculados.push({
                     productoId,
                     cantidad,
@@ -246,6 +292,7 @@ export async function crearVenta(req, res) {
                     // vendida no se mueve retroactivamente.
                     costoUnitario: Number(producto.precio_costo),
                     esMayorista: usaMayoristaPorItem,
+                    comisionMonto,
                     subtotal,
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
@@ -327,8 +374,8 @@ export async function crearVenta(req, res) {
             const numeroTicket = numeroResultado.rows[0].numero;
 
             const ventaInsertada = await cliente.query(
-                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                  RETURNING id, creado_en`,
                 [
                     empresaId,
@@ -344,6 +391,7 @@ export async function crearVenta(req, res) {
                     montoFiado,
                     comprobante,
                     presupuestoId || null,
+                    vendedorIdFinal,
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;
@@ -360,8 +408,8 @@ export async function crearVenta(req, res) {
 
             for (const item of itemsCalculados) {
                 await cliente.query(
-                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal, costo_unitario, es_mayorista)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal, costo_unitario, es_mayorista, comision_monto)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                     [
                         empresaId,
                         ventaId,
@@ -371,6 +419,7 @@ export async function crearVenta(req, res) {
                         item.subtotal,
                         item.costoUnitario,
                         item.esMayorista,
+                        item.comisionMonto,
                     ]
                 );
                 await cliente.query(
