@@ -25,6 +25,7 @@ export default function EditarEmpleado() {
   const [sucursales, setSucursales] = useState([]);
   const [sucursalId, setSucursalId] = useState("");
   const [permisos, setPermisos] = useState([]);
+  const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -53,6 +54,7 @@ export default function EditarEmpleado() {
         if (e.limite_sucursales > 1) {
           apiFetch("/api/sucursales").then(setSucursales).catch(() => {});
         }
+        setLomiteriaHabilitada(!!e.lomiteria_habilitada);
       })
       .catch(() => {});
   }, [id, router]);
@@ -141,10 +143,11 @@ export default function EditarEmpleado() {
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={campo} />
 
           <label className={etiqueta}>Rol</label>
-          <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className={`mb-4 grid gap-2 ${lomiteriaHabilitada ? "grid-cols-3" : "grid-cols-2"}`}>
             {[
               { valor: "cajero", etiqueta: "Cajero" },
               { valor: "encargado", etiqueta: "Encargado" },
+              ...(lomiteriaHabilitada ? [{ valor: "mesero", etiqueta: "Mesero" }] : []),
             ].map((r) => (
               <button
                 key={r.valor}

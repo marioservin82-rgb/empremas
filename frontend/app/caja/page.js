@@ -45,6 +45,14 @@ export default function Caja() {
   const [errorRetiro, setErrorRetiro] = useState("");
   const [retiroCreado, setRetiroCreado] = useState(null);
 
+  const [meseros, setMeseros] = useState([]);
+  const [mostrarFormEntrega, setMostrarFormEntrega] = useState(false);
+  const [montoEntrega, setMontoEntrega] = useState("");
+  const [meseroIdEntrega, setMeseroIdEntrega] = useState("");
+  const [notaEntrega, setNotaEntrega] = useState("");
+  const [enviandoEntrega, setEnviandoEntrega] = useState(false);
+  const [errorEntrega, setErrorEntrega] = useState("");
+
   async function cargarTurno() {
     try {
       const actual = await apiFetch("/api/turnos/actual");
@@ -69,6 +77,7 @@ export default function Caja() {
     cargarTurno();
     apiFetch("/api/empresas/actual").then(setEmpresaInfo).catch(() => {});
     apiFetch("/api/usuarios/yo").then(setYo).catch(() => {});
+    apiFetch("/api/usuarios/meseros").then(setMeseros).catch(() => {});
     // El historial es solo dueño/encargado (el backend devuelve 403 para
     // cajero); si no da 403, mostramos el link.
     apiFetch("/api/turnos")
@@ -80,6 +89,7 @@ export default function Caja() {
 
   function abrirFormRetiro() {
     setMostrarFormRetiro(true);
+    setMostrarFormEntrega(false);
     setMontoRetiro("");
     setMotivoRetiro("");
     setDetalleRetiro("");
@@ -87,6 +97,37 @@ export default function Caja() {
     setPinRetiro("");
     setErrorRetiro("");
     setRetiroCreado(null);
+  }
+
+  function abrirFormEntrega() {
+    setMostrarFormEntrega(true);
+    setMostrarFormRetiro(false);
+    setMontoEntrega("");
+    setMeseroIdEntrega(meseros[0]?.id || "");
+    setNotaEntrega("");
+    setErrorEntrega("");
+  }
+
+  async function crearEntrega(e) {
+    e.preventDefault();
+    setErrorEntrega("");
+    setEnviandoEntrega(true);
+    try {
+      await apiFetch(`/api/turnos/${turno.id}/entrega`, {
+        method: "POST",
+        body: JSON.stringify({
+          monto: Number(montoEntrega),
+          meseroId: meseroIdEntrega,
+          nota: notaEntrega || undefined,
+        }),
+      });
+      setMostrarFormEntrega(false);
+      cargarRetiros(turno.id);
+    } catch (err) {
+      setErrorEntrega(err.message);
+    } finally {
+      setEnviandoEntrega(false);
+    }
   }
 
   async function crearRetiro(e) {
@@ -114,7 +155,12 @@ export default function Caja() {
     }
   }
 
-  const totalRetirado = retiros.reduce((acumulado, r) => acumulado + Number(r.monto), 0);
+  const totalRetirado = retiros
+    .filter((r) => r.tipo_movimiento !== "entrega")
+    .reduce((acumulado, r) => acumulado + Number(r.monto), 0);
+  const totalEntregado = retiros
+    .filter((r) => r.tipo_movimiento === "entrega")
+    .reduce((acumulado, r) => acumulado + Number(r.monto), 0);
 
   async function abrirCaja() {
     setError("");
@@ -332,6 +378,66 @@ export default function Caja() {
               </button>
             </div>
           </form>
+        ) : mostrarFormEntrega ? (
+          <form onSubmit={crearEntrega} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+            <p className="mb-4 font-semibold text-slate-700">Entrega de efectivo</p>
+            <p className="mb-4 text-sm text-slate-400">
+              Registrá el efectivo que un mesero te entregó tras cobrar una mesa.
+            </p>
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Mesero que entrega</label>
+            <select
+              required
+              value={meseroIdEntrega}
+              onChange={(e) => setMeseroIdEntrega(e.target.value)}
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            >
+              <option value="">Elegí un mesero...</option>
+              {meseros.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Monto (Gs)</label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={montoEntrega}
+              onChange={(e) => setMontoEntrega(e.target.value)}
+              placeholder="0"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            />
+
+            <label className="mb-1 block text-sm font-medium text-slate-700">Nota (opcional)</label>
+            <input
+              value={notaEntrega}
+              onChange={(e) => setNotaEntrega(e.target.value)}
+              placeholder="Ej: cobro Mesa 3"
+              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            />
+
+            {errorEntrega && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorEntrega}</p>}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarFormEntrega(false)}
+                className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={enviandoEntrega || !meseroIdEntrega}
+                className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
+              >
+                {enviandoEntrega ? "Registrando..." : "Registrar entrega"}
+              </button>
+            </div>
+          </form>
         ) : (
           <div className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
             <p className="mb-1 text-sm text-slate-400">Turno abierto desde</p>
@@ -341,24 +447,38 @@ export default function Caja() {
             </p>
 
             <div className="mb-6 rounded-xl border border-slate-200 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm font-medium text-slate-500">Retiros de efectivo este turno</p>
-                <button
-                  onClick={abrirFormRetiro}
-                  className="text-sm font-semibold text-brand hover:text-navy"
-                >
-                  + Retiro de efectivo
-                </button>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-500">Movimientos de caja este turno</p>
+                <div className="flex gap-3">
+                  {meseros.length > 0 && (
+                    <button
+                      onClick={abrirFormEntrega}
+                      className="text-sm font-semibold text-navy hover:text-brand"
+                    >
+                      + Entrega de efectivo
+                    </button>
+                  )}
+                  <button
+                    onClick={abrirFormRetiro}
+                    className="text-sm font-semibold text-brand hover:text-navy"
+                  >
+                    + Retiro de efectivo
+                  </button>
+                </div>
               </div>
               {retiros.length === 0 ? (
-                <p className="text-sm text-slate-400">Sin retiros registrados.</p>
+                <p className="text-sm text-slate-400">Sin movimientos registrados.</p>
               ) : (
                 <>
                   <div className="flex flex-col divide-y divide-slate-100">
                     {retiros.map((r) => (
                       <div key={r.id} className="flex items-center justify-between py-2 text-sm">
-                        <span className="text-slate-500">{r.persona_retira}</span>
-                        <span className="font-semibold text-slate-700">Gs {formatoGs.format(r.monto)}</span>
+                        <span className="text-slate-500">
+                          {r.tipo_movimiento === "entrega" ? `Entrega de ${r.mesero_nombre}` : r.persona_retira}
+                        </span>
+                        <span className={`font-semibold ${r.tipo_movimiento === "entrega" ? "text-navy" : "text-slate-700"}`}>
+                          {r.tipo_movimiento === "entrega" ? "+" : "−"} Gs {formatoGs.format(r.monto)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -366,6 +486,12 @@ export default function Caja() {
                     <span>Total retirado</span>
                     <span>Gs {formatoGs.format(totalRetirado)}</span>
                   </div>
+                  {totalEntregado > 0 && (
+                    <div className="flex justify-between pt-1 text-sm font-bold text-navy">
+                      <span>Total entregado</span>
+                      <span>Gs {formatoGs.format(totalEntregado)}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

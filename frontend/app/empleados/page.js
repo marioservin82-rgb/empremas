@@ -9,6 +9,7 @@ const ETIQUETA_ROL = {
   dueno: "Dueño",
   encargado: "Encargado",
   cajero: "Cajero",
+  mesero: "Mesero",
 };
 
 export default function Empleados() {

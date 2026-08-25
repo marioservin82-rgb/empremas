@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
-import pool, { consulta, consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
+import pool, { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 
 const PIN_VALIDO = /^\d{4}$/;
-const ROLES_ASIGNABLES = ['encargado', 'cajero'];
+const ROLES_ASIGNABLES = ['encargado', 'cajero', 'mesero'];
 const PERMISOS_VALIDOS = [
     'ver_costos',
     'ver_reportes',
@@ -56,6 +56,21 @@ export async function listarUsuarios(req, res) {
     res.json(resultado.rows);
 }
 
+// Lista liviana de meseros activos (solo id+nombre), para el selector de
+// "Entrega de efectivo" en Caja - a diferencia de listarUsuarios (dueño-
+// only, trae todo el legajo), esta la necesita cualquiera que opere la
+// caja (dueño/encargado/cajero) sin exponerles el resto del legajo.
+export async function listarMeseros(req, res) {
+    const { empresaId } = req.usuario;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, nombre FROM usuarios WHERE empresa_id = $1 AND rol = 'mesero' AND activo = true ORDER BY nombre ASC`,
+        [empresaId]
+    );
+    res.json(resultado.rows);
+}
+
 export async function crearUsuario(req, res) {
     const { empresaId } = req.usuario;
     const { nombre, email, password, rol, sucursalId } = req.body;
@@ -67,7 +82,13 @@ export async function crearUsuario(req, res) {
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
     if (!ROLES_ASIGNABLES.includes(rol)) {
-        return res.status(400).json({ error: 'El rol debe ser encargado o cajero' });
+        return res.status(400).json({ error: 'El rol debe ser encargado, cajero o mesero' });
+    }
+    if (rol === 'mesero') {
+        const empresaFila = await pool.query(`SELECT lomiteria_habilitada FROM empresas WHERE id = $1`, [empresaId]);
+        if (!empresaFila.rows[0]?.lomiteria_habilitada) {
+            return res.status(400).json({ error: 'Activá el módulo de Lomitería en Perfil de Empresa para poder crear meseros' });
+        }
     }
 
     const limiteResultado = await pool.query(
@@ -102,12 +123,26 @@ export async function crearUsuario(req, res) {
 
     try {
         const passwordHash = await bcrypt.hash(password, 10);
-        const resultado = await consulta(
-            `INSERT INTO usuarios (empresa_id, sucursal_id, nombre, email, password_hash, rol)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, nombre, email, rol, activo, creado_en, sucursal_id`,
-            [empresaId, sucursalIdFinal, nombre, email, passwordHash, rol]
-        );
+        // Un mesero es tambien un vendedor (modulo de Vendedores por
+        // comision) - se crea la fila junto con el usuario, con
+        // usuario_id linkeado, para que el dueno solo tenga que ajustar
+        // despues el tipo/valor de comision desde /vendedores/lista.
+        const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const usuario = await cliente.query(
+                `INSERT INTO usuarios (empresa_id, sucursal_id, nombre, email, password_hash, rol)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING id, nombre, email, rol, activo, creado_en, sucursal_id`,
+                [empresaId, sucursalIdFinal, nombre, email, passwordHash, rol]
+            );
+            if (rol === 'mesero') {
+                await cliente.query(
+                    `INSERT INTO vendedores (empresa_id, nombre, usuario_id, tipo_comision, valor_comision)
+                     VALUES ($1, $2, $3, 'porcentaje', 0)`,
+                    [empresaId, nombre, usuario.rows[0].id]
+                );
+            }
+            return usuario;
+        });
         res.status(201).json(resultado.rows[0]);
     } catch (error) {
         if (error.code === '23505') {
@@ -126,7 +161,7 @@ export async function actualizarUsuario(req, res) {
         return res.status(400).json({ error: 'No podés editarte a vos mismo desde acá' });
     }
     if (rol !== undefined && !ROLES_ASIGNABLES.includes(rol)) {
-        return res.status(400).json({ error: 'El rol debe ser encargado o cajero' });
+        return res.status(400).json({ error: 'El rol debe ser encargado, cajero o mesero' });
     }
     if (password !== undefined && password.length < 6) {
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
@@ -143,17 +178,34 @@ export async function actualizarUsuario(req, res) {
 
     const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
-    const resultado = await consulta(
-        `UPDATE usuarios SET
-            nombre = COALESCE($3, nombre),
-            rol = COALESCE($4, rol),
-            activo = COALESCE($5, activo),
-            password_hash = COALESCE($6, password_hash),
-            sucursal_id = COALESCE($7, sucursal_id)
-         WHERE id = $1 AND empresa_id = $2
-         RETURNING id, nombre, email, rol, activo, creado_en, sucursal_id`,
-        [id, empresaId, nombre, rol, activo, passwordHash, sucursalId]
-    );
+    const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
+        const usuario = await cliente.query(
+            `UPDATE usuarios SET
+                nombre = COALESCE($3, nombre),
+                rol = COALESCE($4, rol),
+                activo = COALESCE($5, activo),
+                password_hash = COALESCE($6, password_hash),
+                sucursal_id = COALESCE($7, sucursal_id)
+             WHERE id = $1 AND empresa_id = $2
+             RETURNING id, nombre, email, rol, activo, creado_en, sucursal_id`,
+            [id, empresaId, nombre, rol, activo, passwordHash, sucursalId]
+        );
+        // Si se promueve a alguien a mesero y todavia no tiene una fila de
+        // vendedor propia (ver crearUsuario), se la crea aca tambien - para
+        // que el invariante "todo mesero es tambien un vendedor" se cumpla
+        // sin importar por qué pantalla se lo convirtió.
+        if (usuario.rows[0] && rol === 'mesero') {
+            const vendedorExistente = await cliente.query(`SELECT id FROM vendedores WHERE usuario_id = $1`, [id]);
+            if (!vendedorExistente.rows[0]) {
+                await cliente.query(
+                    `INSERT INTO vendedores (empresa_id, nombre, usuario_id, tipo_comision, valor_comision)
+                     VALUES ($1, $2, $3, 'porcentaje', 0)`,
+                    [empresaId, usuario.rows[0].nombre, id]
+                );
+            }
+        }
+        return usuario;
+    });
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Usuario no encontrado' });
     }

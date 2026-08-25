@@ -28,6 +28,7 @@ const ETIQUETA_ROL = {
   dueno: "Dueño",
   encargado: "Encargado",
   cajero: "Cajero",
+  mesero: "Mesero",
 };
 
 export default function Panel() {
@@ -40,6 +41,7 @@ export default function Panel() {
   const [venceEn, setVenceEn] = useState(null);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
+  const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -55,6 +57,7 @@ export default function Panel() {
         setVenceEn(e.vence_en);
         setProduccionHabilitada(!!e.produccion_habilitada);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
+        setLomiteriaHabilitada(!!e.lomiteria_habilitada);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -194,8 +197,14 @@ export default function Panel() {
             href: "/proveedores",
           });
         }
-        const items = [...botones, ...extra];
-        const columnas = items.length > 4 ? "grid-cols-3" : "grid-cols-2";
+        // El mesero nunca entra a Vender/Stock/Clientes/Caja directo (ver
+        // Contexto del modulo de Lomiteria) - sus 4 botones grandes de
+        // siempre se reemplazan por uno solo.
+        const items =
+          yo?.rol === "mesero"
+            ? [{ nombre: "Mesas", icono: "🍽️", color: "bg-brand hover:bg-brand-light", href: "/mesas" }]
+            : [...botones, ...extra];
+        const columnas = items.length > 4 ? "grid-cols-3" : items.length <= 1 ? "grid-cols-1" : "grid-cols-2";
 
         const secundarios = [];
         if (yo?.rol === "dueno") {
@@ -215,7 +224,15 @@ export default function Panel() {
         if (comisionesHabilitadas && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
           secundarios.push({ nombre: "Vendedores", icono: "🤝", href: "/vendedores" });
         }
-        secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
+        // Modulo de Lomiteria: mismo criterio que Produccion/Vendedores,
+        // pero visible para todos los roles (el mesero tambien lo necesita).
+        if (lomiteriaHabilitada) {
+          secundarios.push({ nombre: "Mesas", icono: "🍽️", href: "/mesas" });
+          secundarios.push({ nombre: "Cocina", icono: "🍳", href: "/cocina" });
+        }
+        if (yo?.rol !== "mesero") {
+          secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
+        }
 
         return (
           <>

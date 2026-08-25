@@ -8,6 +8,7 @@ export async function obtenerEmpresaActual(req, res) {
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
+                lomiteria_habilitada,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -121,6 +122,7 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
         produccionHabilitada, sugerenciasVentaHabilitadas,
         comisionesHabilitadas, politicaClientesVendedorInactivo,
+        lomiteriaHabilitada,
     } = req.body;
 
     if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
@@ -169,8 +171,12 @@ export async function actualizarConfiguracion(req, res) {
             recordatorio_mensaje_mora_prolongada = COALESCE($21, recordatorio_mensaje_mora_prolongada),
             produccion_habilitada = COALESCE($22, produccion_habilitada),
             sugerencias_venta_habilitadas = COALESCE($23, sugerencias_venta_habilitadas),
-            comisiones_habilitadas = COALESCE($24, comisiones_habilitadas),
+            -- Activar Lomiteria activa tambien Comisiones (cada mesero es
+            -- ademas un vendedor - sin esto no tendria donde configurar su
+            -- comision). $26 pisa a $24 solo cuando se prende Lomiteria.
+            comisiones_habilitadas = CASE WHEN $26 = true THEN true ELSE COALESCE($24, comisiones_habilitadas) END,
             politica_clientes_vendedor_inactivo = COALESCE($25, politica_clientes_vendedor_inactivo),
+            lomiteria_habilitada = COALESCE($26, lomiteria_habilitada),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -180,7 +186,7 @@ export async function actualizarConfiguracion(req, res) {
          WHERE id = $1
          RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
-                   comisiones_habilitadas, politica_clientes_vendedor_inactivo,
+                   comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -193,7 +199,7 @@ export async function actualizarConfiguracion(req, res) {
             recordatorioIncluirRuc, recordatorioIncluirTelefono, recordatorioMensajePrevio,
             recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
             produccionHabilitada, sugerenciasVentaHabilitadas,
-            comisionesHabilitadas, politicaClientesVendedorInactivo]
+            comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada]
     );
 
     res.json(resultado.rows[0]);

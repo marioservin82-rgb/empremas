@@ -45,6 +45,7 @@ export default function PerfilEmpresa() {
   const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
+  const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -72,6 +73,7 @@ export default function PerfilEmpresa() {
         setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
+        setLomiteriaHabilitada(!!e.lomiteria_habilitada);
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -164,6 +166,21 @@ export default function PerfilEmpresa() {
       });
     } catch (err) {
       setComisionesHabilitadas(!valor);
+      setError(err.message);
+    }
+  }
+
+  async function cambiarLomiteriaHabilitada(valor) {
+    setLomiteriaHabilitada(valor);
+    if (valor) setComisionesHabilitadas(true);
+    try {
+      const actualizado = await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ lomiteriaHabilitada: valor }),
+      });
+      setComisionesHabilitadas(!!actualizado.comisiones_habilitadas);
+    } catch (err) {
+      setLomiteriaHabilitada(!valor);
       setError(err.message);
     }
   }
@@ -395,6 +412,29 @@ export default function PerfilEmpresa() {
                 </p>
               </div>
             )}
+          </div>
+
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <div>
+              <p className="font-semibold text-slate-800">Módulo de Lomitería / Restaurante</p>
+              <p className="text-sm text-slate-400">
+                Mesas, toma de pedido, comanda de cocina y caja compartida entre meseros. Activa también Vendedores
+                por comisión (cada mesero es un vendedor). Si está apagado, no aparece en ningún lado de la app.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => cambiarLomiteriaHabilitada(!lomiteriaHabilitada)}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                lomiteriaHabilitada ? "bg-emerald-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                  lomiteriaHabilitada ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
           </div>
 
           <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

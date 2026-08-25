@@ -39,9 +39,15 @@ async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
         [turnoId]
     );
     // Retiros ya autorizados y documentados - se restan aca para que no
-    // aparezcan como una "diferencia" fantasma al cerrar caja.
+    // aparezcan como una "diferencia" fantasma al cerrar caja. Las
+    // entregas (modulo de Lomiteria: efectivo que un mesero le entrego al
+    // cajero) son el movimiento inverso - se suman.
     const retiros = await cliente.query(
-        `SELECT COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE turno_id = $1`,
+        `SELECT COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE turno_id = $1 AND tipo_movimiento = 'retiro'`,
+        [turnoId]
+    );
+    const entregas = await cliente.query(
+        `SELECT COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE turno_id = $1 AND tipo_movimiento = 'entrega'`,
         [turnoId]
     );
 
@@ -51,8 +57,22 @@ async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
         Number(vueltoVentas.rows[0].total) +
         Number(efectivoCobros.rows[0].total) -
         Number(efectivoPagosProveedor.rows[0].total) -
-        Number(retiros.rows[0].total)
+        Number(retiros.rows[0].total) +
+        Number(entregas.rows[0].total)
     );
+}
+
+// Turno compartido de la sucursal (modulo de Lomiteria): a diferencia de
+// turnoAbiertoDe (estrictamente por usuario), un mesero nunca abre su
+// propio turno - vende contra el turno que ya abrio el cajero/encargado/
+// dueno de ese local. Si hay mas de uno abierto (no deberia pasar en el
+// uso normal), toma el mas reciente.
+export async function turnoCompartidoDeSucursal(cliente, sucursalId) {
+    const resultado = await cliente.query(
+        `SELECT id FROM turnos WHERE sucursal_id = $1 AND estado = 'abierto' ORDER BY abierto_en DESC LIMIT 1`,
+        [sucursalId]
+    );
+    return resultado.rows[0]?.id ?? null;
 }
 
 // Efectivo disponible "ahora mismo" para toda la empresa, sin cerrar
@@ -185,7 +205,8 @@ export async function listarTurnos(req, res) {
     const resultado = await consultaDeEmpresa(
         empresaId,
         `SELECT t.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre,
-                COALESCE((SELECT SUM(monto) FROM retiros_caja WHERE turno_id = t.id), 0) AS total_retiros
+                COALESCE((SELECT SUM(monto) FROM retiros_caja WHERE turno_id = t.id AND tipo_movimiento = 'retiro'), 0) AS total_retiros,
+                COALESCE((SELECT SUM(monto) FROM retiros_caja WHERE turno_id = t.id AND tipo_movimiento = 'entrega'), 0) AS total_entregas
          FROM turnos t
          JOIN usuarios u ON u.id = t.usuario_id
          LEFT JOIN sucursales s ON s.id = t.sucursal_id

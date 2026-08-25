@@ -92,6 +92,74 @@ export async function crearRetiro(req, res) {
     }
 }
 
+// Entrega de efectivo (modulo de Lomiteria): el mesero cobro una mesa y le
+// entrego ese efectivo fisicamente al cajero - es el cajero (o encargado/
+// dueno) quien registra la recepcion, nunca el mesero por su cuenta (no
+// tiene acceso a la caja). Por eso no hay bloque de PIN: quien ejecuta
+// esto ya es el dueno de la caja, autorizandose a si mismo.
+export async function crearEntrega(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { id } = req.params;
+    const { monto, meseroId, nota } = req.body;
+
+    if (!(Number(monto) > 0)) {
+        return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+    }
+    if (!meseroId) {
+        return res.status(400).json({ error: 'Indicá qué mesero entregó el efectivo' });
+    }
+
+    try {
+        const entrega = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const turnoResultado = await cliente.query(
+                `SELECT * FROM turnos WHERE id = $1 AND usuario_id = $2 FOR UPDATE`,
+                [id, usuarioId]
+            );
+            const turno = turnoResultado.rows[0];
+            if (!turno) {
+                throw new ErrorNegocio('El turno no existe');
+            }
+            if (turno.estado !== 'abierto') {
+                throw new ErrorNegocio('Ese turno ya está cerrado');
+            }
+
+            const mesero = await cliente.query(
+                `SELECT id FROM usuarios WHERE id = $1 AND empresa_id = $2 AND rol = 'mesero' AND activo = true`,
+                [meseroId, empresaId]
+            );
+            if (!mesero.rows[0]) {
+                throw new ErrorNegocio('Ese mesero no existe o no está activo');
+            }
+
+            const insertado = await cliente.query(
+                `INSERT INTO retiros_caja
+                    (empresa_id, turno_id, sucursal_id, monto, motivo_detalle, usuario_id, autorizado_por, tipo_movimiento, mesero_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $6, 'entrega', $7)
+                 RETURNING *`,
+                [empresaId, id, turno.sucursal_id, monto, nota || null, usuarioId, meseroId]
+            );
+
+            const conNombres = await cliente.query(
+                `SELECT r.*, ua.nombre AS autorizado_por_nombre, ur.nombre AS usuario_nombre, um.nombre AS mesero_nombre
+                 FROM retiros_caja r
+                 JOIN usuarios ua ON ua.id = r.autorizado_por
+                 JOIN usuarios ur ON ur.id = r.usuario_id
+                 LEFT JOIN usuarios um ON um.id = r.mesero_id
+                 WHERE r.id = $1`,
+                [insertado.rows[0].id]
+            );
+            return conNombres.rows[0];
+        });
+
+        res.status(201).json(entrega);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
+}
+
 export async function listarRetirosDeTurno(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { id } = req.params;
@@ -116,10 +184,11 @@ export async function listarRetirosDeTurno(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT r.*, ua.nombre AS autorizado_por_nombre, ur.nombre AS usuario_nombre
+        `SELECT r.*, ua.nombre AS autorizado_por_nombre, ur.nombre AS usuario_nombre, um.nombre AS mesero_nombre
          FROM retiros_caja r
          JOIN usuarios ua ON ua.id = r.autorizado_por
          JOIN usuarios ur ON ur.id = r.usuario_id
+         LEFT JOIN usuarios um ON um.id = r.mesero_id
          WHERE r.turno_id = $1
          ORDER BY r.creado_en DESC`,
         [id]

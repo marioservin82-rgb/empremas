@@ -7,6 +7,7 @@ import {
     miEstadoPin,
     yo,
     listarUsuarios,
+    listarMeseros,
     crearUsuario,
     actualizarUsuario,
     listarPermisos,
@@ -23,6 +24,9 @@ router.get('/yo', asyncHandler(yo));
 // autorizar una anulacion.
 router.patch('/mi-pin', permitirRoles('dueno', 'encargado'), asyncHandler(fijarMiPin));
 router.get('/mi-pin', permitirRoles('dueno', 'encargado'), asyncHandler(miEstadoPin));
+// Selector de "Entrega de efectivo" en Caja - dueño/encargado/cajero,
+// nunca el propio mesero (no tiene acceso a la caja).
+router.get('/meseros', permitirRoles('dueno', 'encargado', 'cajero'), asyncHandler(listarMeseros));
 
 // Gestion de empleados: solo el dueno da de alta/edita cajeros y
 // encargados (evita que un encargado pueda crearse mas permisos a si

@@ -52,7 +52,7 @@ async function emitirYActualizarDe({ empresaId, deId, apiKey, establecimiento, p
 // Permite pagos hibridos (ej. mitad efectivo, mitad tarjeta): solo el
 // efectivo puede generar vuelto, porque no tiene sentido "dar vuelto" en
 // tarjeta o transferencia.
-function calcularVuelto(pagos, total) {
+export function calcularVuelto(pagos, total) {
     if (!Array.isArray(pagos) || pagos.length === 0) {
         throw new ErrorNegocio('Elegí la forma de cobro: efectivo, transferencia, tarjeta de crédito o débito');
     }

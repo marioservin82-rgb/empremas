@@ -5,7 +5,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Para que buscar "maria" encuentre "María" (el usuario tipico no escribe tildes al buscar).
 CREATE EXTENSION IF NOT EXISTS "unaccent";
 
-CREATE TYPE rol_usuario AS ENUM ('dueno', 'encargado', 'cajero');
+-- 'mesero': modulo de Lomiteria/Restaurante (ver mesas/pedidos, mas abajo) -
+-- solo entra a las pantallas nuevas de ese modulo, nunca a Vender/Stock/
+-- Clientes/Caja directo.
+CREATE TYPE rol_usuario AS ENUM ('dueno', 'encargado', 'cajero', 'mesero');
 CREATE TYPE estado_empresa AS ENUM ('prueba', 'activa', 'mora', 'suspendida');
 -- Modulo de Vendedores por comision (ver tabla empresas y vendedores, mas abajo).
 CREATE TYPE politica_clientes_vendedor_inactivo AS ENUM ('mantener', 'desasignar');
@@ -118,6 +121,11 @@ CREATE TABLE empresas (
     -- Que pasa con los clientes de un vendedor al desactivarlo, si el
     -- dueno no elige algo puntual en ese momento (ver vendedores.activo).
     politica_clientes_vendedor_inactivo politica_clientes_vendedor_inactivo NOT NULL DEFAULT 'mantener',
+    -- Modulo de Lomiteria/Restaurante (mesas, pedidos, comanda de cocina) -
+    -- apagado por defecto, oculto por completo hasta que el dueno lo activa.
+    -- Al activarlo tambien se activa comisiones_habilitadas (cada mesero es
+    -- ademas un vendedor, ver usuariosController.crearUsuario).
+    lomiteria_habilitada BOOLEAN NOT NULL DEFAULT false,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -261,6 +269,12 @@ CREATE POLICY turnos_aislamiento ON turnos
 -- es dueno/encargado, o el supervisor cuyo PIN coincidio si lo registro
 -- un cajero (mismo patron que ventas.anulada_por).
 CREATE TYPE motivo_retiro AS ENUM ('pago_proveedor', 'gasto_puntual', 'retiro_personal', 'envio_tercero', 'otro');
+-- tipo_movimiento='entrega' (modulo de Lomiteria): lo opuesto a un retiro -
+-- el cajero (unico que opera la caja) registra el efectivo que un mesero le
+-- entrego fisicamente tras cobrar una mesa. El mesero nunca tiene acceso a
+-- la caja, asi que nunca registra esto por su cuenta - usuario_id/
+-- autorizado_por siguen siendo siempre el cajero/encargado/dueno.
+CREATE TYPE tipo_movimiento_caja AS ENUM ('retiro', 'entrega');
 
 CREATE TABLE retiros_caja (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -268,12 +282,23 @@ CREATE TABLE retiros_caja (
     turno_id        UUID NOT NULL REFERENCES turnos(id),
     sucursal_id     UUID REFERENCES sucursales(id),
     monto           NUMERIC(14,2) NOT NULL,
-    motivo          motivo_retiro NOT NULL,
+    -- motivo/persona_retira solo aplican a tipo_movimiento='retiro';
+    -- mesero_id solo a 'entrega' - ver CHECK mas abajo.
+    motivo          motivo_retiro,
     motivo_detalle  TEXT,
-    persona_retira  TEXT NOT NULL,
+    persona_retira  TEXT,
     usuario_id      UUID NOT NULL REFERENCES usuarios(id),
     autorizado_por  UUID NOT NULL REFERENCES usuarios(id),
-    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+    tipo_movimiento tipo_movimiento_caja NOT NULL DEFAULT 'retiro',
+    -- Solo para tipo_movimiento='entrega': que mesero entrego este
+    -- efectivo (trazabilidad). Quien REGISTRA la entrega en el sistema
+    -- sigue siendo siempre usuario_id/autorizado_por (el cajero).
+    mesero_id       UUID REFERENCES usuarios(id),
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT retiros_caja_campos_por_tipo CHECK (
+        (tipo_movimiento = 'retiro' AND motivo IS NOT NULL AND persona_retira IS NOT NULL AND mesero_id IS NULL) OR
+        (tipo_movimiento = 'entrega' AND motivo IS NULL AND persona_retira IS NULL AND mesero_id IS NOT NULL)
+    )
 );
 
 CREATE INDEX idx_retiros_caja_empresa ON retiros_caja (empresa_id);
@@ -1416,3 +1441,80 @@ ALTER TABLE salidas_stock FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY salidas_stock_aislamiento ON salidas_stock
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Modulo de Lomiteria/Restaurante: mesas, pedidos y comanda de cocina.
+-- es_virtual = true cubre "para llevar"/"delivery" (misma logica de
+-- estado que una mesa fisica, sin pantalla aparte).
+CREATE TYPE estado_mesa AS ENUM ('libre', 'ocupada', 'cuenta_pedida', 'cerrada');
+CREATE TABLE mesas (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id  UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    sucursal_id UUID NOT NULL REFERENCES sucursales(id),
+    nombre      TEXT NOT NULL,
+    es_virtual  BOOLEAN NOT NULL DEFAULT false,
+    estado      estado_mesa NOT NULL DEFAULT 'libre',
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_mesas_empresa ON mesas (empresa_id);
+ALTER TABLE mesas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mesas FORCE ROW LEVEL SECURITY;
+CREATE POLICY mesas_aislamiento ON mesas USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Pedido: siempre ligado a un cliente (a diferencia de una venta de
+-- mostrador, este modulo empieza siempre por el cliente) y a un turno
+-- compartido de la sucursal (ver turnosController.turnoCompartidoDeSucursal
+-- - el mesero nunca abre turno propio). estado_entrega solo aplica si
+-- tipo='delivery'. venta_id se completa recien al cerrar la cuenta.
+CREATE TYPE tipo_pedido AS ENUM ('mesa', 'llevar', 'delivery');
+CREATE TYPE estado_pedido AS ENUM ('abierto', 'cuenta_pedida', 'cerrado');
+CREATE TYPE estado_entrega_pedido AS ENUM ('preparando', 'en_camino', 'entregado');
+
+CREATE TABLE pedidos (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    mesa_id             UUID NOT NULL REFERENCES mesas(id),
+    sucursal_id         UUID NOT NULL REFERENCES sucursales(id),
+    cliente_id          UUID NOT NULL REFERENCES clientes(id),
+    usuario_id          UUID NOT NULL REFERENCES usuarios(id),
+    turno_id            UUID NOT NULL REFERENCES turnos(id),
+    tipo                tipo_pedido NOT NULL DEFAULT 'mesa',
+    estado              estado_pedido NOT NULL DEFAULT 'abierto',
+    estado_entrega      estado_entrega_pedido,
+    direccion_entrega   TEXT,
+    venta_id            UUID REFERENCES ventas(id),
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    cerrado_en          TIMESTAMPTZ
+);
+CREATE INDEX idx_pedidos_empresa ON pedidos (empresa_id);
+CREATE INDEX idx_pedidos_mesa_abierto ON pedidos (mesa_id) WHERE estado <> 'cerrado';
+ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedidos FORCE ROW LEVEL SECURITY;
+CREATE POLICY pedidos_aislamiento ON pedidos USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Item de pedido = renglon de la comanda de cocina. precio_unitario queda
+-- congelado al confirmarlo (mismo criterio que presupuesto_items). El
+-- stock de sus ingredientes (si el producto es_compuesto) se descuenta al
+-- confirmar el item, no al cerrar la cuenta - ver pedidosController.
+CREATE TYPE estado_cocina_item AS ENUM ('pendiente', 'listo');
+CREATE TABLE pedido_items (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    pedido_id       UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    producto_id     UUID NOT NULL REFERENCES productos(id),
+    cantidad        NUMERIC(14,3) NOT NULL,
+    nota            TEXT,
+    precio_unitario NUMERIC(14,2) NOT NULL,
+    estado_cocina   estado_cocina_item NOT NULL DEFAULT 'pendiente',
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_pedido_items_empresa ON pedido_items (empresa_id);
+CREATE INDEX idx_pedido_items_pedido ON pedido_items (pedido_id);
+CREATE INDEX idx_pedido_items_comanda ON pedido_items (empresa_id, estado_cocina) WHERE estado_cocina = 'pendiente';
+ALTER TABLE pedido_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY pedido_items_aislamiento ON pedido_items USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Link venta <- pedido, mismo patron que ventas.presupuesto_id. Se
+-- completa al cerrar la cuenta (cerrarCuentaPedido), que arma la venta
+-- directo desde pedido_items sin pasar por crearVenta.
+ALTER TABLE ventas ADD COLUMN pedido_id UUID REFERENCES pedidos(id);

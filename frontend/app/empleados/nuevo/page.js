@@ -13,6 +13,7 @@ export default function NuevoEmpleado() {
   const [rol, setRol] = useState("cajero");
   const [sucursales, setSucursales] = useState([]);
   const [sucursalId, setSucursalId] = useState("");
+  const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -22,6 +23,7 @@ export default function NuevoEmpleado() {
         if (e.limite_sucursales > 1) {
           apiFetch("/api/sucursales").then(setSucursales).catch(() => {});
         }
+        setLomiteriaHabilitada(!!e.lomiteria_habilitada);
       })
       .catch(() => {});
   }, []);
@@ -67,10 +69,11 @@ export default function NuevoEmpleado() {
           <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={campo} placeholder="Al menos 6 caracteres" />
 
           <label className={etiqueta}>Rol</label>
-          <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className={`mb-4 grid gap-2 ${lomiteriaHabilitada ? "grid-cols-3" : "grid-cols-2"}`}>
             {[
               { valor: "cajero", etiqueta: "Cajero" },
               { valor: "encargado", etiqueta: "Encargado" },
+              ...(lomiteriaHabilitada ? [{ valor: "mesero", etiqueta: "Mesero" }] : []),
             ].map((r) => (
               <button
                 key={r.valor}
@@ -86,7 +89,7 @@ export default function NuevoEmpleado() {
           </div>
           <p className="mb-4 text-xs text-slate-400">
             Encargado puede hacer casi todo lo que vos, incluido autorizar anulaciones con PIN. Cajero solo vende,
-            cobra y cotiza.
+            cobra y cotiza.{lomiteriaHabilitada && " Mesero solo entra a Mesas/Cocina, no a Vender/Stock/Caja."}
           </p>
 
           {sucursales.length > 0 && (
