@@ -7,6 +7,17 @@ import { apiFetch } from "@/lib/api";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
+// Unidad_medida es texto libre, sin ninguna conversion automatica en
+// todo el sistema - si dice "gr"/"gramos" pero el costo se cargo como
+// precio por kilo (lo mas comun para fiambres/verdura), el stock tiene
+// que estar en KILOS para que la multiplicacion de mas abajo de un
+// valor real (0,285 kg, no 285). Esto no corrige nada solo, es un aviso
+// para que el dueño revise el dato a mano en Ajuste de inventario.
+function pareceUnidadGramos(unidadMedida) {
+  const u = (unidadMedida || "").trim().toLowerCase();
+  return u === "gr" || u === "gr." || u === "gramo" || u === "gramos";
+}
+
 export default function InventarioValorizado() {
   const router = useRouter();
   const [datos, setDatos] = useState(null);
@@ -38,6 +49,14 @@ export default function InventarioValorizado() {
           <p className="text-slate-500">Cargando...</p>
         ) : (
           <>
+            {datos.productos.some((p) => pareceUnidadGramos(p.unidad_medida)) && (
+              <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                Los productos marcados en rojo tienen la unidad en gramos — si el costo unitario está cargado por
+                kilo, revisá que la cantidad de stock también esté en kilos (ej. 0,285 en vez de 285) desde Ajuste de
+                inventario, para que el valor calculado sea real.
+              </p>
+            )}
+
             <div className="mb-4 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white p-5 text-center shadow shadow-slate-200">
                 <p className="text-sm text-slate-400">Valor a costo</p>
@@ -61,17 +80,28 @@ export default function InventarioValorizado() {
                   </tr>
                 </thead>
                 <tbody>
-                  {datos.productos.map((p) => (
-                    <tr key={p.id} className="border-b border-slate-100 last:border-0">
-                      <td className="p-3 font-medium text-slate-800">{p.nombre}</td>
-                      <td className="p-3 text-right text-slate-600">
-                        {formatoGs.format(p.stock)} {p.unidad_medida}
-                      </td>
-                      <td className="p-3 text-right text-slate-600">Gs {formatoGs.format(p.precio_costo)}</td>
-                      <td className="p-3 text-right font-semibold text-slate-800">Gs {formatoGs.format(p.valor_costo)}</td>
-                      <td className="p-3 text-right font-semibold text-emerald-700">Gs {formatoGs.format(p.valor_venta)}</td>
-                    </tr>
-                  ))}
+                  {datos.productos.map((p) => {
+                    const sospechoso = pareceUnidadGramos(p.unidad_medida);
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`border-b border-slate-100 last:border-0 ${sospechoso ? "bg-red-50" : ""}`}
+                      >
+                        <td className="p-3 font-medium text-slate-800">
+                          {p.nombre}
+                          {sospechoso && (
+                            <span className="ml-2 text-xs font-semibold text-red-600">¿cantidad en kilos?</span>
+                          )}
+                        </td>
+                        <td className={`p-3 text-right ${sospechoso ? "font-semibold text-red-700" : "text-slate-600"}`}>
+                          {formatoGs.format(p.stock)} {p.unidad_medida}
+                        </td>
+                        <td className="p-3 text-right text-slate-600">Gs {formatoGs.format(p.precio_costo)}</td>
+                        <td className="p-3 text-right font-semibold text-slate-800">Gs {formatoGs.format(p.valor_costo)}</td>
+                        <td className="p-3 text-right font-semibold text-emerald-700">Gs {formatoGs.format(p.valor_venta)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
