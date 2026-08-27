@@ -50,6 +50,9 @@ export default function EditarProducto() {
             nombre: r.nombre,
             unidadMedida: r.unidad_medida,
             cantidad: r.cantidad,
+            precioContado: Number(r.precio_contado) || 0,
+            precioCredito: Number(r.precio_credito) || 0,
+            precioMayorista: Number(r.precio_mayorista) || 0,
           })),
         });
       })
@@ -77,7 +80,18 @@ export default function EditarProducto() {
     if (form.receta.some((r) => r.insumoId === p.id)) return;
     setForm({
       ...form,
-      receta: [...form.receta, { insumoId: p.id, nombre: p.nombre, unidadMedida: p.unidad_medida, cantidad: "" }],
+      receta: [
+        ...form.receta,
+        {
+          insumoId: p.id,
+          nombre: p.nombre,
+          unidadMedida: p.unidad_medida,
+          cantidad: "",
+          precioContado: Number(p.precio_contado) || 0,
+          precioCredito: Number(p.precio_credito) || 0,
+          precioMayorista: Number(p.precio_mayorista) || 0,
+        },
+      ],
     });
     setBusquedaIngrediente("");
     setResultadosIngrediente([]);
@@ -210,6 +224,22 @@ export default function EditarProducto() {
     );
   }
 
+  // Ahorro del combo/compuesto: precio de cada componente por separado
+  // (a su propio precio de venta) vs. el precio ya cargado para este
+  // producto — argumento de venta para mostrarle al cliente. Solo se
+  // calcula con ingredientes que ya tienen cantidad cargada.
+  const recetaCompleta = form.esCompuesto ? form.receta.filter((r) => Number(r.cantidad) > 0) : [];
+  const sumaComponentes = {
+    contado: recetaCompleta.reduce((acumulado, r) => acumulado + r.precioContado * Number(r.cantidad), 0),
+    credito: recetaCompleta.reduce((acumulado, r) => acumulado + r.precioCredito * Number(r.cantidad), 0),
+    mayorista: recetaCompleta.reduce((acumulado, r) => acumulado + r.precioMayorista * Number(r.cantidad), 0),
+  };
+  const ahorro = {
+    contado: sumaComponentes.contado - Number(form.precioContado || 0),
+    credito: sumaComponentes.credito - Number(form.precioCredito || 0),
+    mayorista: sumaComponentes.mayorista - Number(form.precioMayorista || 0),
+  };
+
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm">
@@ -266,7 +296,7 @@ export default function EditarProducto() {
           <label className="mb-4 flex items-center gap-2">
             <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} className="h-5 w-5" />
             <span className="text-sm font-medium text-slate-700">
-              Producto compuesto (se arma con su receta al vender, ej. sándwich, torta casera)
+              Producto compuesto o combo (se arma con su receta al vender — ej. sándwich, torta casera, Combo Pintor)
             </span>
           </label>
           {form.esCompuesto && (
@@ -319,6 +349,31 @@ export default function EditarProducto() {
                 Cuánto de cada ingrediente lleva UNA unidad de este producto — se descuenta del stock del ingrediente
                 cada vez que se vende, sin que este producto tenga stock propio.
               </p>
+
+              {recetaCompleta.length > 0 && (
+                <div className="mt-3 rounded-lg bg-slate-50 p-3">
+                  <p className="mb-2 text-xs font-semibold text-slate-500">Ahorro para el cliente (precio contado)</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Comprado por separado</span>
+                    <span className="font-semibold text-slate-700">Gs {formatoGs.format(sumaComponentes.contado)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Precio de este producto</span>
+                    <span className="font-semibold text-slate-700">Gs {formatoGs.format(Number(form.precioContado) || 0)}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 text-sm">
+                    <span className="font-semibold text-navy">Ahorro</span>
+                    <span className={`font-bold ${ahorro.contado >= 0 ? "text-navy" : "text-red-600"}`}>
+                      Gs {formatoGs.format(ahorro.contado)}
+                    </span>
+                  </div>
+                  {ahorro.contado < 0 && (
+                    <p className="mt-1 text-xs text-red-600">
+                      El precio de este producto es más caro que comprar los componentes por separado.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

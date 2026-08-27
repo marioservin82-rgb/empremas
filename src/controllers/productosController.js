@@ -196,9 +196,15 @@ export async function obtenerProducto(req, res) {
 
     let receta = [];
     if (resultado.rows[0].es_compuesto) {
+        // precio_contado/credito/mayorista de cada ingrediente: no hacen
+        // falta para el descuento de stock (eso ya sale de cantidad), pero
+        // si para que la ficha calcule el "ahorro" del combo (suma de los
+        // componentes por separado vs. el precio del combo) sin pedirle al
+        // frontend que arme otra consulta aparte.
         const recetaResultado = await consultaDeEmpresa(
             empresaId,
-            `SELECT pri.insumo_id, pri.cantidad, p.nombre, p.unidad_medida
+            `SELECT pri.insumo_id, pri.cantidad, p.nombre, p.unidad_medida,
+                    p.precio_contado, p.precio_credito, p.precio_mayorista
              FROM producto_receta_items pri
              JOIN productos p ON p.id = pri.insumo_id
              WHERE pri.producto_id = $1`,

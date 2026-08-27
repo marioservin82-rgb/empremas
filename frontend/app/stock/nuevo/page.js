@@ -55,7 +55,16 @@ export default function NuevoProducto() {
     if (form.receta.some((r) => r.insumoId === p.id)) return;
     setForm({
       ...form,
-      receta: [...form.receta, { insumoId: p.id, nombre: p.nombre, unidadMedida: p.unidad_medida, cantidad: "" }],
+      receta: [
+        ...form.receta,
+        {
+          insumoId: p.id,
+          nombre: p.nombre,
+          unidadMedida: p.unidad_medida,
+          cantidad: "",
+          precioContado: Number(p.precio_contado) || 0,
+        },
+      ],
     });
     setBusquedaIngrediente("");
     setResultadosIngrediente([]);
@@ -125,6 +134,17 @@ export default function NuevoProducto() {
 
   const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
   const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
+  const formatoGs = new Intl.NumberFormat("es-PY");
+
+  // Ahorro del combo/compuesto (precio contado): argumento de venta,
+  // comparando lo que costaría comprar cada componente por separado
+  // contra el precio ya cargado para este producto nuevo.
+  const recetaCompleta = form.esCompuesto ? form.receta.filter((r) => Number(r.cantidad) > 0) : [];
+  const sumaComponentesContado = recetaCompleta.reduce(
+    (acumulado, r) => acumulado + r.precioContado * Number(r.cantidad),
+    0
+  );
+  const ahorroContado = sumaComponentesContado - (Number(form.precioContado) || 0);
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
@@ -190,7 +210,7 @@ export default function NuevoProducto() {
           <label className="mb-4 flex items-center gap-2">
             <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} className="h-5 w-5" />
             <span className="text-sm font-medium text-slate-700">
-              Producto compuesto (se arma con su receta al vender, ej. sándwich, torta casera)
+              Producto compuesto o combo (se arma con su receta al vender — ej. sándwich, torta casera, Combo Pintor)
             </span>
           </label>
           {form.esCompuesto && (
@@ -243,6 +263,26 @@ export default function NuevoProducto() {
                 Cuánto de cada ingrediente lleva UNA unidad de este producto — se descuenta del stock del ingrediente
                 cada vez que se vende, sin que este producto tenga stock propio.
               </p>
+
+              {recetaCompleta.length > 0 && Number(form.precioContado) > 0 && (
+                <div className="mt-3 rounded-lg bg-slate-50 p-3">
+                  <p className="mb-2 text-xs font-semibold text-slate-500">Ahorro para el cliente (precio contado)</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Comprado por separado</span>
+                    <span className="font-semibold text-slate-700">Gs {formatoGs.format(sumaComponentesContado)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Precio de este producto</span>
+                    <span className="font-semibold text-slate-700">Gs {formatoGs.format(Number(form.precioContado))}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 text-sm">
+                    <span className="font-semibold text-navy">Ahorro</span>
+                    <span className={`font-bold ${ahorroContado >= 0 ? "text-navy" : "text-red-600"}`}>
+                      Gs {formatoGs.format(ahorroContado)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
