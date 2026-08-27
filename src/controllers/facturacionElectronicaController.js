@@ -54,8 +54,18 @@ export async function obtenerEstado(req, res) {
             });
         }
 
-        // Si la homologación pasó, avanza el estado local a "homologada".
-        if (homologacion?.corrida?.estado === 'ok' && empresa.sifen_estado === 'homologacion') {
+        // Avanza el estado local a "homologada" si la homologación pasó, o si lo
+        // único que falló fueron los chequeos de resultado de lote (envío asíncrono):
+        // esos timeouts no afectan la emisión de a un documento, que es lo que usa
+        // el punto de venta. Cualquier otra falla sí bloquea.
+        const c = homologacion?.corrida;
+        const soloFallanLotes =
+            c &&
+            c.estado === 'fallo' &&
+            Array.isArray(c.fallos) &&
+            c.fallos.length > 0 &&
+            c.fallos.every((f) => /lote/i.test(f));
+        if ((c?.estado === 'ok' || soloFallanLotes) && empresa.sifen_estado === 'homologacion') {
             await pool.query(`UPDATE empresas SET sifen_estado = 'homologada' WHERE id = $1`, [empresa.id]);
             empresa.sifen_estado = 'homologada';
         }
