@@ -21,6 +21,13 @@ import {
     comisionesDelPeriodo,
     marcarPagado,
 } from '../controllers/contadoresController.js';
+import {
+    obtenerEstado as obtenerEstadoSifen,
+    darDeAlta as darDeAltaSifen,
+    correrHomologacion as correrHomologacionSifen,
+    pasarAProduccion as pasarAProduccionSifen,
+} from '../controllers/facturacionElectronicaController.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
@@ -34,6 +41,10 @@ router.get('/empresas', listarEmpresas);
 router.get('/empresas/:id', obtenerEmpresa);
 router.patch('/empresas/:id', actualizarEmpresa);
 router.post('/empresas/:id/pagos', registrarPago);
+router.get('/empresas/:id/facturacion-electronica', asyncHandler(obtenerEstadoSifen));
+router.post('/empresas/:id/facturacion-electronica', asyncHandler(darDeAltaSifen));
+router.post('/empresas/:id/facturacion-electronica/homologacion', asyncHandler(correrHomologacionSifen));
+router.patch('/empresas/:id/facturacion-electronica', asyncHandler(pasarAProduccionSifen));
 router.get('/configuracion', obtenerConfiguracion);
 router.patch('/configuracion', actualizarConfiguracion);
 router.get('/novedades', listarNovedades);

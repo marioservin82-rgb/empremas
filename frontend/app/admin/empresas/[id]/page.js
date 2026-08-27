@@ -146,6 +146,12 @@ export default function AdminEmpresaDetalle() {
             RUC {empresa.ruc} · Usuarios {empresa.usuarios_activos}/{empresa.limite_usuarios} · Sucursales{" "}
             {empresa.sucursales_activas}/{empresa.limite_sucursales}
           </p>
+          <Link
+            href={`/admin/empresas/${id}/facturacion-electronica`}
+            className="mt-3 inline-block rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+          >
+            Facturación electrónica →
+          </Link>
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

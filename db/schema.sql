@@ -71,6 +71,15 @@ CREATE TABLE empresas (
     -- por el prefijo de la key (sk_test_/sk_live_).
     sifen_api_key           TEXT,
     sifen_establecimiento   INTEGER NOT NULL DEFAULT 1,
+    -- Conector propio EMPREMAS-SIFEN (reemplaza gradualmente a Sifende). El
+    -- alta fiscal (certificado, CSC, timbrado, actividades, ambiente) la opera
+    -- Mario desde el panel admin y la guarda el conector; EMPREMAS sólo
+    -- referencia el tenant creado y sigue su estado en el flujo de alta:
+    --   sin_configurar -> homologacion -> homologada -> produccion
+    sifen_conector_tenant_id  INTEGER,
+    sifen_estado              TEXT NOT NULL DEFAULT 'sin_configurar'
+                                CHECK (sifen_estado IN ('sin_configurar', 'homologacion', 'homologada', 'produccion')),
+    sifen_ambiente            TEXT CHECK (sifen_ambiente IS NULL OR sifen_ambiente IN ('test', 'prod')),
     -- Telefono de contacto de la empresa (no del dueno/usuario puntual) -
     -- pensado para figurar en la Factura Legal, editable junto al resto
     -- de la config de SIFEN.
