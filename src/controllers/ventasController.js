@@ -4,7 +4,20 @@ import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { tienePermiso } from '../utils/permisos.js';
 import { emitirFacturaElectronica, descargarKude, ErrorSifen } from '../services/sifenService.js';
+import {
+    emitirFactura as emitirFacturaConector,
+    descargarKude as descargarKudeConector,
+    mapearVentaAConector,
+    ErrorConector,
+} from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
+
+// Deriva "EST-PUN-NNNNNNN" del CDC de SIFEN
+// (44 díg.: iTiDE[2] RUC[8] DV[1] est[3] pun[3] num[7] ...).
+function numeroDesdeCdc(cdc) {
+    if (!cdc || cdc.length < 24) return null;
+    return `${cdc.slice(11, 14)}-${cdc.slice(14, 17)}-${cdc.slice(17, 24)}`;
+}
 
 const COLUMNA_PRECIO = {
     contado: 'precio_contado',
@@ -19,27 +32,52 @@ const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_de
 // no en esta lista fija, porque depende de cada empresa.
 const TIPOS_COMPROBANTE_DISPONIBLES = ['ticket_comun', 'a4', 'sin_comprobante'];
 
-// Actualiza el documento electronico de una venta con el resultado de
-// Sifende (o el error, si fallo) - se llama fuera de la transaccion de
-// la venta a proposito: un problema de SIFEN no debe hacer perder la
-// venta ya registrada, solo deja el DE en 'error' para reintentar.
-async function emitirYActualizarDe({ empresaId, deId, apiKey, establecimiento, puntoExpedicion, venta, items, cliente }) {
+// Actualiza el documento electronico de una venta con el resultado de la
+// emision - se llama FUERA de la transaccion de la venta a proposito: un
+// problema de SIFEN no debe hacer perder la venta ya registrada, solo deja
+// el DE en 'error' para reintentar.
+//
+// `via`: 'conector' (EMPREMAS-SIFEN propio, empresas en produccion) o
+// 'sifende' (proveedor tercero, camino legacy).
+async function emitirYActualizarDe({
+    empresaId, deId, via, conectorTenantId, apiKey, establecimiento, puntoExpedicion, venta, items, cliente,
+}) {
     try {
-        const resultado = await emitirFacturaElectronica({
-            apiKey,
-            establecimiento,
-            puntoExpedicion,
-            venta,
-            items,
-            cliente,
-        });
+        let estado;
+        let cdc;
+        let numeroFormateado;
+
+        if (via === 'conector') {
+            const payload = mapearVentaAConector({ venta, items, cliente });
+            const r = await emitirFacturaConector(conectorTenantId, payload);
+            estado = (r.estado || 'enviado').toLowerCase();
+            cdc = r.cdc;
+            numeroFormateado = numeroDesdeCdc(r.cdc);
+            if (Array.isArray(r.errores) && r.errores.length && estado !== 'aprobado') {
+                await consultaDeEmpresa(
+                    empresaId,
+                    `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = $5, actualizado_en = now() WHERE id = $1`,
+                    [deId, estado || 'rechazado', cdc, numeroFormateado, r.errores.join('; ')]
+                );
+                return;
+            }
+        } else {
+            const r = await emitirFacturaElectronica({ apiKey, establecimiento, puntoExpedicion, venta, items, cliente });
+            estado = r.estado?.toLowerCase() || 'enviado';
+            cdc = r.cdc;
+            numeroFormateado = r.numeroFormateado;
+        }
+
         await consultaDeEmpresa(
             empresaId,
             `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
-            [deId, resultado.estado?.toLowerCase() || 'enviado', resultado.cdc, resultado.numeroFormateado]
+            [deId, estado, cdc, numeroFormateado]
         );
     } catch (error) {
-        const mensaje = error instanceof ErrorSifen ? error.message : 'No se pudo conectar con SIFEN';
+        const mensaje =
+            error instanceof ErrorSifen || error instanceof ErrorConector
+                ? error.message
+                : 'No se pudo conectar con SIFEN';
         await consultaDeEmpresa(
             empresaId,
             `UPDATE documentos_electronicos SET estado = 'error', mensaje_error = $2, actualizado_en = now() WHERE id = $1`,
@@ -122,7 +160,8 @@ export async function crearVenta(req, res) {
     try {
         const venta = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const empresaResultado = await cliente.query(
-                `SELECT permitir_venta_sin_stock, plazo_credito_dias, sifen_api_key, sifen_establecimiento, comisiones_habilitadas
+                `SELECT permitir_venta_sin_stock, plazo_credito_dias, sifen_api_key, sifen_establecimiento,
+                        sifen_estado, sifen_conector_tenant_id, comisiones_habilitadas
                  FROM empresas WHERE id = $1`,
                 [empresaId]
             );
@@ -130,11 +169,17 @@ export async function crearVenta(req, res) {
             const plazoCreditoDias = empresaResultado.rows[0]?.plazo_credito_dias ?? 30;
             const sifenApiKey = empresaResultado.rows[0]?.sifen_api_key;
             const sifenEstablecimiento = empresaResultado.rows[0]?.sifen_establecimiento;
+            const sifenEstado = empresaResultado.rows[0]?.sifen_estado;
+            const conectorTenantId = empresaResultado.rows[0]?.sifen_conector_tenant_id;
             const comisionesHabilitadas = empresaResultado.rows[0]?.comisiones_habilitadas ?? false;
 
-            if (comprobante === 'factura_legal' && !sifenApiKey) {
+            // Empresa en producción con el conector propio -> emite por ahí.
+            // Si no, cae al camino legacy de Sifende (api key).
+            const facturaPorConector = sifenEstado === 'produccion' && !!conectorTenantId;
+
+            if (comprobante === 'factura_legal' && !facturaPorConector && !sifenApiKey) {
                 throw new ErrorNegocio(
-                    'Factura Legal todavía no está disponible: configurá SIFEN en Configuración → Facturación electrónica'
+                    'Factura Legal todavía no está disponible: falta habilitar la facturación electrónica de esta empresa'
                 );
             }
 
@@ -490,15 +535,17 @@ export async function crearVenta(req, res) {
                     `SELECT punto_expedicion FROM sucursales WHERE id = $1`,
                     [sucursalId]
                 );
-                // Se guarda para emitir a Sifende DESPUES de que esta
-                // transaccion confirme - un problema de SIFEN no debe hacer
-                // fallar/perder la venta ya registrada.
+                // Se guarda para emitir DESPUES de que esta transaccion
+                // confirme - un problema de SIFEN no debe hacer fallar/perder
+                // la venta ya registrada.
                 deParaEmitir = {
                     deId: deInsertado.rows[0].id,
+                    via: facturaPorConector ? 'conector' : 'sifende',
+                    conectorTenantId,
                     apiKey: sifenApiKey,
                     establecimiento: sifenEstablecimiento,
                     puntoExpedicion: sucursalResultado.rows[0]?.punto_expedicion || 1,
-                    venta: { tipoPago, pagos: pagos || [] },
+                    venta: { tipoPago, pagos: pagos || [], vencimiento, plazoCreditoDias },
                     items: itemsCalculados,
                     cliente: clienteResultado.rows[0],
                 };
@@ -543,8 +590,9 @@ export async function reintentarSifen(req, res) {
     const datos = await consultaDeEmpresa(
         empresaId,
         `SELECT de.id AS de_id, de.estado AS de_estado,
-                v.tipo_pago, v.sucursal_id, v.cliente_id,
-                e.sifen_api_key, e.sifen_establecimiento,
+                v.tipo_pago, v.sucursal_id, v.cliente_id, v.vencimiento,
+                e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
+                e.plazo_credito_dias,
                 s.punto_expedicion,
                 c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico
          FROM documentos_electronicos de
@@ -562,7 +610,8 @@ export async function reintentarSifen(req, res) {
     if (fila.de_estado !== 'error') {
         return res.status(400).json({ error: 'Este documento no está en estado de error' });
     }
-    if (!fila.sifen_api_key) {
+    const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
+    if (!viaConector && !fila.sifen_api_key) {
         return res.status(400).json({ error: 'SIFEN ya no está configurado para esta empresa' });
     }
 
@@ -581,6 +630,8 @@ export async function reintentarSifen(req, res) {
     );
 
     await emitirYActualizarDe({
+        via: viaConector ? 'conector' : 'sifende',
+        conectorTenantId: fila.sifen_conector_tenant_id,
         empresaId,
         deId: fila.de_id,
         apiKey: fila.sifen_api_key,
@@ -608,7 +659,7 @@ export async function descargarKudeVenta(req, res) {
 
     const datos = await consultaDeEmpresa(
         empresaId,
-        `SELECT de.estado, de.cdc, e.sifen_api_key
+        `SELECT de.estado, de.cdc, e.sifen_api_key, e.sifen_estado, e.sifen_conector_tenant_id
          FROM documentos_electronicos de
          JOIN empresas e ON e.id = de.empresa_id
          WHERE de.venta_id = $1`,
@@ -622,7 +673,10 @@ export async function descargarKudeVenta(req, res) {
         return res.status(400).json({ error: 'El documento todavía no fue aprobado por SIFEN' });
     }
 
-    const pdf = await descargarKude({ apiKey: fila.sifen_api_key, cdc: fila.cdc });
+    const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
+    const pdf = viaConector
+        ? await descargarKudeConector(fila.cdc)
+        : await descargarKude({ apiKey: fila.sifen_api_key, cdc: fila.cdc });
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdf);
 }

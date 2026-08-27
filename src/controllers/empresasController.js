@@ -64,14 +64,19 @@ export async function obtenerConfigSifen(req, res) {
     const { empresaId } = req.usuario;
 
     const resultado = await pool.query(
-        `SELECT sifen_api_key, sifen_establecimiento, telefono, direccion FROM empresas WHERE id = $1`,
+        `SELECT sifen_api_key, sifen_establecimiento, telefono, direccion, sifen_estado
+         FROM empresas WHERE id = $1`,
         [empresaId]
     );
     const fila = resultado.rows[0];
     const apiKey = fila?.sifen_api_key;
+    // "Configurado" habilita Factura Legal en Vender: la empresa usa el conector
+    // propio y ya está en producción, o tiene api key de Sifende (camino legacy).
+    const porConector = fila?.sifen_estado === 'produccion';
 
     res.json({
-        configurado: !!apiKey,
+        configurado: porConector || !!apiKey,
+        via: porConector ? 'conector' : apiKey ? 'sifende' : null,
         ultimosDigitos: apiKey ? apiKey.slice(-4) : null,
         establecimiento: fila?.sifen_establecimiento ?? 1,
         telefono: fila?.telefono ?? null,
