@@ -464,7 +464,9 @@ function Homologacion({ id, estado, homologacion, onCambio, setError }) {
               {c.estado === "fallo" && "⚠️ Con observaciones"}
               {c.estado === "error" && "❌ Error al correr"}
             </span>
-            <span className="text-slate-400">{new Date(c.iniciadoEn + "Z").toLocaleString("es-PY")}</span>
+            <span className="text-slate-400">
+              {new Date(String(c.iniciadoEn).replace(" ", "T") + "Z").toLocaleString("es-PY")}
+            </span>
           </div>
           {c.resumen && <p className="mt-1 text-slate-600">{c.resumen}</p>}
           {c.fallos?.length > 0 && (
