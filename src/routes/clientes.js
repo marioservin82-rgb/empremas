@@ -7,6 +7,7 @@ import {
     obtenerCliente,
     crearCliente,
     actualizarCliente,
+    consultarRucDnit,
     extractoCliente,
     importarClientes,
     ajustarSaldo,
@@ -32,6 +33,9 @@ router.get('/categorias', permitirRoles('dueno'), asyncHandler(listarCategorias)
 router.post('/categorias', permitirRoles('dueno'), asyncHandler(crearCategoria));
 router.patch('/categorias/:id', permitirRoles('dueno'), asyncHandler(actualizarCategoria));
 router.get('/reporte-categorias', permitirRoles('dueno'), asyncHandler(reporteCategoriasCliente));
+
+// Autocompletar el alta desde el padrón de la DNIT — antes de /:id.
+router.get('/consultar-ruc', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(consultarRucDnit));
 
 // Lectura abierta a cualquier rol logueado: el cajero necesita poder
 // consultar el credito disponible de un cliente antes de vender (regla de

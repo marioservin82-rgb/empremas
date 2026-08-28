@@ -26,6 +26,9 @@ export default function NuevoCliente() {
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [vendedores, setVendedores] = useState([]);
+  const [sifenConfigurado, setSifenConfigurado] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const [avisoBusqueda, setAvisoBusqueda] = useState("");
 
   useEffect(() => {
     apiFetch("/api/empresas/actual")
@@ -37,7 +40,37 @@ export default function NuevoCliente() {
         }
       })
       .catch(() => {});
+    apiFetch("/api/empresas/sifen")
+      .then((c) => setSifenConfigurado(!!c.configurado && c.via === "conector"))
+      .catch(() => {});
   }, []);
+
+  async function buscarEnDnit() {
+    const numero = (form.documento || "").trim();
+    if (!numero) return;
+    setBuscando(true);
+    setAvisoBusqueda("");
+    setError("");
+    try {
+      const r = await apiFetch(`/api/clientes/consultar-ruc?numero=${encodeURIComponent(numero)}`);
+      if (r.encontrado) {
+        setForm((f) => ({
+          ...f,
+          nombre: r.razonSocial || f.nombre,
+          documento: r.documento || f.documento,
+        }));
+        setAvisoBusqueda(
+          `${r.razonSocial}${r.estado ? ` · ${r.estado}` : ""}. Revisá y guardá.`,
+        );
+      } else {
+        setAvisoBusqueda("No figura en el padrón de la DNIT — cargá el nombre a mano.");
+      }
+    } catch (err) {
+      setAvisoBusqueda(err.message);
+    } finally {
+      setBuscando(false);
+    }
+  }
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
@@ -79,10 +112,34 @@ export default function NuevoCliente() {
 
         <form onSubmit={enviar} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>Cédula o RUC</label>
-          <input value={form.documento} onChange={actualizar("documento")} className={campo} placeholder="Opcional" autoFocus />
-          <p className="-mt-3 mb-4 text-xs text-slate-400">
-            Cuando esté conectado con el SIFEN, este número va a completar el resto de los datos automáticamente.
-          </p>
+          <div className="mb-1 flex gap-2">
+            <input
+              value={form.documento}
+              onChange={actualizar("documento")}
+              className={`${campo} mb-0 flex-1`}
+              placeholder="Opcional"
+              autoFocus
+            />
+            {sifenConfigurado && (
+              <button
+                type="button"
+                onClick={buscarEnDnit}
+                disabled={buscando || !form.documento.trim()}
+                className="mb-0 shrink-0 rounded-xl bg-navy px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-2 disabled:opacity-50"
+              >
+                {buscando ? "Buscando…" : "Buscar"}
+              </button>
+            )}
+          </div>
+          {avisoBusqueda ? (
+            <p className="mb-4 mt-1 text-xs text-slate-500">{avisoBusqueda}</p>
+          ) : (
+            <p className="mb-4 mt-1 text-xs text-slate-400">
+              {sifenConfigurado
+                ? "Poné el número y tocá Buscar para traer el nombre del padrón de la DNIT."
+                : "Cuando esté conectado con el SIFEN, este número va a completar el resto automáticamente."}
+            </p>
+          )}
 
           <label className={etiqueta}>Tipo de cliente (SIFEN)</label>
           <select value={form.clasificacionSifen} onChange={actualizar("clasificacionSifen")} className={campo}>
