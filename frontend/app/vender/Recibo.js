@@ -283,6 +283,36 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
 
 const SEPARADOR = { texto: "--------------------------------" };
 
+// Acepta "AAAA-MM-DD" (lo mas comun que devuelve pg para un DATE ya
+// serializado a JSON) o un Date, y lo pasa a DD/MM/AAAA.
+function fechaCorta(valor) {
+  if (!valor) return null;
+  const iso = typeof valor === "string" ? valor.slice(0, 10) : new Date(valor).toISOString().slice(0, 10);
+  const [a, m, d] = iso.split("-");
+  return a && m && d ? `${d}/${m}/${a}` : null;
+}
+
+// Datos del emisor obligatorios en la representacion grafica (KuDE) que no
+// van en el encabezado comun: actividad(es) economica(s), numero de
+// timbrado e inicio de vigencia. Vienen cacheados del conector en la fila
+// de empresas (sifen_*). Si la empresa todavia opera con Sifende (sin esos
+// datos) se cae al timbrado de texto libre que ya se cargaba a mano.
+function lineasEmisorLegal(empresa) {
+  const lineas = [];
+  const actividades = Array.isArray(empresa?.sifen_actividades) ? empresa.sifen_actividades : [];
+  if (actividades.length > 0) {
+    lineas.push({ texto: "Actividad económica:" });
+    for (const a of actividades) {
+      lineas.push({ texto: `${a.codigo} - ${a.descripcion}` });
+    }
+  }
+  const timbrado = empresa?.sifen_timbrado_numero || empresa?.timbrado;
+  if (timbrado) lineas.push({ texto: `Timbrado N° ${timbrado}` });
+  const inicio = fechaCorta(empresa?.sifen_timbrado_inicio);
+  if (inicio) lineas.push({ texto: `Inicio de vigencia: ${inicio}` });
+  return lineas;
+}
+
 // Mensaje de agradecimiento + firma/sello segun tipo de pago: contado (y
 // mayorista, que tambien se cobra en el momento, sin nada que quede a
 // cuenta) no tienen nada que firmar ni sellar - credito si, para
@@ -323,6 +353,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   ];
   if (empresa?.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
   if (empresa?.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
+  for (const l of lineasEmisorLegal(empresa)) lineas.push({ ...l, alineacion: "centro" });
   lineas.push(
     { texto: "FACTURA ELECTRÓNICA", alineacion: "centro" },
     { texto: `N° ${venta.de_numero_formateado}`, alineacion: "centro" },
@@ -490,6 +521,11 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         <p className="text-center text-sm">RUC {empresa?.ruc}</p>
         {empresa?.direccion && <p className="text-center text-sm">{empresa.direccion}</p>}
         {empresa?.telefono && <p className="text-center text-sm">Tel: {empresa.telefono}</p>}
+        {lineasEmisorLegal(empresa).map((l, i) => (
+          <p key={i} className="text-center text-xs leading-tight">
+            {l.texto}
+          </p>
+        ))}
         <p className="mt-2 text-center text-base">FACTURA ELECTRÓNICA</p>
         <p className="text-center text-sm">N° {venta.de_numero_formateado}</p>
         <p className="text-center text-sm">

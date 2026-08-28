@@ -21,6 +21,37 @@ async function empresaBase(id) {
     return rows[0] || null;
 }
 
+// Copia a la fila de empresas los datos fiscales del emisor que devuelve el
+// conector (actividad económica, timbrado, inicio de vigencia). Son datos que
+// van impresos en el KuDE/ticket; el conector es la fuente de verdad, acá se
+// guarda una copia de solo lectura para no pegarle en cada venta. Best-effort:
+// si algo falla no rompe el flujo que la llamó.
+async function sincronizarDatosFiscales(empresaId, tenant) {
+    if (!tenant) return;
+    try {
+        const actividades = Array.isArray(tenant.actividadesEconomicas)
+            ? tenant.actividadesEconomicas
+                  .filter((a) => a && a.codigo && a.descripcion)
+                  .map((a) => ({ codigo: String(a.codigo), descripcion: String(a.descripcion) }))
+            : null;
+        await pool.query(
+            `UPDATE empresas
+                SET sifen_actividades     = $2,
+                    sifen_timbrado_numero = $3,
+                    sifen_timbrado_inicio = $4
+              WHERE id = $1`,
+            [
+                empresaId,
+                actividades && actividades.length ? JSON.stringify(actividades) : null,
+                tenant.timbradoNumero || null,
+                tenant.timbradoFechaInicio || null,
+            ]
+        );
+    } catch (error) {
+        console.error('[sifen] no se pudieron sincronizar los datos fiscales del emisor:', error.message);
+    }
+}
+
 function vistaEmpresa(e) {
     return {
         id: e.id,
@@ -53,6 +84,7 @@ export async function obtenerEstado(req, res) {
         try {
             conector = await obtenerTenant(empresa.sifen_conector_tenant_id);
             homologacion = await obtenerHomologacion(empresa.sifen_conector_tenant_id);
+            await sincronizarDatosFiscales(empresa.id, conector);
         } catch (error) {
             // El conector puede estar caído - se devuelve lo local igual.
             return res.json({
@@ -110,6 +142,7 @@ export async function darDeAlta(req, res) {
             `UPDATE empresas SET sifen_conector_tenant_id = $2, sifen_estado = $3, sifen_ambiente = $4 WHERE id = $1`,
             [empresa.id, tenant.id, estado, tenant.ambiente]
         );
+        await sincronizarDatosFiscales(empresa.id, tenant);
         const actualizada = await empresaBase(req.params.id);
         return res.status(200).json({ empresa: vistaEmpresa(actualizada), conector: tenant, vinculado: true });
     }
@@ -168,6 +201,7 @@ export async function darDeAlta(req, res) {
          WHERE id = $1`,
         [empresa.id, tenant.id]
     );
+    await sincronizarDatosFiscales(empresa.id, tenant);
 
     const actualizada = await empresaBase(req.params.id);
     res.status(201).json({ empresa: vistaEmpresa(actualizada), conector: tenant });
@@ -239,6 +273,7 @@ export async function pasarAProduccion(req, res) {
         `UPDATE empresas SET sifen_estado = 'produccion', sifen_ambiente = 'prod' WHERE id = $1`,
         [empresa.id]
     );
+    await sincronizarDatosFiscales(empresa.id, tenant);
 
     const actualizada = await empresaBase(req.params.id);
     res.json({ empresa: vistaEmpresa(actualizada), conector: tenant });

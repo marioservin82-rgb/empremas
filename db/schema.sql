@@ -86,6 +86,14 @@ CREATE TABLE empresas (
     sifen_remision            BOOLEAN NOT NULL DEFAULT false,
     sifen_nc_nd               BOOLEAN NOT NULL DEFAULT false,
     sifen_autofactura         BOOLEAN NOT NULL DEFAULT false,
+    -- Datos fiscales del emisor cacheados desde el conector (fuente de verdad).
+    -- Van impresos en toda representación gráfica (KuDE): actividad económica,
+    -- número de timbrado e inicio de vigencia. Copia de solo lectura: se
+    -- refresca cada vez que EMPREMAS habla con el conector (alta, homologación,
+    -- pase a producción, apertura del panel admin).
+    sifen_actividades         JSONB,
+    sifen_timbrado_numero     TEXT,
+    sifen_timbrado_inicio     DATE,
     -- Telefono de contacto de la empresa (no del dueno/usuario puntual) -
     -- pensado para figurar en la Factura Legal, editable junto al resto
     -- de la config de SIFEN.

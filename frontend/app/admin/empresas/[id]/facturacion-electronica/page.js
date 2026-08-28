@@ -405,17 +405,26 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
 
 function DatosTenant({ conector }) {
   if (!conector) return null;
+  const actividades = Array.isArray(conector.actividadesEconomicas) ? conector.actividadesEconomicas : [];
+  const inicio = conector.timbradoFechaInicio
+    ? String(conector.timbradoFechaInicio).slice(0, 10).split("-").reverse().join("/")
+    : "—";
   const filas = [
     ["Tenant en el conector", `#${conector.id}`],
     ["RUC", conector.ruc],
     ["Razón social", conector.razonSocial],
     ["Establecimiento / Punto", `${conector.establecimiento} / ${conector.puntoExpedicion}`],
+    ["Dirección fiscal", conector.establecimientoDireccion || "—"],
     ["Timbrado", conector.timbradoNumero],
+    ["Inicio de vigencia", inicio],
     ["Ambiente", conector.ambiente],
   ];
   return (
     <div className={tarjeta}>
-      <h2 className="mb-4 text-lg font-bold text-slate-800">Datos en el conector</h2>
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Datos en el conector</h2>
+      <p className="mb-4 text-xs text-slate-400">
+        Solo lectura. Estos datos se editan en el conector y van impresos en cada factura (KuDE).
+      </p>
       <dl className="grid grid-cols-2 gap-y-2 text-sm">
         {filas.map(([k, v]) => (
           <div key={k} className="contents">
@@ -423,6 +432,18 @@ function DatosTenant({ conector }) {
             <dd className="font-medium text-slate-700">{v}</dd>
           </div>
         ))}
+        <div className="contents">
+          <dt className="text-slate-400">Actividad económica</dt>
+          <dd className="font-medium text-slate-700">
+            {actividades.length === 0
+              ? "—"
+              : actividades.map((a) => (
+                  <span key={a.codigo} className="block">
+                    {a.codigo} - {a.descripcion}
+                  </span>
+                ))}
+          </dd>
+        </div>
       </dl>
     </div>
   );
