@@ -30,7 +30,7 @@ export async function barrerDocumentosElectronicos() {
                        AND (
                             (estado = 'enviado' AND actualizado_en < now() - interval '3 minutes')
                          OR (estado = 'error'   AND actualizado_en < now() - interval '2 minutes')
-                         OR (estado = 'pendiente' AND creado_en < now() - interval '5 minutes')
+                         OR (estado = 'pendiente' AND actualizado_en < now() - interval '5 minutes')
                        )
                      LIMIT 50`,
                     []

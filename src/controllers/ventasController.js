@@ -649,33 +649,75 @@ export async function crearVenta(req, res) {
 // Cada emisión queda en el log documento_electronico_intentos.
 // Lo usa el botón "reintentar" y el barredor de fondo (barrerDocumentosElectronicos).
 export async function resolverDocumentoDeVenta(empresaId, ventaId) {
-    const datos = await consultaDeEmpresa(
-        empresaId,
-        `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.intento AS de_intento,
-                de.numero_formateado AS de_numero_formateado,
-                v.tipo_pago, v.sucursal_id, v.cliente_id, v.vencimiento,
-                e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
-                e.plazo_credito_dias,
-                s.punto_expedicion,
-                c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico,
-                c.clasificacion_sifen AS cliente_clasificacion_sifen
-         FROM documentos_electronicos de
-         JOIN ventas v ON v.id = de.venta_id
-         JOIN empresas e ON e.id = v.empresa_id
-         LEFT JOIN sucursales s ON s.id = v.sucursal_id
-         LEFT JOIN clientes c ON c.id = v.cliente_id
-         WHERE de.venta_id = $1`,
-        [ventaId]
-    );
-    const fila = datos.rows[0];
-    if (!fila) throw new ErrorNegocio('Esta venta no tiene un documento electrónico asociado');
-    const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
+    // --- Sección crítica: se lee y se "reclama" el DE bajo lock de fila, para
+    // que dos llamadas concurrentes (doble click en "reintentar" + el barredor)
+    // no lo emitan dos veces y hagan saltar el número. ---
+    const plan = await transaccionDeEmpresa(empresaId, async (db) => {
+        const { rows } = await db.query(
+            `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.intento AS de_intento,
+                    de.numero_formateado AS de_numero_formateado, de.actualizado_en AS de_actualizado_en,
+                    v.tipo_pago, v.vencimiento,
+                    e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
+                    e.plazo_credito_dias,
+                    s.punto_expedicion,
+                    c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico,
+                    c.clasificacion_sifen AS cliente_clasificacion_sifen
+             FROM documentos_electronicos de
+             JOIN ventas v ON v.id = de.venta_id
+             JOIN empresas e ON e.id = v.empresa_id
+             LEFT JOIN sucursales s ON s.id = v.sucursal_id
+             LEFT JOIN clientes c ON c.id = v.cliente_id
+             WHERE de.venta_id = $1
+             FOR UPDATE OF de`,
+            [ventaId]
+        );
+        const fila = rows[0];
+        if (!fila) throw new ErrorNegocio('Esta venta no tiene un documento electrónico asociado');
+        const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
 
-    if (fila.de_estado === 'aprobado') return 'aprobado';
+        if (fila.de_estado === 'aprobado') return { accion: 'nada', estado: 'aprobado' };
 
-    // En trámite por lote asíncrono (tiene CDC y sigue "enviado"): se RE-CONSULTA,
-    // nunca se re-emite (evita duplicar en SIFEN).
-    if (fila.de_cdc && viaConector && fila.de_estado === 'enviado') {
+        // 'pendiente' tocado hace menos de 3 min: hay una emisión en curso (otro
+        // click o el barredor). No se re-emite: evita duplicar y que salte el número.
+        const recienTocado = Date.now() - new Date(fila.de_actualizado_en).getTime() < 3 * 60 * 1000;
+        if (fila.de_estado === 'pendiente' && recienTocado) {
+            return { accion: 'nada', estado: 'pendiente' };
+        }
+
+        if (fila.de_cdc && viaConector && fila.de_estado === 'enviado') {
+            return { accion: 'reconsultar', fila };
+        }
+
+        if (!['error', 'pendiente', 'enviado', 'rechazado'].includes(fila.de_estado)) {
+            return { accion: 'nada', estado: fila.de_estado };
+        }
+        if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
+
+        // Reclamo: se marca 'pendiente' (con actualizado_en fresco) para que nadie
+        // más lo tome. Si venía rechazado se abre un intento nuevo — el número NO
+        // cambia (el conector reemite con numeroReintento).
+        let numeroReintento = null;
+        if (fila.de_estado === 'rechazado') {
+            await db.query(
+                `UPDATE documentos_electronicos
+                    SET intento = intento + 1, estado = 'pendiente', mensaje_error = NULL, actualizado_en = now()
+                  WHERE id = $1`,
+                [fila.de_id]
+            );
+            numeroReintento = numeroReintentoDe(fila.de_numero_formateado, fila.de_cdc);
+        } else {
+            await db.query(
+                `UPDATE documentos_electronicos SET estado = 'pendiente', actualizado_en = now() WHERE id = $1`,
+                [fila.de_id]
+            );
+        }
+        return { accion: 'emitir', fila, viaConector, numeroReintento };
+    });
+
+    if (plan.accion === 'nada') return plan.estado;
+
+    if (plan.accion === 'reconsultar') {
+        const { fila } = plan;
         const r = await consultarDocumentoConector(fila.de_cdc);
         const nuevoEstado = (r.estado || 'enviado').toLowerCase();
         const motivo = Array.isArray(r.errores) && r.errores.length ? r.errores.join('; ') : null;
@@ -688,25 +730,8 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
         return nuevoEstado;
     }
 
-    if (!['error', 'pendiente', 'enviado', 'rechazado'].includes(fila.de_estado)) return fila.de_estado;
-    if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
-
-    // El reproceso es sobre la MISMA factura, MISMO número. Si la anterior fue
-    // rechazada se abre un intento nuevo en el log (el número no cambia); el
-    // conector reemite con `numeroReintento`. Si venía en 'error'/'pendiente'
-    // se reusa el intento actual (todavía no se registró un resultado).
-    let numeroReintento = null;
-    if (fila.de_estado === 'rechazado') {
-        await consultaDeEmpresa(
-            empresaId,
-            `UPDATE documentos_electronicos
-                SET intento = intento + 1, estado = 'pendiente', mensaje_error = NULL, actualizado_en = now()
-              WHERE id = $1`,
-            [fila.de_id]
-        );
-        numeroReintento = numeroReintentoDe(fila.de_numero_formateado, fila.de_cdc);
-    }
-
+    // plan.accion === 'emitir'
+    const { fila, viaConector, numeroReintento } = plan;
     const deIdParaEmitir = fila.de_id;
 
     const items = await consultaDeEmpresa(
