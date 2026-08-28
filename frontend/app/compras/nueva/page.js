@@ -39,6 +39,9 @@ export default function NuevaCompra() {
   const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState("");
   const [nuevoProveedorDocumento, setNuevoProveedorDocumento] = useState("");
   const [nuevoProveedorTelefono, setNuevoProveedorTelefono] = useState("");
+  const [sifenConfigurado, setSifenConfigurado] = useState(false);
+  const [buscandoRucProv, setBuscandoRucProv] = useState(false);
+  const [avisoRucProv, setAvisoRucProv] = useState("");
   const [creandoProveedor, setCreandoProveedor] = useState(false);
 
   const [fechaCompra, setFechaCompra] = useState(hoyISO());
@@ -79,7 +82,32 @@ export default function NuevaCompra() {
         setNuevoPagoOrigen(abierto ? "caja" : "administracion");
       })
       .catch(() => {});
+    apiFetch("/api/empresas/sifen")
+      .then((c) => setSifenConfigurado(!!c.configurado && c.via === "conector"))
+      .catch(() => {});
   }, [router]);
+
+  async function buscarRucProveedorRapido() {
+    const numero = (nuevoProveedorDocumento || "").trim();
+    if (!numero) return;
+    setBuscandoRucProv(true);
+    setAvisoRucProv("");
+    setError("");
+    try {
+      const r = await apiFetch(`/api/proveedores/consultar-ruc?numero=${encodeURIComponent(numero)}`);
+      if (r.encontrado) {
+        setNuevoProveedorNombre(r.razonSocial || nuevoProveedorNombre);
+        if (r.documento) setNuevoProveedorDocumento(r.documento);
+        setAvisoRucProv(`${r.razonSocial}${r.estado ? ` · ${r.estado}` : ""}`);
+      } else {
+        setAvisoRucProv("No figura en el padrón de la DNIT — cargá el nombre a mano.");
+      }
+    } catch (err) {
+      setAvisoRucProv(err.message);
+    } finally {
+      setBuscandoRucProv(false);
+    }
+  }
 
   async function ejecutarBusquedaProveedor(q) {
     if (!q) {
@@ -377,31 +405,51 @@ export default function NuevaCompra() {
             {creandoProveedorRapido ? (
               <form onSubmit={crearProveedorRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-4">
                 <p className="mb-3 font-semibold text-slate-700">Proveedor nuevo</p>
+
+                <label className="mb-1 block text-xs text-slate-400">RUC (opcional)</label>
+                <div className="mb-1 flex gap-2">
+                  <input
+                    autoFocus
+                    value={nuevoProveedorDocumento}
+                    onChange={(e) => setNuevoProveedorDocumento(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (sifenConfigurado) buscarRucProveedorRapido();
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
+                  />
+                  {sifenConfigurado && (
+                    <button
+                      type="button"
+                      onClick={buscarRucProveedorRapido}
+                      disabled={buscandoRucProv || !nuevoProveedorDocumento.trim()}
+                      className="shrink-0 rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white hover:bg-navy-2 disabled:opacity-50"
+                    >
+                      {buscandoRucProv ? "Buscando…" : "Buscar"}
+                    </button>
+                  )}
+                </div>
+                {avisoRucProv && <p className="mb-3 text-xs text-slate-500">{avisoRucProv}</p>}
+                {!avisoRucProv && <div className="mb-3" />}
+
                 <label className="mb-1 block text-xs text-slate-400">Nombre / Razón social</label>
                 <input
                   required
-                  autoFocus
                   value={nuevoProveedorNombre}
                   onChange={(e) => setNuevoProveedorNombre(e.target.value)}
                   className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
                 />
-                <div className="mb-3 grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-400">RUC (opcional)</label>
-                    <input
-                      value={nuevoProveedorDocumento}
-                      onChange={(e) => setNuevoProveedorDocumento(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-400">Teléfono (opcional)</label>
-                    <input
-                      value={nuevoProveedorTelefono}
-                      onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
-                    />
-                  </div>
+
+                <div className="mb-3">
+                  <label className="mb-1 block text-xs text-slate-400">Teléfono (opcional)</label>
+                  <input
+                    value={nuevoProveedorTelefono}
+                    onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy"
+                  />
                 </div>
                 <div className="flex gap-2">
                   <button
