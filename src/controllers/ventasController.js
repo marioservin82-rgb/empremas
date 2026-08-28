@@ -570,16 +570,13 @@ export async function crearVenta(req, res) {
         });
 
         if (deParaEmitir) {
-            if (deParaEmitir.via === 'conector') {
-                // Producción = emisión asíncrona (por lote). NO se bloquea la caja:
-                // el DE se emite en segundo plano y el barredor (ver barrerDocumentosPendientes)
-                // lo termina de resolver. La venta se cierra al instante.
-                emitirYActualizarDe({ empresaId, ...deParaEmitir }).catch((e) =>
-                    console.error('[SIFEN] emisión en segundo plano falló:', e?.message)
-                );
-            } else {
-                await emitirYActualizarDe({ empresaId, ...deParaEmitir });
-            }
+            // Se espera SÓLO hasta tener el CDC (envío aceptado por SIFEN): ~6-8s.
+            // La APROBACIÓN final (asíncrona, por lote) la resuelve el barredor de
+            // fondo — la caja no espera eso. Si falla, el DE queda 'error'/'enviado'
+            // y el barredor lo reintenta.
+            await emitirYActualizarDe({ empresaId, ...deParaEmitir }).catch((e) =>
+                console.error('[SIFEN] emisión falló:', e?.message)
+            );
         }
 
         res.status(201).json({ ...venta, tieneDocumentoElectronico: !!deParaEmitir });

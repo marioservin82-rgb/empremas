@@ -39,7 +39,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
   // propia en base a los mismos datos (numero de factura/CDC incluidos) -
   // el documento oficial ante SIFEN sigue siendo el PDF, esto es solo una
   // copia de mostrador con el mismo numero.
-  const [formatoTicket, setFormatoTicket] = useState("a4");
+  const [formatoTicket, setFormatoTicket] = useState("ticket");
 
   // El backend exige el token por header (no hay sesion por cookie), asi
   // que no puede ser un <a href> directo - se pide el PDF ya autenticado.
@@ -107,9 +107,14 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
         if (cancelado) return;
         setVenta(datos);
         intentos += 1;
-        const enCurso = !datos.de_estado || ["pendiente", "en_lote", "enviado"].includes(datos.de_estado);
-        if (enCurso && intentos < 12) {
-          setTimeout(consultar, 5000);
+        // Se deja de refrescar apenas hay CDC (ya se puede imprimir) o si falló.
+        // La confirmación final "aprobado" la resuelve el proceso de fondo — si
+        // la pantalla siguiera consultando, cada re-render CONGELA el diálogo de
+        // impresión abierto en Chrome (por eso el ticket común, que no consulta,
+        // imprime sin problema).
+        const listo = !!datos.de_cdc || ["rechazado", "error"].includes(datos.de_estado);
+        if (!listo && intentos < 25) {
+          setTimeout(consultar, 2500);
         }
       } catch (err) {
         if (!cancelado) setError(err.message);
@@ -156,9 +161,18 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
     return (
       <div className="flex w-full max-w-sm flex-col items-center gap-4">
         {!aprobada && (
-          <p className="text-center text-xs font-semibold text-amber-600">
-            ⏳ SIFEN todavía está confirmando la aprobación final — ya podés imprimir mientras tanto.
-          </p>
+          <div className="text-center">
+            <p className="text-xs font-semibold text-amber-600">
+              ⏳ La aprobación de SIFEN se confirma sola en segundo plano — imprimí y seguí atendiendo.
+            </p>
+            <button
+              onClick={reintentar}
+              disabled={reintentando}
+              className="mt-1 text-xs font-semibold text-navy hover:text-brand disabled:opacity-60"
+            >
+              {reintentando ? "Consultando…" : "🔄 Ver estado ahora"}
+            </button>
+          </div>
         )}
         <div className="flex justify-center gap-2">
           <button
