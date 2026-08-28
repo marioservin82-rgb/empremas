@@ -172,27 +172,35 @@ export default function FacturasElectronicas() {
           <p className="text-slate-500">Todavía no emitiste ninguna Factura Legal en este período.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {facturas.map((f) => (
+            {facturas.map((f) => {
+              const reintentado = f.de_vigente === false; // intento viejo, ya reemplazado
+              return (
               <Link
-                key={f.id}
+                key={f.de_id || f.id}
                 href={`/ventas/${f.id}`}
                 className={`block rounded-2xl bg-white p-5 shadow shadow-slate-200 hover:bg-slate-50 ${
-                  f.anulada ? "opacity-60" : ""
+                  f.anulada || reintentado ? "opacity-60" : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-lg font-bold text-slate-800">
                       {f.de_numero_formateado || `Ticket N° ${f.numero_ticket}`}
+                      {f.de_intento > 1 && (
+                        <span className="ml-2 text-xs font-semibold text-slate-400">intento {f.de_intento}</span>
+                      )}
                       {f.anulada && <span className="ml-2 text-sm font-bold text-red-500">ANULADA</span>}
                     </p>
                     <p className="text-sm text-slate-400">
                       {f.cliente_nombre || "Consumidor Final"} ·{" "}
-                      {new Date(f.creado_en).toLocaleDateString("es-PY")}
+                      {new Date(f.de_creado_en || f.creado_en).toLocaleDateString("es-PY")}
                     </p>
-                    {f.de_estado === "rechazado" || f.de_estado === "error" ? (
-                      <p className="mt-1 text-xs text-red-500">{f.de_mensaje_error}</p>
-                    ) : null}
+                    {(f.de_estado === "rechazado" || f.de_estado === "error") && (
+                      <p className="mt-1 text-xs text-red-500">
+                        {f.de_mensaje_error || "SIFEN no informó el motivo"}
+                        {reintentado && " · se reemitió con un número nuevo"}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-xl font-extrabold text-navy">Gs {formatoGs.format(f.total)}</p>
@@ -206,7 +214,8 @@ export default function FacturasElectronicas() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

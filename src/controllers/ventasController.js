@@ -600,7 +600,7 @@ export async function crearVenta(req, res) {
 export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     const datos = await consultaDeEmpresa(
         empresaId,
-        `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc,
+        `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.intento AS de_intento,
                 v.tipo_pago, v.sucursal_id, v.cliente_id, v.vencimiento,
                 e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
                 e.plazo_credito_dias,
@@ -611,7 +611,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
          JOIN empresas e ON e.id = v.empresa_id
          LEFT JOIN sucursales s ON s.id = v.sucursal_id
          LEFT JOIN clientes c ON c.id = v.cliente_id
-         WHERE de.venta_id = $1`,
+         WHERE de.venta_id = $1 AND de.vigente`,
         [ventaId]
     );
     const fila = datos.rows[0];
@@ -641,6 +641,27 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     if (!['error', 'pendiente', 'enviado', 'rechazado'].includes(fila.de_estado)) return fila.de_estado;
     if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
 
+    // Un intento RECHAZADO se conserva en el historial (número muerto, para
+    // eventual inutilización) y se abre un intento nuevo, que pasa a ser el
+    // vigente. Un intento 'error'/'pendiente'/'enviado-sin-cdc' se reusa tal cual.
+    let deIdParaEmitir = fila.de_id;
+    if (fila.de_estado === 'rechazado') {
+        const nuevo = await consultaDeEmpresa(
+            empresaId,
+            `WITH archivado AS (
+                 UPDATE documentos_electronicos
+                    SET vigente = false, actualizado_en = now()
+                  WHERE id = $1
+              RETURNING empresa_id, venta_id, intento
+             )
+             INSERT INTO documentos_electronicos (empresa_id, venta_id, intento)
+             SELECT empresa_id, venta_id, intento + 1 FROM archivado
+             RETURNING id`,
+            [fila.de_id]
+        );
+        deIdParaEmitir = nuevo.rows[0].id;
+    }
+
     const items = await consultaDeEmpresa(
         empresaId,
         `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", p.nombre, p.tasa_iva
@@ -657,7 +678,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
         via: viaConector ? 'conector' : 'sifende',
         conectorTenantId: fila.sifen_conector_tenant_id,
         empresaId,
-        deId: fila.de_id,
+        deId: deIdParaEmitir,
         apiKey: fila.sifen_api_key,
         establecimiento: fila.sifen_establecimiento,
         puntoExpedicion: fila.punto_expedicion || 1,
@@ -674,7 +695,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     const act = await consultaDeEmpresa(
         empresaId,
         `SELECT estado FROM documentos_electronicos WHERE id = $1`,
-        [fila.de_id]
+        [deIdParaEmitir]
     );
     return act.rows[0]?.estado;
 }
@@ -692,7 +713,7 @@ export async function reintentarSifen(req, res) {
     const actualizado = await consultaDeEmpresa(
         empresaId,
         `SELECT de.estado, de.cdc, de.numero_formateado, de.mensaje_error
-         FROM documentos_electronicos de WHERE de.venta_id = $1`,
+         FROM documentos_electronicos de WHERE de.venta_id = $1 AND de.vigente`,
         [id]
     );
     res.json(actualizado.rows[0]);
@@ -710,7 +731,7 @@ export async function descargarKudeVenta(req, res) {
         `SELECT de.estado, de.cdc, e.sifen_api_key, e.sifen_estado, e.sifen_conector_tenant_id
          FROM documentos_electronicos de
          JOIN empresas e ON e.id = de.empresa_id
-         WHERE de.venta_id = $1`,
+         WHERE de.venta_id = $1 AND de.vigente`,
         [id]
     );
     const fila = datos.rows[0];
@@ -879,13 +900,14 @@ export async function listarFacturasElectronicas(req, res) {
         empresaId,
         `SELECT v.id, v.numero_ticket, v.total, v.creado_en, v.anulada,
                 c.nombre AS cliente_nombre,
-                de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
-                de.mensaje_error AS de_mensaje_error
+                de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc,
+                de.numero_formateado AS de_numero_formateado, de.mensaje_error AS de_mensaje_error,
+                de.intento AS de_intento, de.vigente AS de_vigente, de.creado_en AS de_creado_en
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
          LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
          WHERE ${condiciones.join(' AND ')}
-         ORDER BY v.creado_en DESC LIMIT 200`,
+         ORDER BY COALESCE(de.creado_en, v.creado_en) DESC LIMIT 300`,
         valores
     );
 
@@ -908,7 +930,7 @@ export async function obtenerVenta(req, res) {
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
          LEFT JOIN usuarios u ON u.id = v.anulada_por
-         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
+         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.vigente
          WHERE v.id = $1`,
         [id]
     );

@@ -1320,21 +1320,28 @@ CREATE TYPE estado_documento_electronico AS ENUM
 -- fase. La venta se registra igual aunque Sifende falle/este caido -
 -- queda en estado 'error' con el motivo, reintentable despues (ver
 -- POST /api/ventas/:id/reintentar-sifen) en vez de perderse.
+-- Un intento de emisión por fila. Una factura rechazada por SIFEN se
+-- reintenta creando un intento NUEVO (número nuevo): el rechazado queda en
+-- el historial con vigente=false. Siempre hay exactamente un intento
+-- vigente por venta (ver el índice parcial de más abajo).
 CREATE TABLE documentos_electronicos (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     venta_id            UUID NOT NULL REFERENCES ventas(id),
     tipo                tipo_documento_electronico NOT NULL DEFAULT 'factura_electronica',
     estado              estado_documento_electronico NOT NULL DEFAULT 'pendiente',
+    intento             SMALLINT NOT NULL DEFAULT 1,
+    vigente             BOOLEAN NOT NULL DEFAULT true,
     cdc                 TEXT,
     numero_formateado   TEXT,
     mensaje_error       TEXT,
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
-    actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (venta_id)
+    actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_documentos_electronicos_empresa ON documentos_electronicos (empresa_id);
+CREATE UNIQUE INDEX uq_documentos_electronicos_venta_vigente
+    ON documentos_electronicos (venta_id) WHERE vigente;
 
 ALTER TABLE documentos_electronicos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documentos_electronicos FORCE ROW LEVEL SECURITY;

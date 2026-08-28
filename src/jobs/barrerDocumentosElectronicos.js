@@ -26,7 +26,8 @@ export async function barrerDocumentosElectronicos() {
                 await consultaDeEmpresa(
                     empresa.id,
                     `SELECT venta_id, estado, cdc FROM documentos_electronicos
-                     WHERE creado_en > now() - interval '24 hours'
+                     WHERE vigente
+                       AND creado_en > now() - interval '24 hours'
                        AND (
                             (estado = 'enviado' AND actualizado_en < now() - interval '3 minutes')
                          OR (estado = 'error'   AND actualizado_en < now() - interval '2 minutes')
