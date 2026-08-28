@@ -7,6 +7,7 @@ import { emitirFacturaElectronica, descargarKude, ErrorSifen } from '../services
 import {
     emitirFactura as emitirFacturaConector,
     descargarKude as descargarKudeConector,
+    consultarDocumento as consultarDocumentoConector,
     mapearVentaAConector,
     ErrorConector,
 } from '../services/conectorSifen.js';
@@ -607,10 +608,35 @@ export async function reintentarSifen(req, res) {
     if (!fila) {
         return res.status(404).json({ error: 'Esta venta no tiene un documento electrónico asociado' });
     }
+    const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
+
+    // Documento emitido por lote asíncrono que quedó "en proceso": no se re-emite,
+    // se re-consulta a SIFEN por su CDC (el conector resuelve el lote pendiente).
+    if (fila.de_estado === 'enviado' && viaConector) {
+        const deCdc = await consultaDeEmpresa(empresaId, `SELECT cdc FROM documentos_electronicos WHERE id = $1`, [fila.de_id]);
+        const cdc = deCdc.rows[0]?.cdc;
+        if (!cdc) return res.status(400).json({ error: 'El documento todavía no tiene CDC' });
+        try {
+            const r = await consultarDocumentoConector(cdc);
+            await consultaDeEmpresa(
+                empresaId,
+                `UPDATE documentos_electronicos SET estado = $2, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
+                [fila.de_id, (r.estado || 'enviado').toLowerCase()]
+            );
+        } catch (error) {
+            return res.status(422).json({ error: error.message });
+        }
+        const act = await consultaDeEmpresa(
+            empresaId,
+            `SELECT estado, cdc, numero_formateado, mensaje_error FROM documentos_electronicos WHERE id = $1`,
+            [fila.de_id]
+        );
+        return res.json(act.rows[0]);
+    }
+
     if (fila.de_estado !== 'error') {
         return res.status(400).json({ error: 'Este documento no está en estado de error' });
     }
-    const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
     if (!viaConector && !fila.sifen_api_key) {
         return res.status(400).json({ error: 'SIFEN ya no está configurado para esta empresa' });
     }
