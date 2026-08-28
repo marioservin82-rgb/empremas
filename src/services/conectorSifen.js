@@ -91,15 +91,66 @@ export function consultarDocumento(cdc) {
     return llamar('GET', `/v1/documentos/${cdc}`);
 }
 
+// Consulta un RUC en el padrón de SIFEN (para saber si un receptor es
+// contribuyente antes de emitir). `numero` va sin dígito verificador.
+// Respuesta: { ruc, encontrado, razonSocial, digitoVerificador, estado }.
+export function consultarRuc(tenantId, numero) {
+    const limpio = String(numero).split('-')[0].replace(/\D/g, '');
+    return llamar('GET', `/v1/ruc/${encodeURIComponent(limpio)}?tenantId=${tenantId}`);
+}
+
 export function descargarKude(cdc) {
     return descargar(`/v1/documentos/${cdc}/kude`);
+}
+
+// Clasifica al receptor consultando el padrón de SIFEN cuando el documento
+// tiene pinta de RUC ("numero-DV"). Sin esto, una cédula escrita con dígito
+// ("4659459-0") se manda como RUC y SIFEN RECHAZA el DE porque ese RUC no
+// existe. `tenantId` es obligatorio para poder consultar; si falla la
+// consulta se cae a la heurística (mejor emitir con la duda que no emitir).
+export async function resolverReceptor({ cliente, tenantId }) {
+    const nombre = (cliente?.nombre || '').trim();
+    const doc = (cliente?.documento || '').trim();
+
+    if (cliente?.es_generico || !doc) {
+        return { contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' };
+    }
+    if (!doc.includes('-')) {
+        return { contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' };
+    }
+
+    // Tiene "-": puede ser un RUC real o una cédula escrita con verificador.
+    if (tenantId) {
+        try {
+            const r = await consultarRuc(tenantId, doc);
+            if (r?.encontrado) {
+                return {
+                    contribuyente: true,
+                    ruc: doc,
+                    tipoContribuyente: 1,
+                    razonSocial: r.razonSocial || nombre || 'SIN NOMBRE',
+                };
+            }
+            // Consultado y NO existe -> es una cédula con dígito. Se manda sin el DV.
+            return {
+                contribuyente: false,
+                documentoTipo: 1,
+                documentoNumero: doc.split('-')[0],
+                razonSocial: nombre || 'SIN NOMBRE',
+            };
+        } catch {
+            // El conector/SIFEN no respondió: se sigue con la heurística vieja.
+        }
+    }
+    return mapearReceptor(cliente);
 }
 
 // Traduce una venta de EMPREMAS a la forma que espera POST /v1/documentos/factura.
 // `cliente`: { nombre, documento, es_generico }.  `items`: [{ nombre, cantidad, precioUnitario, tasa_iva }].
 // `venta`: { tipoPago, pagos, plazoCreditoDias, vencimiento }.
-export function mapearVentaAConector({ venta, items, cliente }) {
-    const receptor = mapearReceptor(cliente);
+// `receptor` (opcional): ya resuelto por resolverReceptor(); si no viene se usa la heurística.
+export function mapearVentaAConector({ venta, items, cliente, receptor }) {
+    const receptorFinal = receptor || mapearReceptor(cliente);
     const itemsConector = items.map((it, i) => ({
         codigo: String(it.codigo || it.productoId || i + 1),
         descripcion: it.nombre || 'Producto',
@@ -111,7 +162,7 @@ export function mapearVentaAConector({ venta, items, cliente }) {
 
     const salida = {
         condicionVenta: venta.tipoPago === 'credito' ? 'credito' : 'contado',
-        receptor,
+        receptor: receptorFinal,
         items: itemsConector,
     };
 

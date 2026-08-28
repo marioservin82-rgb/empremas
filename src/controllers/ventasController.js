@@ -9,6 +9,7 @@ import {
     descargarKude as descargarKudeConector,
     consultarDocumento as consultarDocumentoConector,
     mapearVentaAConector,
+    resolverReceptor as resolverReceptorConector,
     ErrorConector,
 } from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
@@ -49,7 +50,11 @@ async function emitirYActualizarDe({
         let numeroFormateado;
 
         if (via === 'conector') {
-            const payload = mapearVentaAConector({ venta, items, cliente });
+            // Se clasifica al receptor contra el padrón de SIFEN: sin esto una
+            // cédula escrita con verificador ("4659459-0") se manda como RUC y
+            // SIFEN rechaza el DE.
+            const receptor = await resolverReceptorConector({ cliente, tenantId: conectorTenantId });
+            const payload = mapearVentaAConector({ venta, items, cliente, receptor });
             const r = await emitirFacturaConector(conectorTenantId, payload);
             estado = (r.estado || 'enviado').toLowerCase();
             cdc = r.cdc;
@@ -613,21 +618,27 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     if (!fila) throw new ErrorNegocio('Esta venta no tiene un documento electrónico asociado');
     const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
 
-    if (fila.de_estado === 'aprobado' || fila.de_estado === 'rechazado') return fila.de_estado;
+    if (fila.de_estado === 'aprobado') return 'aprobado';
 
-    // Ya tiene CDC vía conector (emitido, en trámite por lote): se RE-CONSULTA,
-    // nunca se re-emite (evita duplicar en SIFEN).
-    if (fila.de_cdc && viaConector && fila.de_estado !== 'aprobado') {
+    // En trámite por lote asíncrono (tiene CDC y sigue "enviado"): se RE-CONSULTA,
+    // nunca se re-emite (evita duplicar en SIFEN). Un documento RECHAZADO no entra
+    // acá: su CDC quedó muerto y hay que emitir uno nuevo (abajo).
+    if (fila.de_cdc && viaConector && fila.de_estado === 'enviado') {
         const r = await consultarDocumentoConector(fila.de_cdc);
+        const nuevoEstado = (r.estado || 'enviado').toLowerCase();
+        const motivo = Array.isArray(r.errores) && r.errores.length ? r.errores.join('; ') : null;
         await consultaDeEmpresa(
             empresaId,
-            `UPDATE documentos_electronicos SET estado = $2, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
-            [fila.de_id, (r.estado || 'enviado').toLowerCase()]
+            `UPDATE documentos_electronicos SET estado = $2, mensaje_error = $3, actualizado_en = now() WHERE id = $1`,
+            [fila.de_id, nuevoEstado, nuevoEstado === 'rechazado' ? motivo : null]
         );
-        return (r.estado || 'enviado').toLowerCase();
+        return nuevoEstado;
     }
 
-    if (!['error', 'pendiente', 'enviado'].includes(fila.de_estado)) return fila.de_estado;
+    // 'rechazado' se re-emite de cero: SIFEN lo rechazó, el número anterior no
+    // vale y el conector saca un número nuevo. 'error'/'pendiente' nunca llegaron
+    // a aprobarse. En todos estos casos es seguro reintentar la emisión.
+    if (!['error', 'pendiente', 'enviado', 'rechazado'].includes(fila.de_estado)) return fila.de_estado;
     if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
 
     const items = await consultaDeEmpresa(

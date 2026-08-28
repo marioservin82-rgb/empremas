@@ -97,6 +97,10 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
     }
   }
 
+  // Se incrementa para relanzar el sondeo (p. ej. después de un reintento manual
+  // que volvió a dejar el documento en trámite).
+  const [tick, setTick] = useState(0);
+
   useEffect(() => {
     let cancelado = false;
     let intentos = 0;
@@ -124,7 +128,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
     return () => {
       cancelado = true;
     };
-  }, [ventaId]);
+  }, [ventaId, tick]);
 
   async function reintentar() {
     setReintentando(true);
@@ -133,6 +137,10 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
       await apiFetch(`/api/ventas/${ventaId}/reintentar-sifen`, { method: "POST" });
       const datos = await apiFetch(`/api/ventas/${ventaId}`);
       setVenta(datos);
+      // Si el reintento volvió a mandar el documento a SIFEN, relanzar el sondeo.
+      if (["pendiente", "en_lote", "enviado"].includes(datos.de_estado) && !datos.de_cdc) {
+        setTick((t) => t + 1);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -270,7 +278,19 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
         {estado === "rechazado" && (
           <>
             <p className="mt-3 text-sm font-semibold text-red-600">Rechazada por SIFEN</p>
-            <p className="mt-1 text-xs text-slate-500">{venta.de_mensaje_error}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {venta.de_mensaje_error || "SIFEN no informó el motivo — tocá “Reintentar” para volver a consultar."}
+            </p>
+            <button
+              onClick={reintentar}
+              disabled={reintentando}
+              className="mt-3 rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
+            >
+              {reintentando ? "Reintentando..." : "Reintentar emisión"}
+            </button>
+            <p className="mt-2 text-xs text-slate-400">
+              Vuelve a emitir la factura con un número nuevo. La venta ya quedó registrada.
+            </p>
           </>
         )}
       </div>
@@ -363,6 +383,12 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   );
   if (cliente?.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
   if (cliente?.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
+  lineas.push({ texto: `Condición de venta: ${ETIQUETA_TIPO_PAGO[venta.tipo_pago] || "Contado"}`, negrita: true });
+  if (venta.tipo_pago === "credito" && venta.vencimiento) {
+    lineas.push({
+      texto: `Vencimiento: ${new Date(`${String(venta.vencimiento).slice(0, 10)}T00:00:00`).toLocaleDateString("es-PY")}`,
+    });
+  }
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
     const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
@@ -537,6 +563,13 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         <p className="mb-1 text-sm">Cliente: {cliente?.nombre}</p>
         {cliente?.documento && <p className="text-sm">RUC/CI: {cliente.documento}</p>}
         {cliente?.direccion && <p className="text-sm">Dirección: {cliente.direccion}</p>}
+        <p className="text-sm">Condición de venta: {ETIQUETA_TIPO_PAGO[venta.tipo_pago] || "Contado"}</p>
+        {venta.tipo_pago === "credito" && venta.vencimiento && (
+          <p className="text-sm">
+            Vencimiento:{" "}
+            {new Date(`${String(venta.vencimiento).slice(0, 10)}T00:00:00`).toLocaleDateString("es-PY")}
+          </p>
+        )}
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
