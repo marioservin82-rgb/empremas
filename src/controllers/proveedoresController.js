@@ -296,7 +296,7 @@ export async function extractoProveedor(req, res) {
 
     const compras = await consultaDeEmpresa(
         empresaId,
-        `SELECT id, tipo_pago, total, creado_en FROM compras WHERE proveedor_id = $1 ${whereCompras} ORDER BY creado_en DESC LIMIT 200`,
+        `SELECT id, tipo_pago, total, creado_en, anulada FROM compras WHERE proveedor_id = $1 ${whereCompras} ORDER BY creado_en DESC LIMIT 200`,
         [id, ...valoresCompras]
     );
 
@@ -372,7 +372,7 @@ export async function listaPedido(req, res) {
          FROM compra_items ci
          JOIN compras c ON c.id = ci.compra_id
          JOIN proveedores pr ON pr.id = c.proveedor_id
-         WHERE ci.producto_id = ANY($1::uuid[]) AND pr.activo = true
+         WHERE ci.producto_id = ANY($1::uuid[]) AND pr.activo = true AND NOT c.anulada
          ORDER BY ci.producto_id, c.proveedor_id, c.fecha_compra DESC, c.creado_en DESC`,
         [productoIds]
     );

@@ -1046,6 +1046,8 @@ CREATE TABLE compras (
     empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     proveedor_id    UUID NOT NULL REFERENCES proveedores(id),
     usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    -- Sucursal donde entro el stock (para revertirlo si se anula la compra).
+    sucursal_id     UUID REFERENCES sucursales(id),
     tipo_pago       tipo_pago_compra NOT NULL,
     -- Datos de la factura del proveedor. Quedan NULL si es una "nota
     -- comun" sin factura legal (igual que Nota Comun/Factura Legal en
@@ -1056,6 +1058,11 @@ CREATE TABLE compras (
     -- sigue siendo el momento en que se registro en el sistema.
     fecha_compra    DATE NOT NULL DEFAULT CURRENT_DATE,
     total           NUMERIC(14,2) NOT NULL,
+    -- Anulacion: la fila nunca se borra (auditoria), mismo criterio que ventas.
+    anulada          BOOLEAN NOT NULL DEFAULT false,
+    anulada_en       TIMESTAMPTZ,
+    anulada_por      UUID REFERENCES usuarios(id),
+    motivo_anulacion TEXT,
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

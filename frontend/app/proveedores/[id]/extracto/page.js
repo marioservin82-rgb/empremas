@@ -247,13 +247,20 @@ export default function ExtractoProveedor() {
             ) : (
               <div className="flex flex-col divide-y divide-slate-100">
                 {compras.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-2 text-sm">
+                  <Link
+                    key={c.id}
+                    href={`/compras/${c.id}`}
+                    className={`flex items-center justify-between py-2 text-sm hover:bg-slate-50 ${c.anulada ? "opacity-50" : ""}`}
+                  >
                     <div>
                       <span className="font-medium text-slate-700">{fecha(c.creado_en)}</span>{" "}
                       <span className="text-slate-400">· {ETIQUETA_TIPO_PAGO[c.tipo_pago]}</span>
+                      {c.anulada && <span className="ml-1 font-bold text-red-500">ANULADA</span>}
                     </div>
-                    <span className="font-semibold text-slate-800">Gs {formatoGs.format(c.total)}</span>
-                  </div>
+                    <span className={`font-semibold text-slate-800 ${c.anulada ? "line-through" : ""}`}>
+                      Gs {formatoGs.format(c.total)}
+                    </span>
+                  </Link>
                 ))}
               </div>
             )}

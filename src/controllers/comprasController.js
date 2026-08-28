@@ -108,10 +108,10 @@ export async function crearCompra(req, res) {
             }
 
             const compraInsertada = await cliente.query(
-                `INSERT INTO compras (empresa_id, proveedor_id, usuario_id, tipo_pago, numero_factura, timbrado, fecha_compra, total)
-                 VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_DATE), $8)
+                `INSERT INTO compras (empresa_id, proveedor_id, usuario_id, sucursal_id, tipo_pago, numero_factura, timbrado, fecha_compra, total)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, CURRENT_DATE), $9)
                  RETURNING id, creado_en, fecha_compra`,
-                [empresaId, proveedorId, usuarioId, tipoPago, numeroFactura || null, timbrado || null, fechaCompra || null, total]
+                [empresaId, proveedorId, usuarioId, sucursalId, tipoPago, numeroFactura || null, timbrado || null, fechaCompra || null, total]
             );
             const compraId = compraInsertada.rows[0].id;
 
@@ -194,4 +194,171 @@ export async function listarCompras(req, res) {
     );
 
     res.json(resultado.rows);
+}
+
+// Detalle de una compra (para verla, editarla o anularla).
+export async function obtenerCompra(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const compra = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.*, p.nombre AS proveedor_nombre, u.nombre AS usuario_nombre, ua.nombre AS anulada_por_nombre
+         FROM compras c
+         JOIN proveedores p ON p.id = c.proveedor_id
+         LEFT JOIN usuarios u ON u.id = c.usuario_id
+         LEFT JOIN usuarios ua ON ua.id = c.anulada_por
+         WHERE c.id = $1`,
+        [id]
+    );
+    if (!compra.rows[0]) return res.status(404).json({ error: 'Compra no encontrada' });
+
+    const items = await consultaDeEmpresa(
+        empresaId,
+        `SELECT ci.*, pr.nombre AS producto_nombre
+         FROM compra_items ci JOIN productos pr ON pr.id = ci.producto_id
+         WHERE ci.compra_id = $1`,
+        [id]
+    );
+    const pagos = await consultaDeEmpresa(
+        empresaId,
+        `SELECT forma_pago, monto FROM compra_pagos WHERE compra_id = $1`,
+        [id]
+    );
+
+    res.json({ ...compra.rows[0], items: items.rows, pagos: pagos.rows });
+}
+
+// Anula una compra: revierte el stock que sumó y, si era a crédito, el saldo
+// que le cargó al proveedor. La fila queda marcada (nunca se borra). NO revierte
+// el costo del producto (el promedio ponderado no se puede "deshacer" con
+// exactitud; queda el último costo conocido).
+export async function anularCompra(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const { id } = req.params;
+    const motivo = String(req.body?.motivo || '').trim();
+
+    if (!motivo) return res.status(400).json({ error: 'Indicá el motivo de la anulación' });
+
+    try {
+        await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const compraRes = await cliente.query(
+                `SELECT id, tipo_pago, total, proveedor_id, sucursal_id, usuario_id, anulada
+                 FROM compras WHERE id = $1 FOR UPDATE`,
+                [id]
+            );
+            const compra = compraRes.rows[0];
+            if (!compra) throw new ErrorNegocio('Compra no encontrada');
+            if (compra.anulada) throw new ErrorNegocio('Esta compra ya está anulada');
+
+            // Sucursal donde entró el stock (las viejas sin sucursal_id: la del
+            // usuario que la cargó).
+            let sucursalId = compra.sucursal_id;
+            if (!sucursalId) {
+                const u = await cliente.query(`SELECT sucursal_id FROM usuarios WHERE id = $1`, [compra.usuario_id]);
+                sucursalId = u.rows[0]?.sucursal_id;
+            }
+
+            const items = await cliente.query(
+                `SELECT producto_id, cantidad FROM compra_items WHERE compra_id = $1`,
+                [id]
+            );
+            for (const it of items.rows) {
+                await cliente.query(
+                    `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,
+                    [it.producto_id, sucursalId, it.cantidad]
+                );
+            }
+
+            if (compra.tipo_pago === 'credito') {
+                await cliente.query(
+                    `UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`,
+                    [compra.proveedor_id, compra.total]
+                );
+            }
+
+            await cliente.query(
+                `UPDATE compras
+                    SET anulada = true, anulada_en = now(), anulada_por = $2, motivo_anulacion = $3
+                  WHERE id = $1`,
+                [id, usuarioId, motivo]
+            );
+        });
+        res.json({ ok: true });
+    } catch (error) {
+        if (error instanceof ErrorNegocio) return res.status(400).json({ error: error.message });
+        throw error;
+    }
+}
+
+// Corrige los datos de una compra ya registrada SIN tocar los ítems: fecha,
+// número/timbrado de factura y forma de pago (contado <-> crédito, ajustando
+// el saldo del proveedor y los pagos). Para cambiar los productos hay que
+// anular y volver a cargar.
+export async function editarCompra(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const b = req.body || {};
+
+    try {
+        const compra = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const actualRes = await cliente.query(
+                `SELECT id, tipo_pago, total, proveedor_id, anulada FROM compras WHERE id = $1 FOR UPDATE`,
+                [id]
+            );
+            const actual = actualRes.rows[0];
+            if (!actual) throw new ErrorNegocio('Compra no encontrada');
+            if (actual.anulada) throw new ErrorNegocio('No se puede editar una compra anulada');
+
+            const nuevoTipo = b.tipoPago !== undefined ? b.tipoPago : actual.tipo_pago;
+            if (!['contado', 'credito'].includes(nuevoTipo)) {
+                throw new ErrorNegocio('tipoPago debe ser contado o credito');
+            }
+
+            // Cambio de forma de pago -> ajustar saldo del proveedor y pagos.
+            if (nuevoTipo !== actual.tipo_pago) {
+                if (nuevoTipo === 'contado') {
+                    validarPagos(b.pagos, Number(actual.total));
+                    await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
+                    for (const p of b.pagos) {
+                        await cliente.query(
+                            `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
+                            [empresaId, id, p.formaPago, p.monto]
+                        );
+                    }
+                    // Era crédito: se le saca del saldo lo que se le había cargado.
+                    await cliente.query(`UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`, [actual.proveedor_id, actual.total]);
+                } else {
+                    // Pasa a crédito: se elimina el detalle de pagos y se carga al saldo.
+                    await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
+                    await cliente.query(`UPDATE proveedores SET saldo = saldo + $2 WHERE id = $1`, [actual.proveedor_id, actual.total]);
+                }
+            }
+
+            await cliente.query(
+                `UPDATE compras SET
+                    tipo_pago = $2,
+                    fecha_compra = COALESCE($3, fecha_compra),
+                    numero_factura = CASE WHEN $4::boolean THEN $5 ELSE numero_factura END,
+                    timbrado       = CASE WHEN $6::boolean THEN $7 ELSE timbrado END
+                 WHERE id = $1`,
+                [
+                    id,
+                    nuevoTipo,
+                    b.fechaCompra || null,
+                    b.numeroFactura !== undefined,
+                    b.numeroFactura || null,
+                    b.timbrado !== undefined,
+                    b.timbrado || null,
+                ]
+            );
+
+            const r = await cliente.query(`SELECT * FROM compras WHERE id = $1`, [id]);
+            return r.rows[0];
+        });
+        res.json(compra);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) return res.status(400).json({ error: error.message });
+        throw error;
+    }
 }

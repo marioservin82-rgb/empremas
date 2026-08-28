@@ -61,6 +61,7 @@ export default function NuevaCompra() {
 
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
+  const [ultimaCompraId, setUltimaCompraId] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -283,6 +284,7 @@ export default function NuevaCompra() {
         }),
       });
       setExito(`Compra registrada — total Gs ${formatoGs.format(compra.total)}`);
+      setUltimaCompraId(compra.id);
       setCarrito([]);
       setProveedor(null);
       setPagos([]);
@@ -319,7 +321,17 @@ export default function NuevaCompra() {
         )}
 
         {exito && (
-          <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{exito}</p>
+          <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <p>{exito}</p>
+            {ultimaCompraId && (
+              <Link
+                href={`/compras/${ultimaCompraId}`}
+                className="mt-1 inline-block font-semibold text-emerald-700 underline hover:text-emerald-900"
+              >
+                Ver / editar / anular esta compra →
+              </Link>
+            )}
+          </div>
         )}
 
         {!proveedor ? (
