@@ -1316,14 +1316,12 @@ CREATE TYPE tipo_documento_electronico AS ENUM ('factura_electronica');
 CREATE TYPE estado_documento_electronico AS ENUM
     ('pendiente', 'en_lote', 'enviado', 'aprobado', 'rechazado', 'error');
 
--- Un documento electronico por venta (por eso UNIQUE (venta_id)) en esta
--- fase. La venta se registra igual aunque Sifende falle/este caido -
--- queda en estado 'error' con el motivo, reintentable despues (ver
--- POST /api/ventas/:id/reintentar-sifen) en vez de perderse.
--- Un intento de emisión por fila. Una factura rechazada por SIFEN se
--- reintenta creando un intento NUEVO (número nuevo): el rechazado queda en
--- el historial con vigente=false. Siempre hay exactamente un intento
--- vigente por venta (ver el índice parcial de más abajo).
+-- Un documento electronico por venta (UNIQUE venta_id). La factura conserva
+-- SU numero durante toda su vida: si SIFEN la rechaza, el reproceso se hace
+-- con el mismo numero (ver POST /api/ventas/:id/reintentar-sifen). Cada
+-- intento de emision queda registrado en documento_electronico_intentos.
+-- `intento` = numero del ultimo intento. Los importes de IVA (gravado_*,
+-- iva_*) son los que quedaron en el XML/KuDE, para el ticket propio.
 CREATE TABLE documentos_electronicos (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
@@ -1331,22 +1329,48 @@ CREATE TABLE documentos_electronicos (
     tipo                tipo_documento_electronico NOT NULL DEFAULT 'factura_electronica',
     estado              estado_documento_electronico NOT NULL DEFAULT 'pendiente',
     intento             SMALLINT NOT NULL DEFAULT 1,
-    vigente             BOOLEAN NOT NULL DEFAULT true,
     cdc                 TEXT,
     numero_formateado   TEXT,
     mensaje_error       TEXT,
+    gravado_5           NUMERIC(14,2),
+    gravado_10          NUMERIC(14,2),
+    exentas             NUMERIC(14,2),
+    iva_5               NUMERIC(14,2),
+    iva_10              NUMERIC(14,2),
+    total_iva           NUMERIC(14,2),
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
-    actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+    actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (venta_id)
 );
 
 CREATE INDEX idx_documentos_electronicos_empresa ON documentos_electronicos (empresa_id);
-CREATE UNIQUE INDEX uq_documentos_electronicos_venta_vigente
-    ON documentos_electronicos (venta_id) WHERE vigente;
 
 ALTER TABLE documentos_electronicos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documentos_electronicos FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY documentos_electronicos_aislamiento ON documentos_electronicos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Log de cada intento de emision de un documento electronico (el primero y
+-- cada reproceso). El numero de la factura no cambia entre intentos.
+CREATE TABLE documento_electronico_intentos (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id     UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    documento_id   UUID NOT NULL REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
+    intento        SMALLINT NOT NULL,
+    estado         estado_documento_electronico NOT NULL,
+    cdc            TEXT,
+    codigo         TEXT,
+    mensaje        TEXT,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (documento_id, intento)
+);
+CREATE INDEX idx_de_intentos_empresa ON documento_electronico_intentos (empresa_id);
+CREATE INDEX idx_de_intentos_doc ON documento_electronico_intentos (documento_id);
+ALTER TABLE documento_electronico_intentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documento_electronico_intentos FORCE ROW LEVEL SECURITY;
+CREATE POLICY de_intentos_aislamiento ON documento_electronico_intentos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 CREATE INDEX idx_pagos_plataforma_empresa ON pagos_plataforma (empresa_id);

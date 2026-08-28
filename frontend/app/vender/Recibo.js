@@ -25,6 +25,49 @@ const ETIQUETA_TIPO_PAGO = {
   mayorista: "Mayorista",
 };
 
+const ETIQUETA_ESTADO_DE = {
+  pendiente: "Enviando…",
+  en_lote: "Enviando…",
+  enviado: "En trámite",
+  aprobado: "Aprobada",
+  rechazado: "Rechazada",
+  error: "Error de envío",
+};
+
+// Historial de intentos de emisión (el primero + cada reproceso). Sólo se
+// muestra si hubo más de un intento — así el caso normal (aprobada al toque)
+// no agrega ruido.
+function HistorialIntentos({ intentos }) {
+  if (!Array.isArray(intentos) || intentos.length < 2) return null;
+  return (
+    <div className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-xs">
+      <p className="mb-1 font-semibold text-slate-500">Intentos de emisión</p>
+      <ul className="flex flex-col gap-1">
+        {intentos.map((it) => (
+          <li key={it.intento} className="flex flex-col">
+            <span>
+              <span className="font-semibold">#{it.intento}</span>{" "}
+              <span
+                className={
+                  it.estado === "aprobado"
+                    ? "text-emerald-600"
+                    : ["rechazado", "error"].includes(it.estado)
+                      ? "text-red-600"
+                      : "text-amber-600"
+                }
+              >
+                {ETIQUETA_ESTADO_DE[it.estado] || it.estado}
+              </span>{" "}
+              <span className="text-slate-400">{new Date(it.creado_en).toLocaleString("es-PY")}</span>
+            </span>
+            {it.mensaje && <span className="text-slate-500">{it.mensaje}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // Consulta el estado del documento electronico de una venta cada 5s
 // (recomendacion de Sifende) hasta que quede aprobado/rechazado, o hasta
 // 1 minuto sin resolverse.
@@ -201,6 +244,8 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
           </button>
         </div>
 
+        <HistorialIntentos intentos={venta.intentos} />
+
         {formatoTicket === "a4" ? (
           <div className="w-full rounded-2xl bg-white p-6 text-center shadow shadow-slate-200">
             <p className="text-sm text-slate-400">Factura Legal</p>
@@ -289,11 +334,13 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
               {reintentando ? "Reintentando..." : "Reintentar emisión"}
             </button>
             <p className="mt-2 text-xs text-slate-400">
-              Vuelve a emitir la factura con un número nuevo. La venta ya quedó registrada.
+              Vuelve a emitir la factura {venta.de_numero_formateado ? `N° ${venta.de_numero_formateado} ` : ""}
+              con el mismo número. La venta ya quedó registrada.
             </p>
           </>
         )}
       </div>
+      <HistorialIntentos intentos={venta.intentos} />
       <button onClick={onNuevaVenta} className="text-sm font-semibold text-navy hover:text-brand">
         + Nueva venta
       </button>
@@ -331,6 +378,22 @@ function lineasEmisorLegal(empresa) {
   const inicio = fechaCorta(empresa?.sifen_timbrado_inicio);
   if (inicio) lineas.push({ texto: `Inicio de vigencia: ${inicio}` });
   return lineas;
+}
+
+// Desglose de IVA obligatorio al pie de la factura (KuDE): monto gravado por
+// tasa y monto de IVA por tasa. `d` = venta.desglose_iva (lo devuelve el
+// backend con los valores que quedaron en el XML). Devuelve [] si no hay datos.
+function filasDesgloseIVA(d) {
+  if (!d) return [];
+  const f = [];
+  const gs = (n) => `Gs ${formatoGs.format(Math.round(Number(n) || 0))}`;
+  if (d.gravado5 > 0) f.push({ etiqueta: "Gravado 5%", valor: gs(d.gravado5) });
+  if (d.gravado10 > 0) f.push({ etiqueta: "Gravado 10%", valor: gs(d.gravado10) });
+  if (d.exentas > 0) f.push({ etiqueta: "Exentas", valor: gs(d.exentas) });
+  if (d.iva5 > 0) f.push({ etiqueta: "IVA 5%", valor: gs(d.iva5) });
+  if (d.iva10 > 0) f.push({ etiqueta: "IVA 10%", valor: gs(d.iva10) });
+  if (d.totalIva > 0) f.push({ etiqueta: "Total IVA", valor: gs(d.totalIva), negrita: true });
+  return f;
 }
 
 // Mensaje de agradecimiento + firma/sello segun tipo de pago: contado (y
@@ -397,9 +460,13 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
       { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
     );
   }
+  lineas.push(SEPARADOR);
+  for (const fila of filasDesgloseIVA(venta.desglose_iva)) {
+    lineas.push({ texto: `${fila.etiqueta}: ${fila.valor}`, negrita: fila.negrita });
+  }
   lineas.push(
     SEPARADOR,
-    { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true },
+    { texto: `TOTAL: Gs ${formatoGs.format(venta.total)}`, negrita: true },
     SEPARADOR,
     { texto: `CDC: ${venta.de_cdc}` },
     { texto: "Factura Electrónica — documento tributario legal", alineacion: "centro" },
@@ -588,8 +655,17 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
+        {filasDesgloseIVA(venta.desglose_iva).map((fila) => (
+          <div key={fila.etiqueta} className={`flex justify-between text-sm ${fila.negrita ? "font-bold" : ""}`}>
+            <span>{fila.etiqueta}</span>
+            <span>{fila.valor}</span>
+          </div>
+        ))}
+
+        <div className="my-2 border-t-2 border-dashed border-slate-300" />
+
         <div className="flex justify-between text-2xl">
-          <span>Total</span>
+          <span>TOTAL</span>
           <span>Gs {formatoGs.format(venta.total)}</span>
         </div>
 

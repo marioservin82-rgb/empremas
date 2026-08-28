@@ -34,6 +34,29 @@ const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_de
 // no en esta lista fija, porque depende de cada empresa.
 const TIPOS_COMPROBANTE_DISPONIBLES = ['ticket_comun', 'a4', 'sin_comprobante'];
 
+// Deriva el número de 7 díg. para el conector desde el número formateado
+// ("001-001-0000322" -> "0000322") o el CDC.
+function numeroReintentoDe(numeroFormateado, cdc) {
+    if (numeroFormateado && numeroFormateado.includes('-')) return numeroFormateado.split('-')[2];
+    if (cdc && cdc.length >= 24) return cdc.slice(17, 24);
+    return null;
+}
+
+// Registra (o actualiza) un intento de emisión en el log. `codigo` se saca del
+// mensaje si viene con el formato "2377 - ...".
+async function registrarIntento(empresaId, deId, intento, estado, cdc, mensaje) {
+    const codigo = mensaje ? (mensaje.match(/^(\d{3,4})\s*-\s*/) || [])[1] || null : null;
+    await consultaDeEmpresa(
+        empresaId,
+        `INSERT INTO documento_electronico_intentos (empresa_id, documento_id, intento, estado, cdc, codigo, mensaje)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (documento_id, intento)
+           DO UPDATE SET estado = EXCLUDED.estado, cdc = EXCLUDED.cdc, codigo = EXCLUDED.codigo,
+                         mensaje = EXCLUDED.mensaje, actualizado_en = now()`,
+        [empresaId, deId, intento, estado, cdc, codigo, mensaje]
+    );
+}
+
 // Actualiza el documento electronico de una venta con el resultado de la
 // emision - se llama FUERA de la transaccion de la venta a proposito: un
 // problema de SIFEN no debe hacer perder la venta ya registrada, solo deja
@@ -41,13 +64,25 @@ const TIPOS_COMPROBANTE_DISPONIBLES = ['ticket_comun', 'a4', 'sin_comprobante'];
 //
 // `via`: 'conector' (EMPREMAS-SIFEN propio, empresas en produccion) o
 // 'sifende' (proveedor tercero, camino legacy).
+// `numeroReintento`: si viene, el conector reemite con ESE número (factura
+// rechazada que se reprocesa manteniendo su número original).
 async function emitirYActualizarDe({
     empresaId, deId, via, conectorTenantId, apiKey, establecimiento, puntoExpedicion, venta, items, cliente,
+    numeroReintento = null,
 }) {
+    // Número del intento actual (para el log). El DE ya existe siempre acá.
+    const intentoRes = await consultaDeEmpresa(
+        empresaId,
+        `SELECT intento FROM documentos_electronicos WHERE id = $1`,
+        [deId]
+    );
+    const intento = intentoRes.rows[0]?.intento || 1;
+
     try {
         let estado;
         let cdc;
         let numeroFormateado;
+        let totales = null;
 
         if (via === 'conector') {
             // Se clasifica al receptor contra el padrón de SIFEN: sin esto una
@@ -55,16 +90,23 @@ async function emitirYActualizarDe({
             // SIFEN rechaza el DE.
             const receptor = await resolverReceptorConector({ cliente, tenantId: conectorTenantId });
             const payload = mapearVentaAConector({ venta, items, cliente, receptor });
-            const r = await emitirFacturaConector(conectorTenantId, payload);
+            const r = await emitirFacturaConector(conectorTenantId, payload, numeroReintento);
             estado = (r.estado || 'enviado').toLowerCase();
             cdc = r.cdc;
             numeroFormateado = numeroDesdeCdc(r.cdc);
+            totales = r.totales || null;
             if (Array.isArray(r.errores) && r.errores.length && estado !== 'aprobado') {
+                const motivo = r.errores.join('; ');
                 await consultaDeEmpresa(
                     empresaId,
-                    `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = $5, actualizado_en = now() WHERE id = $1`,
-                    [deId, estado || 'rechazado', cdc, numeroFormateado, r.errores.join('; ')]
+                    `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = $5,
+                        gravado_5 = $6, gravado_10 = $7, exentas = $8, iva_5 = $9, iva_10 = $10, total_iva = $11,
+                        actualizado_en = now() WHERE id = $1`,
+                    [deId, estado || 'rechazado', cdc, numeroFormateado, motivo,
+                     totales?.gravado5 ?? null, totales?.gravado10 ?? null, totales?.exentas ?? null,
+                     totales?.iva5 ?? null, totales?.iva10 ?? null, totales?.totalIva ?? null]
                 );
+                await registrarIntento(empresaId, deId, intento, estado || 'rechazado', cdc, motivo);
                 return;
             }
         } else {
@@ -76,9 +118,15 @@ async function emitirYActualizarDe({
 
         await consultaDeEmpresa(
             empresaId,
-            `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
-            [deId, estado, cdc, numeroFormateado]
+            `UPDATE documentos_electronicos SET estado = $2, cdc = $3, numero_formateado = $4, mensaje_error = NULL,
+                gravado_5 = COALESCE($5, gravado_5), gravado_10 = COALESCE($6, gravado_10), exentas = COALESCE($7, exentas),
+                iva_5 = COALESCE($8, iva_5), iva_10 = COALESCE($9, iva_10), total_iva = COALESCE($10, total_iva),
+                actualizado_en = now() WHERE id = $1`,
+            [deId, estado, cdc, numeroFormateado,
+             totales?.gravado5 ?? null, totales?.gravado10 ?? null, totales?.exentas ?? null,
+             totales?.iva5 ?? null, totales?.iva10 ?? null, totales?.totalIva ?? null]
         );
+        await registrarIntento(empresaId, deId, intento, estado, cdc, null);
     } catch (error) {
         const mensaje =
             error instanceof ErrorSifen || error instanceof ErrorConector
@@ -89,6 +137,7 @@ async function emitirYActualizarDe({
             `UPDATE documentos_electronicos SET estado = 'error', mensaje_error = $2, actualizado_en = now() WHERE id = $1`,
             [deId, mensaje]
         );
+        await registrarIntento(empresaId, deId, intento, 'error', null, mensaje);
     }
 }
 
@@ -595,12 +644,15 @@ export async function crearVenta(req, res) {
 
 // Resuelve el documento electrónico de una venta según su estado actual:
 //  - 'enviado' vía conector (lote en trámite) -> re-consulta por CDC.
-//  - 'error' / 'pendiente'                    -> re-emite.
+//  - 'error' / 'pendiente' / 'rechazado'      -> re-emite (rechazado mantiene
+//    su MISMO número; error/pendiente reusan el número ya asignado).
+// Cada emisión queda en el log documento_electronico_intentos.
 // Lo usa el botón "reintentar" y el barredor de fondo (barrerDocumentosElectronicos).
 export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     const datos = await consultaDeEmpresa(
         empresaId,
         `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.intento AS de_intento,
+                de.numero_formateado AS de_numero_formateado,
                 v.tipo_pago, v.sucursal_id, v.cliente_id, v.vencimiento,
                 e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
                 e.plazo_credito_dias,
@@ -611,7 +663,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
          JOIN empresas e ON e.id = v.empresa_id
          LEFT JOIN sucursales s ON s.id = v.sucursal_id
          LEFT JOIN clientes c ON c.id = v.cliente_id
-         WHERE de.venta_id = $1 AND de.vigente`,
+         WHERE de.venta_id = $1`,
         [ventaId]
     );
     const fila = datos.rows[0];
@@ -621,8 +673,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     if (fila.de_estado === 'aprobado') return 'aprobado';
 
     // En trámite por lote asíncrono (tiene CDC y sigue "enviado"): se RE-CONSULTA,
-    // nunca se re-emite (evita duplicar en SIFEN). Un documento RECHAZADO no entra
-    // acá: su CDC quedó muerto y hay que emitir uno nuevo (abajo).
+    // nunca se re-emite (evita duplicar en SIFEN).
     if (fila.de_cdc && viaConector && fila.de_estado === 'enviado') {
         const r = await consultarDocumentoConector(fila.de_cdc);
         const nuevoEstado = (r.estado || 'enviado').toLowerCase();
@@ -632,35 +683,30 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
             `UPDATE documentos_electronicos SET estado = $2, mensaje_error = $3, actualizado_en = now() WHERE id = $1`,
             [fila.de_id, nuevoEstado, nuevoEstado === 'rechazado' ? motivo : null]
         );
+        await registrarIntento(empresaId, fila.de_id, fila.de_intento || 1, nuevoEstado, fila.de_cdc, motivo);
         return nuevoEstado;
     }
 
-    // 'rechazado' se re-emite de cero: SIFEN lo rechazó, el número anterior no
-    // vale y el conector saca un número nuevo. 'error'/'pendiente' nunca llegaron
-    // a aprobarse. En todos estos casos es seguro reintentar la emisión.
     if (!['error', 'pendiente', 'enviado', 'rechazado'].includes(fila.de_estado)) return fila.de_estado;
     if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
 
-    // Un intento RECHAZADO se conserva en el historial (número muerto, para
-    // eventual inutilización) y se abre un intento nuevo, que pasa a ser el
-    // vigente. Un intento 'error'/'pendiente'/'enviado-sin-cdc' se reusa tal cual.
-    let deIdParaEmitir = fila.de_id;
+    // El reproceso es sobre la MISMA factura, MISMO número. Si la anterior fue
+    // rechazada se abre un intento nuevo en el log (el número no cambia); el
+    // conector reemite con `numeroReintento`. Si venía en 'error'/'pendiente'
+    // se reusa el intento actual (todavía no se registró un resultado).
+    let numeroReintento = null;
     if (fila.de_estado === 'rechazado') {
-        const nuevo = await consultaDeEmpresa(
+        await consultaDeEmpresa(
             empresaId,
-            `WITH archivado AS (
-                 UPDATE documentos_electronicos
-                    SET vigente = false, actualizado_en = now()
-                  WHERE id = $1
-              RETURNING empresa_id, venta_id, intento
-             )
-             INSERT INTO documentos_electronicos (empresa_id, venta_id, intento)
-             SELECT empresa_id, venta_id, intento + 1 FROM archivado
-             RETURNING id`,
+            `UPDATE documentos_electronicos
+                SET intento = intento + 1, estado = 'pendiente', mensaje_error = NULL, actualizado_en = now()
+              WHERE id = $1`,
             [fila.de_id]
         );
-        deIdParaEmitir = nuevo.rows[0].id;
+        numeroReintento = numeroReintentoDe(fila.de_numero_formateado, fila.de_cdc);
     }
+
+    const deIdParaEmitir = fila.de_id;
 
     const items = await consultaDeEmpresa(
         empresaId,
@@ -679,6 +725,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
         conectorTenantId: fila.sifen_conector_tenant_id,
         empresaId,
         deId: deIdParaEmitir,
+        numeroReintento,
         apiKey: fila.sifen_api_key,
         establecimiento: fila.sifen_establecimiento,
         puntoExpedicion: fila.punto_expedicion || 1,
@@ -713,7 +760,7 @@ export async function reintentarSifen(req, res) {
     const actualizado = await consultaDeEmpresa(
         empresaId,
         `SELECT de.estado, de.cdc, de.numero_formateado, de.mensaje_error
-         FROM documentos_electronicos de WHERE de.venta_id = $1 AND de.vigente`,
+         FROM documentos_electronicos de WHERE de.venta_id = $1`,
         [id]
     );
     res.json(actualizado.rows[0]);
@@ -731,7 +778,7 @@ export async function descargarKudeVenta(req, res) {
         `SELECT de.estado, de.cdc, e.sifen_api_key, e.sifen_estado, e.sifen_conector_tenant_id
          FROM documentos_electronicos de
          JOIN empresas e ON e.id = de.empresa_id
-         WHERE de.venta_id = $1 AND de.vigente`,
+         WHERE de.venta_id = $1`,
         [id]
     );
     const fila = datos.rows[0];
@@ -902,12 +949,16 @@ export async function listarFacturasElectronicas(req, res) {
                 c.nombre AS cliente_nombre,
                 de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc,
                 de.numero_formateado AS de_numero_formateado, de.mensaje_error AS de_mensaje_error,
-                de.intento AS de_intento, de.vigente AS de_vigente, de.creado_en AS de_creado_en
+                de.intento AS de_intento,
+                -- cuántos intentos previos terminaron rechazados/error (para mostrar "reprocesada")
+                (SELECT count(*) FROM documento_electronico_intentos i
+                  WHERE i.documento_id = de.id AND i.intento < de.intento
+                    AND i.estado IN ('rechazado', 'error')) AS de_rechazos_previos
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
          LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
          WHERE ${condiciones.join(' AND ')}
-         ORDER BY COALESCE(de.creado_en, v.creado_en) DESC LIMIT 300`,
+         ORDER BY v.creado_en DESC LIMIT 300`,
         valores
     );
 
@@ -925,17 +976,31 @@ export async function obtenerVenta(req, res) {
         `SELECT v.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.celular AS cliente_celular,
                 c.direccion AS cliente_direccion,
                 u.nombre AS anulada_por_nombre,
-                de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
-                de.mensaje_error AS de_mensaje_error
+                de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
+                de.mensaje_error AS de_mensaje_error, de.intento AS de_intento,
+                de.gravado_5, de.gravado_10, de.exentas AS de_exentas,
+                de.iva_5, de.iva_10, de.total_iva
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
          LEFT JOIN usuarios u ON u.id = v.anulada_por
-         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.vigente
+         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
          WHERE v.id = $1`,
         [id]
     );
     if (!venta.rows[0]) {
         return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    // Historial de intentos de emisión del documento electrónico (si tiene).
+    let intentos = [];
+    if (venta.rows[0].de_id) {
+        const intentosRes = await consultaDeEmpresa(
+            empresaId,
+            `SELECT intento, estado, cdc, codigo, mensaje, creado_en, actualizado_en
+             FROM documento_electronico_intentos WHERE documento_id = $1 ORDER BY intento`,
+            [venta.rows[0].de_id]
+        );
+        intentos = intentosRes.rows;
     }
 
     const items = await consultaDeEmpresa(
@@ -953,7 +1018,23 @@ export async function obtenerVenta(req, res) {
         [id]
     );
 
-    res.json({ ...venta.rows[0], items: items.rows, pagos: pagos.rows });
+    const f = venta.rows[0];
+    // Desglose de IVA que quedó en el XML/KuDE (para el ticket). Si el conector
+    // todavía no lo devolvió (o es camino Sifende), queda en null y el ticket
+    // simplemente no lo muestra.
+    const desgloseIva =
+        f.total_iva != null || f.gravado_5 != null || f.gravado_10 != null
+            ? {
+                  gravado5: Number(f.gravado_5 || 0),
+                  gravado10: Number(f.gravado_10 || 0),
+                  exentas: Number(f.de_exentas || 0),
+                  iva5: Number(f.iva_5 || 0),
+                  iva10: Number(f.iva_10 || 0),
+                  totalIva: Number(f.total_iva || 0),
+              }
+            : null;
+
+    res.json({ ...f, items: items.rows, pagos: pagos.rows, intentos, desglose_iva: desgloseIva });
 }
 
 // Anula una venta: revierte el stock vendido y, si era fiado, el saldo que

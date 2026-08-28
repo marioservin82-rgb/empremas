@@ -82,9 +82,13 @@ export function obtenerHomologacion(tenantId) {
 // ---------- Emisión de documentos ----------
 
 // Emite una Factura Electrónica. `venta` ya viene con la forma que espera el
-// conector (ver mapearVentaAConector). Respuesta: { cdc, estado, protocoloAutorizacion, errores }.
-export function emitirFactura(tenantId, venta) {
-    return llamar('POST', '/v1/documentos/factura', { tenantId, venta });
+// conector (ver mapearVentaAConector). `numeroReintento` (7 díg. o
+// "001-001-0000322") reemite una factura rechazada con SU número original.
+// Respuesta: { cdc, estado, protocoloAutorizacion, errores, totales }.
+export function emitirFactura(tenantId, venta, numeroReintento) {
+    const cuerpo = { tenantId, venta };
+    if (numeroReintento) cuerpo.numeroReintento = String(numeroReintento);
+    return llamar('POST', '/v1/documentos/factura', cuerpo);
 }
 
 export function consultarDocumento(cdc) {
