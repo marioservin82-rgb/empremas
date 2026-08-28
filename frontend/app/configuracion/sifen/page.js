@@ -135,12 +135,57 @@ export default function ConfiguracionSifen() {
           <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver
           </Link>
-          <h1 className="text-2xl font-bold text-navy">Facturación electrónica</h1>
+          <h1 className="text-2xl font-bold text-navy">Documentos electrónicos</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Conectá EMPREMAS con Sifende para poder emitir Factura Legal (SIFEN).
+            Facturas, remisiones y notas electrónicas (SIFEN).
           </p>
         </div>
 
+        {config.configurado && (
+          <div className="mb-6 rounded-2xl bg-white p-4 shadow shadow-slate-200">
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/ventas/facturas-electronicas"
+                className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Facturas emitidas →
+              </Link>
+              {config.documentos?.remision && (
+                <Link
+                  href="/documentos/remision"
+                  className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Nueva remisión →
+                </Link>
+              )}
+              {config.documentos?.nc_nd && (
+                <Link
+                  href="/documentos/notas"
+                  className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Notas de crédito / débito →
+                </Link>
+              )}
+              {config.documentos?.autofactura && (
+                <Link
+                  href="/documentos/autofactura"
+                  className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Autofactura →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {config.via === "conector" ? (
+          <div className="rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              Facturación electrónica activa. La configuración fiscal (timbrado, certificado) la
+              administra el soporte de EMPREMAS.
+            </p>
+          </div>
+        ) : (
         <div className="rounded-2xl bg-white p-6 shadow shadow-slate-200">
           {config.configurado ? (
             <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -202,6 +247,7 @@ export default function ConfiguracionSifen() {
             </button>
           </form>
         </div>
+        )}
 
         <div className="mt-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
           <h2 className="mb-1 text-lg font-bold text-slate-800">Logo de la empresa</h2>

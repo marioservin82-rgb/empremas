@@ -64,7 +64,8 @@ export async function obtenerConfigSifen(req, res) {
     const { empresaId } = req.usuario;
 
     const resultado = await pool.query(
-        `SELECT sifen_api_key, sifen_establecimiento, telefono, direccion, sifen_estado
+        `SELECT sifen_api_key, sifen_establecimiento, telefono, direccion, sifen_estado,
+                sifen_remision, sifen_nc_nd, sifen_autofactura
          FROM empresas WHERE id = $1`,
         [empresaId]
     );
@@ -81,6 +82,13 @@ export async function obtenerConfigSifen(req, res) {
         establecimiento: fila?.sifen_establecimiento ?? 1,
         telefono: fila?.telefono ?? null,
         direccion: fila?.direccion ?? null,
+        // Documentos electrónicos habilitados (plus del plan).
+        documentos: {
+            factura: porConector,
+            remision: !!fila?.sifen_remision,
+            nc_nd: !!fila?.sifen_nc_nd,
+            autofactura: !!fila?.sifen_autofactura,
+        },
     });
 }
 

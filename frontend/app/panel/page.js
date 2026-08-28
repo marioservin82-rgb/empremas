@@ -112,7 +112,7 @@ export default function Panel() {
           )}
           {yo?.rol === "dueno" && (
             <Link href="/configuracion/sifen" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-              Facturación electrónica
+              Documentos electrónicos
             </Link>
           )}
           {yo?.rol === "dueno" && (

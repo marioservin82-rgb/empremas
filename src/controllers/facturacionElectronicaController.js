@@ -13,7 +13,8 @@ const CSC_TEST = { idCsc: '0001', csc: 'ABCD0000000000000000000000000000' };
 async function empresaBase(id) {
     const { rows } = await pool.query(
         `SELECT id, razon_social, ruc, telefono, email, direccion,
-                sifen_conector_tenant_id, sifen_estado, sifen_ambiente
+                sifen_conector_tenant_id, sifen_estado, sifen_ambiente,
+                sifen_remision, sifen_nc_nd, sifen_autofactura
          FROM empresas WHERE id = $1`,
         [id]
     );
@@ -28,6 +29,14 @@ function vistaEmpresa(e) {
         conectorTenantId: e.sifen_conector_tenant_id,
         estado: e.sifen_estado,
         ambiente: e.sifen_ambiente,
+        // Documentos electrónicos habilitados (plus del plan). La factura va
+        // implícita con estado 'produccion'.
+        documentos: {
+            factura: e.sifen_estado === 'produccion',
+            remision: !!e.sifen_remision,
+            nc_nd: !!e.sifen_nc_nd,
+            autofactura: !!e.sifen_autofactura,
+        },
     };
 }
 
@@ -233,4 +242,24 @@ export async function pasarAProduccion(req, res) {
 
     const actualizada = await empresaBase(req.params.id);
     res.json({ empresa: vistaEmpresa(actualizada), conector: tenant });
+}
+
+// PUT /api/admin/empresas/:id/documentos-habilitados
+// Habilita/deshabilita los documentos electrónicos extra (plus del plan).
+export async function actualizarDocumentosHabilitados(req, res) {
+    const empresa = await empresaBase(req.params.id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    const b = req.body || {};
+    const remision = b.remision === true;
+    const ncNd = b.nc_nd === true;
+    const autofactura = b.autofactura === true;
+
+    await pool.query(
+        `UPDATE empresas SET sifen_remision = $2, sifen_nc_nd = $3, sifen_autofactura = $4 WHERE id = $1`,
+        [empresa.id, remision, ncNd, autofactura]
+    );
+
+    const actualizada = await empresaBase(req.params.id);
+    res.json({ empresa: vistaEmpresa(actualizada) });
 }

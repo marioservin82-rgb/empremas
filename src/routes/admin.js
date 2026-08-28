@@ -26,6 +26,7 @@ import {
     darDeAlta as darDeAltaSifen,
     correrHomologacion as correrHomologacionSifen,
     pasarAProduccion as pasarAProduccionSifen,
+    actualizarDocumentosHabilitados as actualizarDocsHabilitados,
 } from '../controllers/facturacionElectronicaController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -45,6 +46,7 @@ router.get('/empresas/:id/facturacion-electronica', asyncHandler(obtenerEstadoSi
 router.post('/empresas/:id/facturacion-electronica', asyncHandler(darDeAltaSifen));
 router.post('/empresas/:id/facturacion-electronica/homologacion', asyncHandler(correrHomologacionSifen));
 router.patch('/empresas/:id/facturacion-electronica', asyncHandler(pasarAProduccionSifen));
+router.put('/empresas/:id/documentos-habilitados', asyncHandler(actualizarDocsHabilitados));
 router.get('/configuracion', obtenerConfiguracion);
 router.patch('/configuracion', actualizarConfiguracion);
 router.get('/novedades', listarNovedades);

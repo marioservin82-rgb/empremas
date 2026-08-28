@@ -93,7 +93,7 @@ export default function AdminFacturacionElectronica() {
           <Link href={`/admin/empresas/${id}`} className="text-sm font-medium text-slate-500 hover:text-slate-700">
             ← Volver a la empresa
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">Facturación electrónica</h1>
+          <h1 className="mt-2 text-2xl font-bold text-slate-900">Documentos electrónicos</h1>
           <p className="text-sm text-slate-400">
             {empresa.razonSocial} · RUC {empresa.ruc}
           </p>
@@ -125,6 +125,14 @@ export default function AdminFacturacionElectronica() {
             <Produccion
               id={id}
               estado={empresa.estado}
+              onListo={cargar}
+              setExito={setExito}
+              setError={setError}
+            />
+            <DocumentosHabilitados
+              id={id}
+              estado={empresa.estado}
+              documentos={empresa.documentos}
               onListo={cargar}
               setExito={setExito}
               setError={setError}
@@ -590,6 +598,84 @@ function Produccion({ id, estado, onListo, setExito, setError }) {
               {guardando ? "Aplicando…" : yaEnProd ? "Actualizar datos de producción" : "Activar producción"}
             </button>
           </form>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------- Documentos habilitados (plus del plan) ----------------
+
+function DocumentosHabilitados({ id, estado, documentos, onListo, setExito, setError }) {
+  const [d, setD] = useState({
+    remision: !!documentos?.remision,
+    nc_nd: !!documentos?.nc_nd,
+    autofactura: !!documentos?.autofactura,
+  });
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    setD({
+      remision: !!documentos?.remision,
+      nc_nd: !!documentos?.nc_nd,
+      autofactura: !!documentos?.autofactura,
+    });
+  }, [documentos]);
+
+  const habilitado = estado === "homologada" || estado === "produccion";
+
+  async function guardar() {
+    setError("");
+    setExito("");
+    setGuardando(true);
+    try {
+      await adminFetch(`/api/admin/empresas/${id}/documentos-habilitados`, {
+        method: "PUT",
+        body: JSON.stringify(d),
+      });
+      setExito("Documentos habilitados actualizados.");
+      await onListo();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const fila = (clave, titulo, detalle) => (
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
+      <input
+        type="checkbox"
+        checked={d[clave]}
+        onChange={(e) => setD((v) => ({ ...v, [clave]: e.target.checked }))}
+        className="mt-1 h-4 w-4"
+      />
+      <span>
+        <span className="block text-sm font-semibold text-slate-800">{titulo}</span>
+        <span className="block text-xs text-slate-500">{detalle}</span>
+      </span>
+    </label>
+  );
+
+  return (
+    <div className={`${tarjeta} ${habilitado ? "" : "opacity-60"}`}>
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Documentos habilitados</h2>
+      {!habilitado ? (
+        <p className="text-sm text-slate-500">Disponible cuando la empresa esté homologada.</p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-slate-500">
+            La <strong>Factura</strong> va incluida. El resto son un plus del plan — activá lo que
+            contrató el cliente.
+          </p>
+          <div className="mb-4 flex flex-col gap-2">
+            {fila("remision", "Nota de Remisión", "Traslado de mercadería. Incluye remisión primero y factura al confirmar la entrega.")}
+            {fila("nc_nd", "Notas de Crédito y Débito", "Ajustes sobre una factura ya emitida.")}
+            {fila("autofactura", "Autofactura", "Compra a un no contribuyente.")}
+          </div>
+          <button onClick={guardar} disabled={guardando} className={btnPrimario}>
+            {guardando ? "Guardando…" : "Guardar"}
+          </button>
         </>
       )}
     </div>

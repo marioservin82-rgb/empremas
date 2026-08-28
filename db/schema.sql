@@ -80,6 +80,12 @@ CREATE TABLE empresas (
     sifen_estado              TEXT NOT NULL DEFAULT 'sin_configurar'
                                 CHECK (sifen_estado IN ('sin_configurar', 'homologacion', 'homologada', 'produccion')),
     sifen_ambiente            TEXT CHECK (sifen_ambiente IS NULL OR sifen_ambiente IN ('test', 'prod')),
+    -- Documentos electrónicos habilitables por empresa (plus del plan). La
+    -- Factura siempre está disponible en producción; el resto los habilita el
+    -- admin de la plataforma por cliente desde /admin/empresas/:id.
+    sifen_remision            BOOLEAN NOT NULL DEFAULT false,
+    sifen_nc_nd               BOOLEAN NOT NULL DEFAULT false,
+    sifen_autofactura         BOOLEAN NOT NULL DEFAULT false,
     -- Telefono de contacto de la empresa (no del dueno/usuario puntual) -
     -- pensado para figurar en la Factura Legal, editable junto al resto
     -- de la config de SIFEN.
