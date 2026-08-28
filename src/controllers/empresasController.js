@@ -6,7 +6,8 @@ export async function obtenerEmpresaActual(req, res) {
 
     const resultado = await pool.query(
         `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
-                sifen_actividades, sifen_timbrado_numero, sifen_timbrado_inicio,
+                sifen_estado, sifen_actividades, sifen_timbrado_numero, sifen_timbrado_inicio,
+                sifen_timbrado_fin, sifen_cert_desde, sifen_cert_vence, sifen_cert_vencimiento,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                 lomiteria_habilitada,

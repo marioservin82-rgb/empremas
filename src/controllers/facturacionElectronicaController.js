@@ -38,13 +38,19 @@ async function sincronizarDatosFiscales(empresaId, tenant) {
             `UPDATE empresas
                 SET sifen_actividades     = $2,
                     sifen_timbrado_numero = $3,
-                    sifen_timbrado_inicio = $4
+                    sifen_timbrado_inicio = $4,
+                    sifen_timbrado_fin    = $5,
+                    sifen_cert_desde      = $6,
+                    sifen_cert_vence      = $7
               WHERE id = $1`,
             [
                 empresaId,
                 actividades && actividades.length ? JSON.stringify(actividades) : null,
                 tenant.timbradoNumero || null,
                 tenant.timbradoFechaInicio || null,
+                tenant.timbradoFechaFin || null,
+                tenant.certDesde || null,
+                tenant.certVencimiento || null,
             ]
         );
     } catch (error) {
@@ -163,6 +169,7 @@ export async function darDeAlta(req, res) {
         establecimientoEmail: b.establecimientoEmail || empresa.email || undefined,
         timbradoNumero: String(b.timbradoNumero || '').trim(),
         timbradoFechaInicio: String(b.timbradoFechaInicio || '').trim(),
+        timbradoFechaFin: b.timbradoFechaFin ? String(b.timbradoFechaFin).trim() : undefined,
         idCsc: b.idCsc || CSC_TEST.idCsc,
         csc: b.csc || CSC_TEST.csc,
         certificadoBase64: b.certificadoBase64,
@@ -246,6 +253,9 @@ export async function pasarAProduccion(req, res) {
     const cambios = { ambiente: 'prod' };
     if (b.timbradoNumero) cambios.timbradoNumero = String(b.timbradoNumero).trim();
     if (b.timbradoFechaInicio) cambios.timbradoFechaInicio = String(b.timbradoFechaInicio).trim();
+    if (b.timbradoFechaFin !== undefined) {
+        cambios.timbradoFechaFin = b.timbradoFechaFin ? String(b.timbradoFechaFin).trim() : null;
+    }
     if (b.idCsc) cambios.idCsc = String(b.idCsc).trim();
     if (b.csc) cambios.csc = String(b.csc).trim();
     if (b.certificadoBase64) {

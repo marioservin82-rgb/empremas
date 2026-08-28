@@ -168,6 +168,7 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
     establecimientoEmail: "",
     timbradoNumero: "",
     timbradoFechaInicio: "",
+    timbradoFechaFin: "",
     certificadoPassword: "",
   });
   const [actividades, setActividades] = useState([{ codigo: "", descripcion: "" }]);
@@ -376,6 +377,12 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
                 <input type="date" value={f.timbradoFechaInicio} onChange={set("timbradoFechaInicio")} className={campo} />
               </div>
             </div>
+            <label className={etiqueta}>Vencimiento del timbrado (opcional)</label>
+            <input type="date" value={f.timbradoFechaFin} onChange={set("timbradoFechaFin")} className={campo} />
+            <p className="-mt-3 mb-3 text-xs text-slate-400">
+              Dejalo vacío si el timbrado electrónico no tiene fecha de fin. La vigencia del
+              certificado se lee sola del .pfx.
+            </p>
             <label className={etiqueta}>Certificado .pfx</label>
             <input type="file" accept=".pfx,.p12" onChange={elegirCert} className={campo} />
             {certNombre && <p className="-mt-3 mb-3 text-xs text-emerald-600">{certNombre} cargado</p>}
@@ -403,12 +410,28 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
 
 // ---------------- Datos del tenant ----------------
 
+function fechaPy(v) {
+  return v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—";
+}
+
+// Días hasta una fecha ISO (negativo = ya pasó).
+function diasHasta(v) {
+  if (!v) return null;
+  return Math.ceil((new Date(String(v).slice(0, 10)) - new Date(new Date().toDateString())) / 86400000);
+}
+
 function DatosTenant({ conector }) {
   if (!conector) return null;
   const actividades = Array.isArray(conector.actividadesEconomicas) ? conector.actividadesEconomicas : [];
-  const inicio = conector.timbradoFechaInicio
-    ? String(conector.timbradoFechaInicio).slice(0, 10).split("-").reverse().join("/")
-    : "—";
+  const certDias = diasHasta(conector.certVencimiento);
+  const certClase =
+    certDias == null
+      ? "text-slate-700"
+      : certDias < 0
+        ? "text-red-600 font-semibold"
+        : certDias <= 30
+          ? "text-amber-600 font-semibold"
+          : "text-slate-700";
   const filas = [
     ["Tenant en el conector", `#${conector.id}`],
     ["RUC", conector.ruc],
@@ -416,7 +439,8 @@ function DatosTenant({ conector }) {
     ["Establecimiento / Punto", `${conector.establecimiento} / ${conector.puntoExpedicion}`],
     ["Dirección fiscal", conector.establecimientoDireccion || "—"],
     ["Timbrado", conector.timbradoNumero],
-    ["Inicio de vigencia", inicio],
+    ["Inicio de vigencia", fechaPy(conector.timbradoFechaInicio)],
+    ["Vencimiento del timbrado", conector.timbradoFechaFin ? fechaPy(conector.timbradoFechaFin) : "Sin vencimiento"],
     ["Ambiente", conector.ambiente],
   ];
   return (
@@ -432,6 +456,20 @@ function DatosTenant({ conector }) {
             <dd className="font-medium text-slate-700">{v}</dd>
           </div>
         ))}
+        <div className="contents">
+          <dt className="text-slate-400">Certificado de firma</dt>
+          <dd className={`font-medium ${certClase}`}>
+            {conector.certVencimiento
+              ? `Vence ${fechaPy(conector.certVencimiento)}${
+                  certDias != null && certDias < 0
+                    ? " — VENCIDO"
+                    : certDias != null && certDias <= 30
+                      ? ` — faltan ${certDias} días`
+                      : ""
+                }`
+              : "—"}
+          </dd>
+        </div>
         <div className="contents">
           <dt className="text-slate-400">Actividad económica</dt>
           <dd className="font-medium text-slate-700">
@@ -531,7 +569,7 @@ function Homologacion({ id, estado, homologacion, onCambio, setError }) {
 // ---------------- Pase a producción ----------------
 
 function Produccion({ id, estado, onListo, setExito, setError }) {
-  const [f, setF] = useState({ timbradoNumero: "", timbradoFechaInicio: "", idCsc: "", csc: "" });
+  const [f, setF] = useState({ timbradoNumero: "", timbradoFechaInicio: "", timbradoFechaFin: "", idCsc: "", csc: "" });
   const [numeros, setNumeros] = useState({});
   const [guardando, setGuardando] = useState(false);
   const set = (k) => (e) => setF((v) => ({ ...v, [k]: e.target.value }));
@@ -550,9 +588,13 @@ function Produccion({ id, estado, onListo, setExito, setError }) {
       for (const [tipo, val] of Object.entries(numeros)) {
         if (val !== "" && val != null) numerosIniciales[tipo] = Number(val);
       }
+      const cuerpo = { ...f, numerosIniciales };
+      // Solo se manda el vencimiento del timbrado si se completó — así no se
+      // borra un valor ya guardado al reeditar los datos de producción.
+      if (!f.timbradoFechaFin) delete cuerpo.timbradoFechaFin;
       await adminFetch(`/api/admin/empresas/${id}/facturacion-electronica`, {
         method: "PATCH",
-        body: JSON.stringify({ ...f, numerosIniciales }),
+        body: JSON.stringify(cuerpo),
       });
       setExito("Empresa en producción.");
       await onListo();
@@ -588,6 +630,8 @@ function Produccion({ id, estado, onListo, setExito, setError }) {
                 <input type="date" value={f.timbradoFechaInicio} onChange={set("timbradoFechaInicio")} className={campo} />
               </div>
             </div>
+            <label className={etiqueta}>Vencimiento del timbrado (opcional)</label>
+            <input type="date" value={f.timbradoFechaFin} onChange={set("timbradoFechaFin")} className={campo} />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={etiqueta}>IdCSC</label>

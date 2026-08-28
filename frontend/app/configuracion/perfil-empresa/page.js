@@ -10,10 +10,12 @@ const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
 function estadoCertificado(vencimiento) {
   if (!vencimiento) return { texto: "No cargado", clase: "bg-slate-100 text-slate-500" };
-  const vencido = new Date(vencimiento) < new Date(new Date().toDateString());
-  return vencido
-    ? { texto: "Vencido", clase: "bg-red-50 text-red-700" }
-    : { texto: "Vigente", clase: "bg-emerald-50 text-emerald-700" };
+  const dias = Math.ceil(
+    (new Date(String(vencimiento).slice(0, 10)) - new Date(new Date().toDateString())) / 86400000,
+  );
+  if (dias < 0) return { texto: "Vencido", clase: "bg-red-50 text-red-700" };
+  if (dias <= 30) return { texto: `Vence en ${dias} día(s)`, clase: "bg-amber-50 text-amber-700" };
+  return { texto: "Vigente", clase: "bg-emerald-50 text-emerald-700" };
 }
 
 export default function PerfilEmpresa() {
@@ -239,7 +241,13 @@ export default function PerfilEmpresa() {
     );
   }
 
-  const cert = estadoCertificado(empresa.sifen_cert_vencimiento);
+  // Empresas que facturan por el conector propio: la config fiscal (timbrado,
+  // certificado) la administra soporte y se muestra solo para lectura.
+  const gestionadoPorConector =
+    empresa.sifen_estado === "produccion" || empresa.sifen_estado === "homologada";
+  const certVence = empresa.sifen_cert_vence || empresa.sifen_cert_vencimiento;
+  const cert = estadoCertificado(certVence);
+  const fechaCortaPy = (v) => (v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—");
 
   return (
     <main className="flex flex-1 flex-col items-center p-6">
@@ -438,18 +446,47 @@ export default function PerfilEmpresa() {
           </div>
 
           <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
-            <h2 className="mb-1 text-lg font-bold text-slate-800">Certificado digital SIFEN</h2>
-            <p className="mb-4 text-sm text-slate-500">
-              Registro informativo — el certificado que firma tus documentos se carga directamente en Sifende, no acá.
-            </p>
+            <h2 className="mb-1 text-lg font-bold text-slate-800">Datos fiscales SIFEN</h2>
 
-            <span className={`mb-4 inline-block rounded-full px-3 py-1 text-sm font-semibold ${cert.clase}`}>{cert.texto}</span>
+            {gestionadoPorConector ? (
+              <>
+                <p className="mb-4 text-sm text-slate-500">
+                  El timbrado y el certificado los administra el soporte de EMPREMAS. Acá los ves para
+                  control (no editable).
+                </p>
+                <dl className="grid grid-cols-2 gap-y-2 text-sm">
+                  <dt className="text-slate-400">Timbrado</dt>
+                  <dd className="font-medium text-slate-700">{empresa.sifen_timbrado_numero || "—"}</dd>
+                  <dt className="text-slate-400">Inicio de vigencia</dt>
+                  <dd className="font-medium text-slate-700">{fechaCortaPy(empresa.sifen_timbrado_inicio)}</dd>
+                  <dt className="text-slate-400">Vencimiento del timbrado</dt>
+                  <dd className="font-medium text-slate-700">
+                    {empresa.sifen_timbrado_fin ? fechaCortaPy(empresa.sifen_timbrado_fin) : "Sin vencimiento"}
+                  </dd>
+                  <dt className="text-slate-400">Certificado de firma</dt>
+                  <dd className="font-medium text-slate-700">
+                    {certVence ? `Vence ${fechaCortaPy(certVence)}` : "—"}{" "}
+                    <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-semibold ${cert.clase}`}>
+                      {cert.texto}
+                    </span>
+                  </dd>
+                </dl>
+              </>
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-slate-500">
+                  Registro informativo — el certificado que firma tus documentos se carga directamente en Sifende, no acá.
+                </p>
 
-            <label className={etiqueta}>Fecha de vencimiento</label>
-            <input type="date" value={certVencimiento} onChange={(e) => setCertVencimiento(e.target.value)} className={campo} />
+                <span className={`mb-4 inline-block rounded-full px-3 py-1 text-sm font-semibold ${cert.clase}`}>{cert.texto}</span>
 
-            <label className={etiqueta}>Nota (opcional)</label>
-            <input value={certNota} onChange={(e) => setCertNota(e.target.value)} className={campo} placeholder="Ej: renovado en Sifende, entidad emisora, etc." />
+                <label className={etiqueta}>Fecha de vencimiento</label>
+                <input type="date" value={certVencimiento} onChange={(e) => setCertVencimiento(e.target.value)} className={campo} />
+
+                <label className={etiqueta}>Nota (opcional)</label>
+                <input value={certNota} onChange={(e) => setCertNota(e.target.value)} className={campo} placeholder="Ej: renovado en Sifende, entidad emisora, etc." />
+              </>
+            )}
           </div>
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

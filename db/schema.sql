@@ -94,6 +94,10 @@ CREATE TABLE empresas (
     sifen_actividades         JSONB,
     sifen_timbrado_numero     TEXT,
     sifen_timbrado_inicio     DATE,
+    sifen_timbrado_fin        DATE,
+    -- Vigencia del certificado de firma, leída del .pfx por el conector.
+    sifen_cert_desde          DATE,
+    sifen_cert_vence          DATE,
     -- Telefono de contacto de la empresa (no del dueno/usuario puntual) -
     -- pensado para figurar en la Factura Legal, editable junto al resto
     -- de la config de SIFEN.
