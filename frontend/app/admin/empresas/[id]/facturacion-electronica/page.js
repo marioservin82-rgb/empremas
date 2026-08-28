@@ -129,6 +129,7 @@ export default function AdminFacturacionElectronica() {
               setExito={setExito}
               setError={setError}
             />
+            <AjusteNumeracion id={id} estado={empresa.estado} setExito={setExito} setError={setError} />
             <DocumentosHabilitados
               id={id}
               estado={empresa.estado}
@@ -665,6 +666,76 @@ function Produccion({ id, estado, onListo, setExito, setError }) {
           </form>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------------- Ajuste de numeración ----------------
+
+function AjusteNumeracion({ id, estado, setExito, setError }) {
+  const [tipo, setTipo] = useState("factura");
+  const [ultimoNumero, setUltimoNumero] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  if (estado !== "produccion") return null;
+
+  async function guardar() {
+    if (
+      !window.confirm(
+        `Dejar el último número emitido de ${tipo} en ${ultimoNumero}. La próxima será la ${Number(ultimoNumero) + 1}. ¿Confirmás?`,
+      )
+    )
+      return;
+    setError("");
+    setExito("");
+    setGuardando(true);
+    try {
+      await adminFetch(`/api/admin/empresas/${id}/facturacion-electronica/numeracion`, {
+        method: "POST",
+        body: JSON.stringify({ tipo, ultimoNumero: Number(ultimoNumero) }),
+      });
+      setExito(`Numeración ajustada. La próxima ${tipo} será la ${Number(ultimoNumero) + 1}.`);
+      setUltimoNumero("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className={tarjeta}>
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Ajustar numeración</h2>
+      <p className="mb-4 text-sm text-slate-500">
+        Solo si hace falta corregir un salto. Poné el <strong>último número ya emitido</strong>; la
+        próxima saldrá con el siguiente.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={etiqueta}>Documento</label>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={campo}>
+            <option value="factura">Factura</option>
+            <option value="nota_credito">Nota de Crédito</option>
+            <option value="nota_debito">Nota de Débito</option>
+            <option value="autofactura">Autofactura</option>
+            <option value="remision">Nota de Remisión</option>
+          </select>
+        </div>
+        <div>
+          <label className={etiqueta}>Último número emitido</label>
+          <input
+            type="number"
+            min="0"
+            value={ultimoNumero}
+            onChange={(e) => setUltimoNumero(e.target.value)}
+            className={campo}
+            placeholder="322"
+          />
+        </div>
+      </div>
+      <button onClick={guardar} disabled={guardando || ultimoNumero === ""} className={btnPrimario}>
+        {guardando ? "Aplicando…" : "Ajustar"}
+      </button>
     </div>
   );
 }

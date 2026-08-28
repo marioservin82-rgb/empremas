@@ -289,6 +289,40 @@ export async function pasarAProduccion(req, res) {
     res.json({ empresa: vistaEmpresa(actualizada), conector: tenant });
 }
 
+// iTiDE por nombre de documento (para el ajuste de numeración).
+const TIPOS_ITIDE = { factura: 1, autofactura: 4, nota_credito: 5, nota_debito: 6, remision: 7 };
+
+// POST /api/admin/empresas/:id/facturacion-electronica/numeracion
+// Ajusta el "último número emitido" de un tipo de documento en el conector.
+// `obtenerProximoNumero` devuelve ultimoNumero + 1, así que para que la próxima
+// factura sea la 323 hay que dejar ultimoNumero = 322.
+export async function ajustarNumeracion(req, res) {
+    const empresa = await empresaBase(req.params.id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    if (!empresa.sifen_conector_tenant_id) {
+        return res.status(409).json({ error: 'Esta empresa no tiene facturación electrónica configurada' });
+    }
+
+    const b = req.body || {};
+    const tipo = TIPOS_ITIDE[b.tipo] || Number(b.tipo);
+    const ultimoNumero = Number(b.ultimoNumero);
+    if (![1, 4, 5, 6, 7].includes(tipo)) {
+        return res.status(400).json({ error: 'tipo inválido (factura, autofactura, nota_credito, nota_debito, remision)' });
+    }
+    if (!Number.isInteger(ultimoNumero) || ultimoNumero < 0) {
+        return res.status(400).json({ error: 'ultimoNumero debe ser un entero >= 0' });
+    }
+
+    try {
+        const tenant = await actualizarTenant(empresa.sifen_conector_tenant_id, {
+            numerosIniciales: { [tipo]: ultimoNumero },
+        });
+        res.json({ ok: true, conector: tenant });
+    } catch (error) {
+        res.status(422).json({ error: error.message });
+    }
+}
+
 // PUT /api/admin/empresas/:id/documentos-habilitados
 // Habilita/deshabilita los documentos electrónicos extra (plus del plan).
 export async function actualizarDocumentosHabilitados(req, res) {
