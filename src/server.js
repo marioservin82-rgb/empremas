@@ -20,6 +20,7 @@ import produccionRoutes from './routes/produccion.js';
 import vendedoresRoutes from './routes/vendedores.js';
 import mesasRoutes from './routes/mesas.js';
 import pedidosRoutes from './routes/pedidos.js';
+import { iniciarBarredorDocumentosElectronicos } from './jobs/barrerDocumentosElectronicos.js';
 
 const app = express();
 app.use(cors());
@@ -60,4 +61,7 @@ app.use((error, req, res, next) => {
 const puerto = process.env.PORT || 3001;
 app.listen(puerto, () => {
     console.log(`EMPREMAS backend escuchando en http://localhost:${puerto}`);
+    // Reintenta/re-consulta en segundo plano los documentos electrónicos que
+    // quedaron "en trámite" o fallaron (facturación asíncrona por lote).
+    iniciarBarredorDocumentosElectronicos();
 });

@@ -570,7 +570,16 @@ export async function crearVenta(req, res) {
         });
 
         if (deParaEmitir) {
-            await emitirYActualizarDe({ empresaId, ...deParaEmitir });
+            if (deParaEmitir.via === 'conector') {
+                // Producción = emisión asíncrona (por lote). NO se bloquea la caja:
+                // el DE se emite en segundo plano y el barredor (ver barrerDocumentosPendientes)
+                // lo termina de resolver. La venta se cierra al instante.
+                emitirYActualizarDe({ empresaId, ...deParaEmitir }).catch((e) =>
+                    console.error('[SIFEN] emisión en segundo plano falló:', e?.message)
+                );
+            } else {
+                await emitirYActualizarDe({ empresaId, ...deParaEmitir });
+            }
         }
 
         res.status(201).json({ ...venta, tieneDocumentoElectronico: !!deParaEmitir });
@@ -582,15 +591,14 @@ export async function crearVenta(req, res) {
     }
 }
 
-// Reintenta el envio a Sifende de una venta cuyo documento electronico
-// quedo en 'error' (SIFEN caido, timeout, etc. - ver emitirYActualizarDe).
-export async function reintentarSifen(req, res) {
-    const { empresaId } = req.usuario;
-    const { id } = req.params;
-
+// Resuelve el documento electrónico de una venta según su estado actual:
+//  - 'enviado' vía conector (lote en trámite) -> re-consulta por CDC.
+//  - 'error' / 'pendiente'                    -> re-emite.
+// Lo usa el botón "reintentar" y el barredor de fondo (barrerDocumentosElectronicos).
+export async function resolverDocumentoDeVenta(empresaId, ventaId) {
     const datos = await consultaDeEmpresa(
         empresaId,
-        `SELECT de.id AS de_id, de.estado AS de_estado,
+        `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc,
                 v.tipo_pago, v.sucursal_id, v.cliente_id, v.vencimiento,
                 e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
                 e.plazo_credito_dias,
@@ -602,57 +610,39 @@ export async function reintentarSifen(req, res) {
          LEFT JOIN sucursales s ON s.id = v.sucursal_id
          LEFT JOIN clientes c ON c.id = v.cliente_id
          WHERE de.venta_id = $1`,
-        [id]
+        [ventaId]
     );
     const fila = datos.rows[0];
-    if (!fila) {
-        return res.status(404).json({ error: 'Esta venta no tiene un documento electrónico asociado' });
-    }
+    if (!fila) throw new ErrorNegocio('Esta venta no tiene un documento electrónico asociado');
     const viaConector = fila.sifen_estado === 'produccion' && !!fila.sifen_conector_tenant_id;
 
-    // Documento emitido por lote asíncrono que quedó "en proceso": no se re-emite,
-    // se re-consulta a SIFEN por su CDC (el conector resuelve el lote pendiente).
-    if (fila.de_estado === 'enviado' && viaConector) {
-        const deCdc = await consultaDeEmpresa(empresaId, `SELECT cdc FROM documentos_electronicos WHERE id = $1`, [fila.de_id]);
-        const cdc = deCdc.rows[0]?.cdc;
-        if (!cdc) return res.status(400).json({ error: 'El documento todavía no tiene CDC' });
-        try {
-            const r = await consultarDocumentoConector(cdc);
-            await consultaDeEmpresa(
-                empresaId,
-                `UPDATE documentos_electronicos SET estado = $2, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
-                [fila.de_id, (r.estado || 'enviado').toLowerCase()]
-            );
-        } catch (error) {
-            return res.status(422).json({ error: error.message });
-        }
-        const act = await consultaDeEmpresa(
+    if (fila.de_estado === 'aprobado' || fila.de_estado === 'rechazado') return fila.de_estado;
+
+    // Ya tiene CDC vía conector (emitido, en trámite por lote): se RE-CONSULTA,
+    // nunca se re-emite (evita duplicar en SIFEN).
+    if (fila.de_cdc && viaConector && fila.de_estado !== 'aprobado') {
+        const r = await consultarDocumentoConector(fila.de_cdc);
+        await consultaDeEmpresa(
             empresaId,
-            `SELECT estado, cdc, numero_formateado, mensaje_error FROM documentos_electronicos WHERE id = $1`,
-            [fila.de_id]
+            `UPDATE documentos_electronicos SET estado = $2, mensaje_error = NULL, actualizado_en = now() WHERE id = $1`,
+            [fila.de_id, (r.estado || 'enviado').toLowerCase()]
         );
-        return res.json(act.rows[0]);
+        return (r.estado || 'enviado').toLowerCase();
     }
 
-    if (fila.de_estado !== 'error') {
-        return res.status(400).json({ error: 'Este documento no está en estado de error' });
-    }
-    if (!viaConector && !fila.sifen_api_key) {
-        return res.status(400).json({ error: 'SIFEN ya no está configurado para esta empresa' });
-    }
+    if (!['error', 'pendiente', 'enviado'].includes(fila.de_estado)) return fila.de_estado;
+    if (!viaConector && !fila.sifen_api_key) throw new ErrorNegocio('SIFEN ya no está configurado para esta empresa');
 
     const items = await consultaDeEmpresa(
         empresaId,
         `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", p.nombre, p.tasa_iva
-         FROM venta_items vi
-         JOIN productos p ON p.id = vi.producto_id
-         WHERE vi.venta_id = $1`,
-        [id]
+         FROM venta_items vi JOIN productos p ON p.id = vi.producto_id WHERE vi.venta_id = $1`,
+        [ventaId]
     );
     const pagos = await consultaDeEmpresa(
         empresaId,
         `SELECT forma_pago AS "formaPago", monto FROM venta_pagos WHERE venta_id = $1`,
-        [id]
+        [ventaId]
     );
 
     await emitirYActualizarDe({
@@ -663,15 +653,39 @@ export async function reintentarSifen(req, res) {
         apiKey: fila.sifen_api_key,
         establecimiento: fila.sifen_establecimiento,
         puntoExpedicion: fila.punto_expedicion || 1,
-        venta: { tipoPago: fila.tipo_pago, pagos: pagos.rows },
+        venta: {
+            tipoPago: fila.tipo_pago,
+            pagos: pagos.rows,
+            vencimiento: fila.vencimiento,
+            plazoCreditoDias: fila.plazo_credito_dias,
+        },
         items: items.rows,
         cliente: { nombre: fila.cliente_nombre, documento: fila.cliente_documento, es_generico: fila.cliente_es_generico },
     });
 
+    const act = await consultaDeEmpresa(
+        empresaId,
+        `SELECT estado FROM documentos_electronicos WHERE id = $1`,
+        [fila.de_id]
+    );
+    return act.rows[0]?.estado;
+}
+
+// Reintenta / re-consulta el documento electrónico de una venta (botón manual).
+export async function reintentarSifen(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    try {
+        await resolverDocumentoDeVenta(empresaId, id);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) return res.status(400).json({ error: error.message });
+        return res.status(422).json({ error: error.message });
+    }
     const actualizado = await consultaDeEmpresa(
         empresaId,
-        `SELECT estado, cdc, numero_formateado, mensaje_error FROM documentos_electronicos WHERE id = $1`,
-        [fila.de_id]
+        `SELECT de.estado, de.cdc, de.numero_formateado, de.mensaje_error
+         FROM documentos_electronicos de WHERE de.venta_id = $1`,
+        [id]
     );
     res.json(actualizado.rows[0]);
 }
