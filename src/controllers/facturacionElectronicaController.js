@@ -5,6 +5,7 @@ import {
     dispararHomologacion,
     obtenerHomologacion,
     obtenerTenant,
+    inutilizarNumeracion,
 } from '../services/conectorSifen.js';
 
 // CSC público de prueba de la DNIT (no es secreto - está en la guía oficial).
@@ -318,6 +319,51 @@ export async function ajustarNumeracion(req, res) {
             numerosIniciales: { [tipo]: ultimoNumero },
         });
         res.json({ ok: true, conector: tenant });
+    } catch (error) {
+        res.status(422).json({ error: error.message });
+    }
+}
+
+// POST /api/admin/empresas/:id/facturacion-electronica/inutilizar
+// Inutiliza en SIFEN un rango de numeración que quedó sin usar (p. ej. una
+// factura rechazada cuya venta se anuló). { tipo, desde, hasta, motivo }.
+export async function inutilizarRango(req, res) {
+    const empresa = await empresaBase(req.params.id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    if (!empresa.sifen_conector_tenant_id) {
+        return res.status(409).json({ error: 'Esta empresa no tiene facturación electrónica configurada' });
+    }
+    if (empresa.sifen_estado !== 'produccion') {
+        return res.status(409).json({ error: 'La inutilización solo aplica en producción' });
+    }
+
+    const b = req.body || {};
+    const tipo = TIPOS_ITIDE[b.tipo] || Number(b.tipo);
+    const desde = Number(b.desde);
+    const hasta = b.hasta != null && b.hasta !== '' ? Number(b.hasta) : desde;
+    const motivo = String(b.motivo || '').trim();
+
+    if (![1, 4, 5, 6, 7].includes(tipo)) {
+        return res.status(400).json({ error: 'tipo inválido' });
+    }
+    if (!Number.isInteger(desde) || desde < 1 || !Number.isInteger(hasta) || hasta < desde) {
+        return res.status(400).json({ error: 'Rango inválido (desde >= 1, hasta >= desde)' });
+    }
+    if (hasta - desde >= 1000) {
+        return res.status(400).json({ error: 'El rango no puede superar los 1000 números' });
+    }
+    if (motivo.length < 5) {
+        return res.status(400).json({ error: 'El motivo tiene que tener al menos 5 caracteres' });
+    }
+
+    try {
+        const r = await inutilizarNumeracion(empresa.sifen_conector_tenant_id, {
+            tipoDocumento: tipo,
+            desde,
+            hasta,
+            motivo,
+        });
+        res.json(r);
     } catch (error) {
         res.status(422).json({ error: error.message });
     }

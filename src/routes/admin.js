@@ -28,6 +28,7 @@ import {
     pasarAProduccion as pasarAProduccionSifen,
     actualizarDocumentosHabilitados as actualizarDocsHabilitados,
     ajustarNumeracion as ajustarNumeracionSifen,
+    inutilizarRango as inutilizarRangoSifen,
 } from '../controllers/facturacionElectronicaController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -49,6 +50,7 @@ router.post('/empresas/:id/facturacion-electronica/homologacion', asyncHandler(c
 router.patch('/empresas/:id/facturacion-electronica', asyncHandler(pasarAProduccionSifen));
 router.put('/empresas/:id/documentos-habilitados', asyncHandler(actualizarDocsHabilitados));
 router.post('/empresas/:id/facturacion-electronica/numeracion', asyncHandler(ajustarNumeracionSifen));
+router.post('/empresas/:id/facturacion-electronica/inutilizar', asyncHandler(inutilizarRangoSifen));
 router.get('/configuracion', obtenerConfiguracion);
 router.patch('/configuracion', actualizarConfiguracion);
 router.get('/novedades', listarNovedades);

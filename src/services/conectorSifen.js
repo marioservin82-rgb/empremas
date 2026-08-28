@@ -95,6 +95,19 @@ export function consultarDocumento(cdc) {
     return llamar('GET', `/v1/documentos/${cdc}`);
 }
 
+// Inutiliza un rango de numeración no usado (evento SIFEN). `desde`/`hasta`
+// son enteros (el número de 7 díg. sin ceros a la izquierda). Máx. 1000.
+export function inutilizarNumeracion(tenantId, { tipoDocumento, desde, hasta, motivo, serie }) {
+    return llamar('POST', '/v1/inutilizaciones', {
+        tenantId,
+        tipoDocumento,
+        desde,
+        hasta,
+        motivo,
+        ...(serie ? { serie } : {}),
+    });
+}
+
 // Consulta un RUC en el padrón de SIFEN (para saber si un receptor es
 // contribuyente antes de emitir). `numero` va sin dígito verificador.
 // Respuesta: { ruc, encontrado, razonSocial, digitoVerificador, estado }.

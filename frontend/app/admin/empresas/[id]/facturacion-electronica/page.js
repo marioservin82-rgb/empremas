@@ -130,6 +130,7 @@ export default function AdminFacturacionElectronica() {
               setError={setError}
             />
             <AjusteNumeracion id={id} estado={empresa.estado} setExito={setExito} setError={setError} />
+            <Inutilizacion id={id} estado={empresa.estado} setExito={setExito} setError={setError} />
             <DocumentosHabilitados
               id={id}
               estado={empresa.estado}
@@ -735,6 +736,77 @@ function AjusteNumeracion({ id, estado, setExito, setError }) {
       </div>
       <button onClick={guardar} disabled={guardando || ultimoNumero === ""} className={btnPrimario}>
         {guardando ? "Aplicando…" : "Ajustar"}
+      </button>
+    </div>
+  );
+}
+
+// ---------------- Inutilización de numeración ----------------
+
+function Inutilizacion({ id, estado, setExito, setError }) {
+  const [tipo, setTipo] = useState("factura");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  if (estado !== "produccion") return null;
+
+  async function inutilizar() {
+    const rango = hasta && hasta !== desde ? `${desde} a ${hasta}` : desde;
+    if (!window.confirm(`Inutilizar en SIFEN el/los número(s) ${rango} de ${tipo}. Esto es definitivo. ¿Confirmás?`)) return;
+    setError("");
+    setExito("");
+    setGuardando(true);
+    try {
+      const r = await adminFetch(`/api/admin/empresas/${id}/facturacion-electronica/inutilizar`, {
+        method: "POST",
+        body: JSON.stringify({ tipo, desde: Number(desde), hasta: hasta ? Number(hasta) : undefined, motivo }),
+      });
+      if (r.aceptado) {
+        setExito(`Números ${rango} inutilizados en SIFEN.`);
+        setDesde("");
+        setHasta("");
+        setMotivo("");
+      } else {
+        setError((r.errores || ["SIFEN rechazó la inutilización"]).join("; "));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className={tarjeta}>
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Inutilizar numeración</h2>
+      <p className="mb-4 text-sm text-slate-500">
+        Para un número que quedó sin usar (p. ej. una factura rechazada cuya venta se anuló). Deja
+        constancia en SIFEN del salto. Es definitivo.
+      </p>
+      <label className={etiqueta}>Documento</label>
+      <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={campo}>
+        <option value="factura">Factura</option>
+        <option value="nota_credito">Nota de Crédito</option>
+        <option value="nota_debito">Nota de Débito</option>
+        <option value="autofactura">Autofactura</option>
+        <option value="remision">Nota de Remisión</option>
+      </select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={etiqueta}>Desde (número)</label>
+          <input type="number" min="1" value={desde} onChange={(e) => setDesde(e.target.value)} className={campo} placeholder="319" />
+        </div>
+        <div>
+          <label className={etiqueta}>Hasta (opcional)</label>
+          <input type="number" min="1" value={hasta} onChange={(e) => setHasta(e.target.value)} className={campo} placeholder="igual que Desde" />
+        </div>
+      </div>
+      <label className={etiqueta}>Motivo</label>
+      <input value={motivo} onChange={(e) => setMotivo(e.target.value)} className={campo} placeholder="Factura rechazada, venta anulada" />
+      <button onClick={inutilizar} disabled={guardando || !desde || motivo.trim().length < 5} className={btnPrimario}>
+        {guardando ? "Enviando a SIFEN…" : "Inutilizar"}
       </button>
     </div>
   );
