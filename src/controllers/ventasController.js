@@ -1036,7 +1036,7 @@ export async function obtenerVenta(req, res) {
 
     const items = await consultaDeEmpresa(
         empresaId,
-        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida
+        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida, p.tasa_iva
          FROM venta_items vi
          JOIN productos p ON p.id = vi.producto_id
          WHERE vi.venta_id = $1`,

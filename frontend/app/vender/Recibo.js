@@ -381,10 +381,34 @@ function lineasEmisorLegal(empresa) {
 }
 
 // Desglose de IVA obligatorio al pie de la factura (KuDE): monto gravado por
-// tasa y monto de IVA por tasa. `d` = venta.desglose_iva (lo devuelve el
-// backend con los valores que quedaron en el XML). Devuelve [] si no hay datos.
-function filasDesgloseIVA(d) {
+// tasa y monto de IVA por tasa. Usa venta.desglose_iva (lo que quedó en el XML)
+// y, si no vino, lo calcula de los ítems (mismo criterio, el ticket es una
+// copia de mostrador). Devuelve [] solo si no hay ni una cosa ni la otra.
+function calcularDesgloseDeItems(items) {
+  const g = { 5: 0, 10: 0, 0: 0 };
+  for (const it of items ?? []) {
+    const tasa = [0, 5, 10].includes(Number(it.tasa_iva)) ? Number(it.tasa_iva) : 10;
+    const bruto = Number(it.precio_unitario ?? it.precioUnitario ?? 0) * Number(it.cantidad ?? 0);
+    g[tasa] += bruto;
+  }
+  return {
+    gravado5: g[5],
+    gravado10: g[10],
+    exentas: g[0],
+    iva5: Math.round((g[5] * 5) / 105),
+    iva10: Math.round((g[10] * 10) / 110),
+    get totalIva() {
+      return this.iva5 + this.iva10;
+    },
+  };
+}
+
+function filasDesgloseIVA(venta) {
+  let d = venta?.desglose_iva;
+  const vacio = !d || (!(d.gravado5 > 0) && !(d.gravado10 > 0) && !(d.exentas > 0));
+  if (vacio) d = calcularDesgloseDeItems(venta?.items);
   if (!d) return [];
+
   const f = [];
   const gs = (n) => `Gs ${formatoGs.format(Math.round(Number(n) || 0))}`;
   if (d.gravado5 > 0) f.push({ etiqueta: "Gravado 5%", valor: gs(d.gravado5) });
@@ -392,7 +416,8 @@ function filasDesgloseIVA(d) {
   if (d.exentas > 0) f.push({ etiqueta: "Exentas", valor: gs(d.exentas) });
   if (d.iva5 > 0) f.push({ etiqueta: "IVA 5%", valor: gs(d.iva5) });
   if (d.iva10 > 0) f.push({ etiqueta: "IVA 10%", valor: gs(d.iva10) });
-  if (d.totalIva > 0) f.push({ etiqueta: "Total IVA", valor: gs(d.totalIva), negrita: true });
+  const totalIva = Number(d.totalIva || 0);
+  if (totalIva > 0) f.push({ etiqueta: "Total IVA", valor: gs(totalIva), negrita: true });
   return f;
 }
 
@@ -461,7 +486,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
     );
   }
   lineas.push(SEPARADOR);
-  for (const fila of filasDesgloseIVA(venta.desglose_iva)) {
+  for (const fila of filasDesgloseIVA(venta)) {
     lineas.push({ texto: `${fila.etiqueta}: ${fila.valor}`, negrita: fila.negrita });
   }
   lineas.push(
@@ -655,7 +680,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
-        {filasDesgloseIVA(venta.desglose_iva).map((fila) => (
+        {filasDesgloseIVA(venta).map((fila) => (
           <div key={fila.etiqueta} className={`flex justify-between text-sm ${fila.negrita ? "font-bold" : ""}`}>
             <span>{fila.etiqueta}</span>
             <span>{fila.valor}</span>
