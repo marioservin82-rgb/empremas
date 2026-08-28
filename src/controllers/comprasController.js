@@ -3,6 +3,56 @@ import { ErrorNegocio } from '../utils/errorNegocio.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
+// Aplica un pago de compra en efectivo "de la caja": genera un retiro de caja
+// (motivo pago_proveedor) contra el turno abierto del usuario, así se refleja
+// solo en la reconciliación sin tener que cargarlo aparte. Lanza si no hay caja.
+async function generarRetiroPorPagoDeCompra(cliente, { empresaId, usuarioId, compraId, proveedorNombre, monto }) {
+    const turnoRes = await cliente.query(
+        `SELECT id, sucursal_id FROM turnos WHERE usuario_id = $1 AND estado = 'abierto' LIMIT 1`,
+        [usuarioId]
+    );
+    const turno = turnoRes.rows[0];
+    if (!turno) {
+        throw new ErrorNegocio(
+            'Elegiste "de la caja" pero no tenés una caja abierta. Abrí la caja o elegí "Administración".'
+        );
+    }
+    const usuario = await cliente.query(`SELECT nombre FROM usuarios WHERE id = $1`, [usuarioId]);
+    await cliente.query(
+        `INSERT INTO retiros_caja
+            (empresa_id, turno_id, sucursal_id, monto, motivo, motivo_detalle, persona_retira, usuario_id, autorizado_por, compra_id)
+         VALUES ($1, $2, $3, $4, 'pago_proveedor', $5, $6, $7, $7, $8)`,
+        [
+            empresaId,
+            turno.id,
+            turno.sucursal_id,
+            monto,
+            `Compra a ${proveedorNombre}`,
+            usuario.rows[0]?.nombre || 'Compra a proveedor',
+            usuarioId,
+            compraId,
+        ]
+    );
+}
+
+// Borra los retiros de caja autogenerados por una compra cuyo turno sigue
+// abierto (los de turnos ya cerrados no se pueden deshacer sin descuadrar un
+// cierre). Devuelve true si algún retiro quedó en un turno cerrado.
+async function revertirRetirosDeCompra(cliente, compraId) {
+    const bloqueados = await cliente.query(
+        `SELECT r.id FROM retiros_caja r JOIN turnos t ON t.id = r.turno_id
+          WHERE r.compra_id = $1 AND t.estado <> 'abierto'`,
+        [compraId]
+    );
+    await cliente.query(
+        `DELETE FROM retiros_caja r
+          USING turnos t
+          WHERE r.turno_id = t.id AND r.compra_id = $1 AND t.estado = 'abierto'`,
+        [compraId]
+    );
+    return bloqueados.rows.length > 0;
+}
+
 // Misma logica que calcularVuelto en ventasController, pero para una
 // compra no tiene sentido "vuelto" — si sobra plata en la sumatoria de
 // pagos es un error de carga, no un vuelto que nos den a nosotros.
@@ -100,12 +150,13 @@ export async function crearCompra(req, res) {
                 validarPagos(pagos, total);
             }
 
-            const proveedorResultado = await cliente.query(`SELECT id FROM proveedores WHERE id = $1 FOR UPDATE`, [
+            const proveedorResultado = await cliente.query(`SELECT id, nombre FROM proveedores WHERE id = $1 FOR UPDATE`, [
                 proveedorId,
             ]);
             if (!proveedorResultado.rows[0]) {
                 throw new ErrorNegocio('El proveedor ya no existe');
             }
+            const proveedorNombre = proveedorResultado.rows[0].nombre;
 
             const compraInsertada = await cliente.query(
                 `INSERT INTO compras (empresa_id, proveedor_id, usuario_id, sucursal_id, tipo_pago, numero_factura, timbrado, fecha_compra, total)
@@ -117,10 +168,20 @@ export async function crearCompra(req, res) {
 
             if (tipoPago === 'contado') {
                 for (const p of pagos) {
+                    const origen = p.formaPago === 'efectivo' && p.origen === 'caja' ? 'caja' : 'administracion';
                     await cliente.query(
-                        `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
-                        [empresaId, compraId, p.formaPago, p.monto]
+                        `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen) VALUES ($1, $2, $3, $4, $5)`,
+                        [empresaId, compraId, p.formaPago, p.monto, origen]
                     );
+                    if (origen === 'caja') {
+                        await generarRetiroPorPagoDeCompra(cliente, {
+                            empresaId,
+                            usuarioId,
+                            compraId,
+                            proveedorNombre,
+                            monto: p.monto,
+                        });
+                    }
                 }
             } else {
                 await cliente.query(`UPDATE proveedores SET saldo = saldo + $2 WHERE id = $1`, [proveedorId, total]);
@@ -222,7 +283,7 @@ export async function obtenerCompra(req, res) {
     );
     const pagos = await consultaDeEmpresa(
         empresaId,
-        `SELECT forma_pago, monto FROM compra_pagos WHERE compra_id = $1`,
+        `SELECT forma_pago, monto, origen FROM compra_pagos WHERE compra_id = $1`,
         [id]
     );
 
@@ -241,7 +302,7 @@ export async function anularCompra(req, res) {
     if (!motivo) return res.status(400).json({ error: 'Indicá el motivo de la anulación' });
 
     try {
-        await transaccionDeEmpresa(empresaId, async (cliente) => {
+        const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const compraRes = await cliente.query(
                 `SELECT id, tipo_pago, total, proveedor_id, sucursal_id, usuario_id, anulada
                  FROM compras WHERE id = $1 FOR UPDATE`,
@@ -277,14 +338,23 @@ export async function anularCompra(req, res) {
                 );
             }
 
+            // Revierte los retiros de caja autogenerados (si el turno sigue abierto).
+            const hayRetiroEnTurnoCerrado = await revertirRetirosDeCompra(cliente, id);
+
             await cliente.query(
                 `UPDATE compras
                     SET anulada = true, anulada_en = now(), anulada_por = $2, motivo_anulacion = $3
                   WHERE id = $1`,
                 [id, usuarioId, motivo]
             );
+            return { hayRetiroEnTurnoCerrado };
         });
-        res.json({ ok: true });
+        res.json({
+            ok: true,
+            aviso: resultado.hayRetiroEnTurnoCerrado
+                ? 'Esta compra tenía un pago de caja de un turno ya cerrado: no se pudo revertir automáticamente, ajustá esa caja a mano si hace falta.'
+                : null,
+        });
     } catch (error) {
         if (error instanceof ErrorNegocio) return res.status(400).json({ error: error.message });
         throw error;
@@ -296,14 +366,16 @@ export async function anularCompra(req, res) {
 // el saldo del proveedor y los pagos). Para cambiar los productos hay que
 // anular y volver a cargar.
 export async function editarCompra(req, res) {
-    const { empresaId } = req.usuario;
+    const { empresaId, usuarioId } = req.usuario;
     const { id } = req.params;
     const b = req.body || {};
 
     try {
         const compra = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const actualRes = await cliente.query(
-                `SELECT id, tipo_pago, total, proveedor_id, anulada FROM compras WHERE id = $1 FOR UPDATE`,
+                `SELECT c.id, c.tipo_pago, c.total, c.proveedor_id, c.anulada, p.nombre AS proveedor_nombre
+                 FROM compras c JOIN proveedores p ON p.id = c.proveedor_id
+                 WHERE c.id = $1 FOR UPDATE OF c`,
                 [id]
             );
             const actual = actualRes.rows[0];
@@ -321,16 +393,28 @@ export async function editarCompra(req, res) {
                     validarPagos(b.pagos, Number(actual.total));
                     await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
                     for (const p of b.pagos) {
+                        const origen = p.formaPago === 'efectivo' && p.origen === 'caja' ? 'caja' : 'administracion';
                         await cliente.query(
-                            `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
-                            [empresaId, id, p.formaPago, p.monto]
+                            `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen) VALUES ($1, $2, $3, $4, $5)`,
+                            [empresaId, id, p.formaPago, p.monto, origen]
                         );
+                        if (origen === 'caja') {
+                            await generarRetiroPorPagoDeCompra(cliente, {
+                                empresaId,
+                                usuarioId,
+                                compraId: id,
+                                proveedorNombre: actual.proveedor_nombre,
+                                monto: p.monto,
+                            });
+                        }
                     }
                     // Era crédito: se le saca del saldo lo que se le había cargado.
                     await cliente.query(`UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`, [actual.proveedor_id, actual.total]);
                 } else {
-                    // Pasa a crédito: se elimina el detalle de pagos y se carga al saldo.
+                    // Pasa a crédito: se elimina el detalle de pagos y se cargan al saldo;
+                    // se revierten los retiros de caja que hubiera generado.
                     await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
+                    await revertirRetirosDeCompra(cliente, id);
                     await cliente.query(`UPDATE proveedores SET saldo = saldo + $2 WHERE id = $1`, [actual.proveedor_id, actual.total]);
                 }
             }

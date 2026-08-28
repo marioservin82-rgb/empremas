@@ -58,6 +58,8 @@ export default function NuevaCompra() {
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
   const [nuevoPagoMonto, setNuevoPagoMonto] = useState("");
+  const [nuevoPagoOrigen, setNuevoPagoOrigen] = useState("administracion");
+  const [hayTurnoAbierto, setHayTurnoAbierto] = useState(false);
 
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
@@ -70,6 +72,13 @@ export default function NuevaCompra() {
       return;
     }
     setListo(true);
+    apiFetch("/api/turnos/actual")
+      .then((t) => {
+        const abierto = !!t;
+        setHayTurnoAbierto(abierto);
+        setNuevoPagoOrigen(abierto ? "caja" : "administracion");
+      })
+      .catch(() => {});
   }, [router]);
 
   async function ejecutarBusquedaProveedor(q) {
@@ -247,7 +256,9 @@ export default function NuevaCompra() {
 
   function agregarPago() {
     if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0)) return;
-    setPagos((actual) => [...actual, { formaPago: nuevoPagoForma, monto: Number(nuevoPagoMonto) }]);
+    const pago = { formaPago: nuevoPagoForma, monto: Number(nuevoPagoMonto) };
+    if (nuevoPagoForma === "efectivo") pago.origen = nuevoPagoOrigen;
+    setPagos((actual) => [...actual, pago]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
   }
@@ -665,7 +676,14 @@ export default function NuevaCompra() {
                             key={indice}
                             className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-2"
                           >
-                            <span className="font-semibold text-slate-700">{ETIQUETA_FORMA_PAGO[p.formaPago]}</span>
+                            <span className="font-semibold text-slate-700">
+                              {ETIQUETA_FORMA_PAGO[p.formaPago]}
+                              {p.formaPago === "efectivo" && (
+                                <span className="ml-1 text-xs font-normal text-slate-400">
+                                  · {p.origen === "caja" ? "de la caja" : "de administración"}
+                                </span>
+                              )}
+                            </span>
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-slate-700">Gs {formatoGs.format(p.monto)}</span>
                               <button onClick={() => quitarPago(indice)} className="text-red-500 hover:text-red-700">
@@ -707,6 +725,38 @@ export default function NuevaCompra() {
                         </div>
                         {nuevoPagoForma && (
                           <div className="mt-3">
+                            {nuevoPagoForma === "efectivo" && (
+                              <div className="mb-3">
+                                <p className="mb-1 text-sm font-medium text-slate-500">¿De dónde sale el efectivo?</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    { valor: "caja", texto: "De la caja" },
+                                    { valor: "administracion", texto: "De administración" },
+                                  ].map((o) => (
+                                    <button
+                                      key={o.valor}
+                                      type="button"
+                                      onClick={() => setNuevoPagoOrigen(o.valor)}
+                                      disabled={o.valor === "caja" && !hayTurnoAbierto}
+                                      className={`rounded-xl py-2 text-sm font-semibold transition ${
+                                        nuevoPagoOrigen === o.valor
+                                          ? "bg-navy text-white"
+                                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                      } disabled:opacity-40`}
+                                    >
+                                      {o.texto}
+                                    </button>
+                                  ))}
+                                </div>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {!hayTurnoAbierto
+                                    ? "No hay una caja abierta — este pago va como administración."
+                                    : nuevoPagoOrigen === "caja"
+                                    ? "Se registra solo como retiro de caja, no hace falta cargarlo aparte."
+                                    : "No afecta la caja."}
+                                </p>
+                              </div>
+                            )}
                             <input
                               type="number"
                               min="0"

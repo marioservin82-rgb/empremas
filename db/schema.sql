@@ -321,6 +321,9 @@ CREATE TABLE retiros_caja (
     -- efectivo (trazabilidad). Quien REGISTRA la entrega en el sistema
     -- sigue siendo siempre usuario_id/autorizado_por (el cajero).
     mesero_id       UUID REFERENCES usuarios(id),
+    -- Si el retiro lo genero automaticamente el pago de una compra en
+    -- efectivo "de la caja" (para poder revertirlo si se anula la compra).
+    compra_id       UUID REFERENCES compras(id),
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT retiros_caja_campos_por_tipo CHECK (
         (tipo_movimiento = 'retiro' AND motivo IS NOT NULL AND persona_retira IS NOT NULL AND mesero_id IS NULL) OR
@@ -1073,7 +1076,11 @@ CREATE TABLE compra_pagos (
     empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     compra_id       UUID NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
     forma_pago      forma_pago_venta NOT NULL,
-    monto           NUMERIC(14,2) NOT NULL
+    monto           NUMERIC(14,2) NOT NULL,
+    -- Solo relevante si forma_pago='efectivo': de donde salio la plata.
+    -- 'caja' genera un retiro de caja automatico (motivo pago_proveedor).
+    origen          TEXT NOT NULL DEFAULT 'administracion'
+                        CHECK (origen IN ('administracion', 'caja'))
 );
 
 CREATE TABLE compra_items (

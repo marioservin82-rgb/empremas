@@ -24,6 +24,7 @@ export default function DetalleCompra() {
   const [compra, setCompra] = useState(null);
   const [error, setError] = useState("");
   const [modo, setModo] = useState("ver"); // "ver" | "editar" | "anular"
+  const [hayTurnoAbierto, setHayTurnoAbierto] = useState(false);
 
   const cargar = useCallback(
     () => apiFetch(`/api/compras/${id}`).then(setCompra),
@@ -36,6 +37,7 @@ export default function DetalleCompra() {
       return;
     }
     cargar().catch((e) => setError(e.message));
+    apiFetch("/api/turnos/actual").then((t) => setHayTurnoAbierto(!!t)).catch(() => {});
   }, [cargar, router]);
 
   if (error && !compra) {
@@ -112,7 +114,14 @@ export default function DetalleCompra() {
               <div className="flex flex-col divide-y divide-slate-100">
                 {compra.pagos.map((p, i) => (
                   <div key={i} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-slate-700">{ETIQUETA_FORMA[p.forma_pago] || p.forma_pago}</span>
+                    <span className="text-slate-700">
+                      {ETIQUETA_FORMA[p.forma_pago] || p.forma_pago}
+                      {p.forma_pago === "efectivo" && (
+                        <span className="ml-1 text-xs text-slate-400">
+                          · {p.origen === "caja" ? "de la caja" : "de administración"}
+                        </span>
+                      )}
+                    </span>
                     <span className="font-semibold text-slate-800">Gs {formatoGs.format(p.monto)}</span>
                   </div>
                 ))}
@@ -139,7 +148,13 @@ export default function DetalleCompra() {
         )}
 
         {modo === "editar" && (
-          <EditarCompra compra={compra} onListo={() => { setModo("ver"); cargar(); }} onCancelar={() => setModo("ver")} setError={setError} />
+          <EditarCompra
+            compra={compra}
+            hayTurnoAbierto={hayTurnoAbierto}
+            onListo={() => { setModo("ver"); cargar(); }}
+            onCancelar={() => setModo("ver")}
+            setError={setError}
+          />
         )}
         {modo === "anular" && (
           <AnularCompra id={id} onListo={() => { setModo("ver"); cargar(); }} onCancelar={() => setModo("ver")} setError={setError} />
@@ -157,7 +172,7 @@ export default function DetalleCompra() {
 const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
-function EditarCompra({ compra, onListo, onCancelar, setError }) {
+function EditarCompra({ compra, hayTurnoAbierto, onListo, onCancelar, setError }) {
   const [f, setF] = useState({
     tipoPago: compra.tipo_pago,
     fechaCompra: (compra.fecha_compra || "").slice(0, 10),
@@ -165,7 +180,9 @@ function EditarCompra({ compra, onListo, onCancelar, setError }) {
     timbrado: compra.timbrado || "",
   });
   const [pagos, setPagos] = useState(
-    compra.pagos.length ? compra.pagos.map((p) => ({ formaPago: p.forma_pago, monto: String(p.monto) })) : [{ formaPago: "efectivo", monto: String(compra.total) }],
+    compra.pagos.length
+      ? compra.pagos.map((p) => ({ formaPago: p.forma_pago, monto: String(p.monto), origen: p.origen || "administracion" }))
+      : [{ formaPago: "efectivo", monto: String(compra.total), origen: hayTurnoAbierto ? "caja" : "administracion" }],
   );
   const [guardando, setGuardando] = useState(false);
   const set = (k) => (e) => setF((v) => ({ ...v, [k]: e.target.value }));
@@ -184,7 +201,11 @@ function EditarCompra({ compra, onListo, onCancelar, setError }) {
         timbrado: f.timbrado,
       };
       if (f.tipoPago === "contado" && compra.tipo_pago !== "contado") {
-        cuerpo.pagos = pagos.map((p) => ({ formaPago: p.formaPago, monto: Number(p.monto) }));
+        cuerpo.pagos = pagos.map((p) => ({
+          formaPago: p.formaPago,
+          monto: Number(p.monto),
+          ...(p.formaPago === "efectivo" ? { origen: p.origen } : {}),
+        }));
       }
       await apiFetch(`/api/compras/${compra.id}`, { method: "PATCH", body: JSON.stringify(cuerpo) });
       onListo();
@@ -209,24 +230,38 @@ function EditarCompra({ compra, onListo, onCancelar, setError }) {
         <div className="mb-4 rounded-xl border border-slate-200 p-3">
           <p className="mb-2 text-xs text-slate-500">Cómo se pagó (tiene que sumar Gs {formatoGs.format(compra.total)})</p>
           {pagos.map((p, i) => (
-            <div key={i} className="mb-2 flex gap-2">
-              <select
-                value={p.formaPago}
-                onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, formaPago: e.target.value } : x)))}
-                className="flex-1 rounded-lg border border-slate-300 px-2 py-2 text-sm"
-              >
-                {FORMAS_PAGO.map((o) => (
-                  <option key={o.valor} value={o.valor}>{o.texto}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={p.monto}
-                onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, monto: e.target.value } : x)))}
-                className="w-32 rounded-lg border border-slate-300 px-2 py-2 text-right text-sm"
-              />
-              {pagos.length > 1 && (
-                <button type="button" onClick={() => setPagos((v) => v.filter((_, j) => j !== i))} className="text-slate-400">✕</button>
+            <div key={i} className="mb-2">
+              <div className="flex gap-2">
+                <select
+                  value={p.formaPago}
+                  onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, formaPago: e.target.value } : x)))}
+                  className="flex-1 rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                >
+                  {FORMAS_PAGO.map((o) => (
+                    <option key={o.valor} value={o.valor}>{o.texto}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={p.monto}
+                  onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, monto: e.target.value } : x)))}
+                  className="w-32 rounded-lg border border-slate-300 px-2 py-2 text-right text-sm"
+                />
+                {pagos.length > 1 && (
+                  <button type="button" onClick={() => setPagos((v) => v.filter((_, j) => j !== i))} className="text-slate-400">✕</button>
+                )}
+              </div>
+              {p.formaPago === "efectivo" && (
+                <select
+                  value={p.origen}
+                  onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, origen: e.target.value } : x)))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-xs"
+                >
+                  <option value="administracion">Efectivo de administración</option>
+                  <option value="caja" disabled={!hayTurnoAbierto}>
+                    Efectivo de la caja {hayTurnoAbierto ? "(genera retiro de caja)" : "(no hay caja abierta)"}
+                  </option>
+                </select>
               )}
             </div>
           ))}
@@ -272,7 +307,8 @@ function AnularCompra({ id, onListo, onCancelar, setError }) {
     setError("");
     setGuardando(true);
     try {
-      await apiFetch(`/api/compras/${id}/anular`, { method: "POST", body: JSON.stringify({ motivo }) });
+      const r = await apiFetch(`/api/compras/${id}/anular`, { method: "POST", body: JSON.stringify({ motivo }) });
+      if (r?.aviso) setError(r.aviso);
       onListo();
     } catch (err) {
       setError(err.message);
