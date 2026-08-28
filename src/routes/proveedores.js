@@ -14,10 +14,14 @@ import {
     ajustarSaldo,
     historialAjustesSaldo,
 } from '../controllers/proveedoresController.js';
+import { consultarRucDnit } from '../controllers/sifenConsultaController.js';
 
 const router = Router();
 
 router.use(autenticar);
+
+// Autocompletar el alta de proveedor desde el padrón de la DNIT — antes de /:id.
+router.get('/consultar-ruc', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(consultarRucDnit));
 
 router.get('/', asyncHandler(listarProveedores));
 router.get('/:id', asyncHandler(obtenerProveedor));

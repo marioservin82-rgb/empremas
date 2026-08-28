@@ -7,7 +7,6 @@ import {
     obtenerCliente,
     crearCliente,
     actualizarCliente,
-    consultarRucDnit,
     extractoCliente,
     importarClientes,
     ajustarSaldo,
@@ -19,6 +18,7 @@ import {
     productosFrecuentesDeCliente,
 } from '../controllers/clientesController.js';
 import { facturasPendientes, crearCobro, listarCobros } from '../controllers/cobrosController.js';
+import { consultarRucDnit } from '../controllers/sifenConsultaController.js';
 
 const router = Router();
 

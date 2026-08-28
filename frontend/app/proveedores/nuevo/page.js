@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -13,9 +13,39 @@ export default function NuevoProveedor() {
   const [form, setForm] = useState(vacio);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [sifenConfigurado, setSifenConfigurado] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const [avisoBusqueda, setAvisoBusqueda] = useState("");
+
+  useEffect(() => {
+    apiFetch("/api/empresas/sifen")
+      .then((c) => setSifenConfigurado(!!c.configurado && c.via === "conector"))
+      .catch(() => {});
+  }, []);
 
   function actualizar(campo) {
     return (e) => setForm({ ...form, [campo]: e.target.value });
+  }
+
+  async function buscarEnDnit() {
+    const numero = (form.documento || "").trim();
+    if (!numero) return;
+    setBuscando(true);
+    setAvisoBusqueda("");
+    setError("");
+    try {
+      const r = await apiFetch(`/api/proveedores/consultar-ruc?numero=${encodeURIComponent(numero)}`);
+      if (r.encontrado) {
+        setForm((f) => ({ ...f, nombre: r.razonSocial || f.nombre, documento: r.documento || f.documento }));
+        setAvisoBusqueda(`${r.razonSocial}${r.estado ? ` · ${r.estado}` : ""}. Revisá y guardá.`);
+      } else {
+        setAvisoBusqueda("No figura en el padrón de la DNIT — cargá el nombre a mano.");
+      }
+    } catch (err) {
+      setAvisoBusqueda(err.message);
+    } finally {
+      setBuscando(false);
+    }
   }
 
   async function enviar(e) {
@@ -50,7 +80,34 @@ export default function NuevoProveedor() {
 
         <form onSubmit={enviar} onKeyDown={avanzarConEnter} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <label className={etiqueta}>RUC</label>
-          <input value={form.documento} onChange={actualizar("documento")} className={campo} placeholder="Opcional" autoFocus />
+          <div className="mb-1 flex gap-2">
+            <input
+              value={form.documento}
+              onChange={actualizar("documento")}
+              className={`${campo} mb-0 flex-1`}
+              placeholder="Opcional"
+              autoFocus
+            />
+            {sifenConfigurado && (
+              <button
+                type="button"
+                onClick={buscarEnDnit}
+                disabled={buscando || !form.documento.trim()}
+                className="mb-0 shrink-0 rounded-xl bg-navy px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-2 disabled:opacity-50"
+              >
+                {buscando ? "Buscando…" : "Buscar"}
+              </button>
+            )}
+          </div>
+          {avisoBusqueda ? (
+            <p className="mb-4 mt-1 text-xs text-slate-500">{avisoBusqueda}</p>
+          ) : (
+            sifenConfigurado && (
+              <p className="mb-4 mt-1 text-xs text-slate-400">
+                Poné el RUC y tocá Buscar para traer la razón social del padrón de la DNIT.
+              </p>
+            )
+          )}
 
           <label className={etiqueta}>Nombre / Razón social</label>
           <input required value={form.nombre} onChange={actualizar("nombre")} className={campo} placeholder="Ferretería Mayorista SA" />
