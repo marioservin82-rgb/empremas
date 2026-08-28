@@ -120,6 +120,10 @@ export function descargarKude(cdc) {
     return descargar(`/v1/documentos/${cdc}/kude`);
 }
 
+// iTiOpe (D201) forzado por la clasificación SIFEN del cliente. 'auto' deja
+// que lo decida el conector (1 contribuyente / 2 no contribuyente).
+const ITIOPE_POR_CLASIFICACION = { b2b: 1, b2c: 2, b2g: 3, b2f: 4 };
+
 // Clasifica al receptor consultando el padrón de SIFEN cuando el documento
 // tiene pinta de RUC ("numero-DV"). Sin esto, una cédula escrita con dígito
 // ("4659459-0") se manda como RUC y SIFEN RECHAZA el DE porque ese RUC no
@@ -128,12 +132,14 @@ export function descargarKude(cdc) {
 export async function resolverReceptor({ cliente, tenantId }) {
     const nombre = (cliente?.nombre || '').trim();
     const doc = (cliente?.documento || '').trim();
+    const tipoOperacion = ITIOPE_POR_CLASIFICACION[cliente?.clasificacion_sifen] || undefined;
+    const conITiOpe = (r) => (tipoOperacion ? { ...r, tipoOperacion } : r);
 
     if (cliente?.es_generico || !doc) {
-        return { contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' };
+        return conITiOpe({ contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' });
     }
     if (!doc.includes('-')) {
-        return { contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' };
+        return conITiOpe({ contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' });
     }
 
     // Tiene "-": puede ser un RUC real o una cédula escrita con verificador.
@@ -141,25 +147,25 @@ export async function resolverReceptor({ cliente, tenantId }) {
         try {
             const r = await consultarRuc(tenantId, doc);
             if (r?.encontrado) {
-                return {
+                return conITiOpe({
                     contribuyente: true,
                     ruc: doc,
                     tipoContribuyente: 1,
                     razonSocial: r.razonSocial || nombre || 'SIN NOMBRE',
-                };
+                });
             }
             // Consultado y NO existe -> es una cédula con dígito. Se manda sin el DV.
-            return {
+            return conITiOpe({
                 contribuyente: false,
                 documentoTipo: 1,
                 documentoNumero: doc.split('-')[0],
                 razonSocial: nombre || 'SIN NOMBRE',
-            };
+            });
         } catch {
             // El conector/SIFEN no respondió: se sigue con la heurística vieja.
         }
     }
-    return mapearReceptor(cliente);
+    return conITiOpe(mapearReceptor(cliente));
 }
 
 // Traduce una venta de EMPREMAS a la forma que espera POST /v1/documentos/factura.

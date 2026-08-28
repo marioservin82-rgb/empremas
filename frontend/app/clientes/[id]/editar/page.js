@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { OPCIONES_CLASIFICACION_SIFEN } from "@/lib/sifen";
 
 export default function EditarCliente() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function EditarCliente() {
         setForm({
           nombre: c.nombre || "",
           documento: c.documento || "",
+          clasificacionSifen: c.clasificacion_sifen || "auto",
           telefono: c.telefono || "",
           celular: c.celular || "",
           email: c.email || "",
@@ -90,6 +92,15 @@ export default function EditarCliente() {
           <form onSubmit={enviar} className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
             <label className={etiqueta}>Cédula o RUC</label>
             <input value={form.documento} onChange={actualizar("documento")} className={campo} placeholder="Opcional" />
+
+            <label className={etiqueta}>Tipo de cliente (SIFEN)</label>
+            <select value={form.clasificacionSifen} onChange={actualizar("clasificacionSifen")} className={campo}>
+              {OPCIONES_CLASIFICACION_SIFEN.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.texto}
+                </option>
+              ))}
+            </select>
 
             <label className={etiqueta}>Nombre y apellido</label>
             <input required value={form.nombre} onChange={actualizar("nombre")} className={campo} />

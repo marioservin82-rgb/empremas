@@ -214,9 +214,14 @@ export async function extractoCliente(req, res) {
     });
 }
 
+const CLASIFICACIONES_SIFEN = ['auto', 'b2b', 'b2c', 'b2g', 'b2f'];
+
 export async function crearCliente(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial, vendedorId } = req.body;
+    const clasificacionSifen = CLASIFICACIONES_SIFEN.includes(req.body.clasificacionSifen)
+        ? req.body.clasificacionSifen
+        : 'auto';
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
@@ -231,8 +236,8 @@ export async function crearCliente(req, res) {
     // igual de auditado que cualquier otro ajuste posterior.
     const cliente = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
-            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, vendedor_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric), $10)
+            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, vendedor_id, clasificacion_sifen)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric), $10, $11)
              RETURNING *`,
             [
                 empresaId,
@@ -245,6 +250,7 @@ export async function crearCliente(req, res) {
                 lineaCredito,
                 saldoInicial,
                 vendedorId || null,
+                clasificacionSifen,
             ]
         );
         const nuevoCliente = insertado.rows[0];
@@ -436,6 +442,9 @@ export async function actualizarCliente(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
     const { nombre, documento, telefono, celular, email, direccion, lineaCredito, activo, vendedorId } = req.body;
+    const clasificacionSifen = CLASIFICACIONES_SIFEN.includes(req.body.clasificacionSifen)
+        ? req.body.clasificacionSifen
+        : undefined;
 
     // vendedor_id se asigna directo (sin COALESCE): es nulleable a
     // proposito, para poder desasignar mandando "" - la pantalla de
@@ -455,7 +464,8 @@ export async function actualizarCliente(req, res) {
             direccion = COALESCE($8, direccion),
             linea_credito = COALESCE($9, linea_credito),
             activo = COALESCE($10, activo),
-            vendedor_id = CASE WHEN $11::boolean THEN $12 ELSE vendedor_id END
+            vendedor_id = CASE WHEN $11::boolean THEN $12 ELSE vendedor_id END,
+            clasificacion_sifen = COALESCE($13, clasificacion_sifen)
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
         [
@@ -471,6 +481,7 @@ export async function actualizarCliente(req, res) {
             activo,
             vendedorId !== undefined,
             vendedorId || null,
+            clasificacionSifen ?? null,
         ]
     );
 

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import { OPCIONES_CLASIFICACION_SIFEN } from "@/lib/sifen";
 
 const vacio = {
   nombre: "",
   documento: "",
+  clasificacionSifen: "auto",
   telefono: "",
   celular: "",
   email: "",
@@ -80,6 +82,18 @@ export default function NuevoCliente() {
           <input value={form.documento} onChange={actualizar("documento")} className={campo} placeholder="Opcional" autoFocus />
           <p className="-mt-3 mb-4 text-xs text-slate-400">
             Cuando esté conectado con el SIFEN, este número va a completar el resto de los datos automáticamente.
+          </p>
+
+          <label className={etiqueta}>Tipo de cliente (SIFEN)</label>
+          <select value={form.clasificacionSifen} onChange={actualizar("clasificacionSifen")} className={campo}>
+            {OPCIONES_CLASIFICACION_SIFEN.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.texto}
+              </option>
+            ))}
+          </select>
+          <p className="-mt-3 mb-4 text-xs text-slate-400">
+            Casi siempre &quot;Automático&quot;. Cambialo solo para un organismo del Estado o un cliente del exterior.
           </p>
 
           <label className={etiqueta}>Nombre y apellido</label>

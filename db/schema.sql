@@ -704,6 +704,11 @@ CREATE TABLE clientes (
     empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
     documento       TEXT,
+    -- Clasificación SIFEN (tipo de operación / iTiOpe). 'auto' = B2B si el
+    -- cliente es contribuyente (RUC), B2C si no. b2b/b2c/b2g/b2f fuerzan el
+    -- valor (sector público, exterior).
+    clasificacion_sifen TEXT NOT NULL DEFAULT 'auto'
+        CHECK (clasificacion_sifen IN ('auto', 'b2b', 'b2c', 'b2g', 'b2f')),
     telefono        TEXT,
     -- Aparte de telefono (fijo): el celular es el que sirve para
     -- recordatorios por WhatsApp.

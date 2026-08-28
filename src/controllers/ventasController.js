@@ -583,7 +583,7 @@ export async function crearVenta(req, res) {
                     [empresaId, ventaId]
                 );
                 const clienteResultado = await cliente.query(
-                    `SELECT nombre, documento, es_generico FROM clientes WHERE id = $1`,
+                    `SELECT nombre, documento, es_generico, clasificacion_sifen FROM clientes WHERE id = $1`,
                     [clienteIdFinal]
                 );
                 const sucursalResultado = await cliente.query(
@@ -657,7 +657,8 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
                 e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
                 e.plazo_credito_dias,
                 s.punto_expedicion,
-                c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico
+                c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico,
+                c.clasificacion_sifen AS cliente_clasificacion_sifen
          FROM documentos_electronicos de
          JOIN ventas v ON v.id = de.venta_id
          JOIN empresas e ON e.id = v.empresa_id
@@ -736,7 +737,12 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
             plazoCreditoDias: fila.plazo_credito_dias,
         },
         items: items.rows,
-        cliente: { nombre: fila.cliente_nombre, documento: fila.cliente_documento, es_generico: fila.cliente_es_generico },
+        cliente: {
+            nombre: fila.cliente_nombre,
+            documento: fila.cliente_documento,
+            es_generico: fila.cliente_es_generico,
+            clasificacion_sifen: fila.cliente_clasificacion_sifen,
+        },
     });
 
     const act = await consultaDeEmpresa(
