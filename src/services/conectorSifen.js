@@ -177,6 +177,14 @@ export function inutilizarNumeracion(tenantId, { tipoDocumento, desde, hasta, mo
     });
 }
 
+// Emite una Nota de Crédito (tipo='credito') o Débito ('debito') electrónica.
+// `nota`: { motivo, cdcFacturaAsociada, items:[{codigo,descripcion,cantidad,
+//   precioUnitario,ivaTasa}], observacion? }. `receptor` ya resuelto.
+export function emitirNota(tenantId, tipo, nota, receptor) {
+    const ruta = tipo === 'debito' ? '/v1/documentos/nota-debito' : '/v1/documentos/nota-credito';
+    return llamar('POST', ruta, { tenantId, nota: { ...nota, receptor } });
+}
+
 // Consulta un RUC en el padrón de SIFEN (para saber si un receptor es
 // contribuyente antes de emitir). `numero` va sin dígito verificador.
 // Respuesta: { ruc, encontrado, razonSocial, digitoVerificador, estado }.
