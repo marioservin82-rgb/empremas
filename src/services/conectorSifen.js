@@ -95,6 +95,75 @@ export function consultarDocumento(cdc) {
     return llamar('GET', `/v1/documentos/${cdc}`);
 }
 
+// Emite una Nota de Remisión Electrónica. `remision` con la forma de
+// mapearRemisionAConector. Respuesta: { cdc, estado, protocoloAutorizacion, errores }.
+export function emitirRemision(tenantId, remision) {
+    return llamar('POST', '/v1/documentos/nota-remision', { tenantId, remision });
+}
+
+// Arma la entrada de POST /v1/documentos/nota-remision desde una remisión de
+// EMPREMAS. `receptor` ya resuelto (resolverReceptor). `items`: [{ codigo?,
+// productoId?, nombre, cantidad }]. `remision`: fila de la tabla remisiones.
+export function mapearRemisionAConector({ remision, items, receptor }) {
+    const t = remision.transporte || {};
+    const fecha = (remision.fecha_traslado || '').toString().slice(0, 10) || undefined;
+
+    const salida = {
+        receptor,
+        items: items.map((it, i) => ({
+            codigo: String(it.codigo || it.productoId || it.producto_id || i + 1),
+            descripcion: it.nombre || it.producto_nombre || 'Producto',
+            cantidad: Number(it.cantidad),
+            unidadMedida: 77,
+        })),
+        motivo: Number(remision.motivo) || 1,
+        kmEstimados: Number(remision.km_estimados) || 1,
+        fechaInicioTraslado: fecha,
+        fechaFinTraslado: fecha,
+        entrega: {
+            direccion: remision.direccion_entrega || 'Sin dirección',
+            ...(remision.ciudad_entrega ? { ciudad: Number(remision.ciudad_entrega) } : {}),
+        },
+        tipoTransporte: Number(t.tipoTransporte) || 1,
+        modalidad: Number(t.modalidad) || 1,
+        responsableFlete: Number(t.responsableFlete) || 5,
+        vehiculo: {
+            tipo: t.vehiculo?.tipo || 'VEHICULO',
+            marca: t.vehiculo?.marca || 'S/M',
+            chapa: t.vehiculo?.chapa || 'SINCHAPA',
+        },
+        transportista: t.transportista?.contribuyente
+            ? {
+                  contribuyente: true,
+                  nombre: t.transportista.nombre,
+                  ruc: t.transportista.ruc,
+                  direccion: t.transportista.direccion || 'Sin dirección',
+                  chofer: t.transportista.chofer,
+              }
+            : {
+                  contribuyente: false,
+                  nombre: t.transportista?.nombre || 'Transportista',
+                  documentoTipo: Number(t.transportista?.documentoTipo) || 1,
+                  documentoNumero: String(t.transportista?.documentoNumero || '0'),
+                  direccion: t.transportista?.direccion || 'Sin dirección',
+                  chofer: t.transportista?.chofer || {
+                      nombre: t.transportista?.nombre || 'Chofer',
+                      documentoNumero: String(t.transportista?.documentoNumero || '0'),
+                      direccion: t.transportista?.direccion || 'Sin dirección',
+                  },
+              },
+        observacion: remision.observacion || undefined,
+    };
+
+    if (remision.factura_cdc) {
+        salida.cdcFacturaAsociada = remision.factura_cdc;
+    } else if (remision.fecha_futura_factura) {
+        salida.fechaFuturaFactura = remision.fecha_futura_factura.toString().slice(0, 10);
+    }
+
+    return salida;
+}
+
 // Inutiliza un rango de numeración no usado (evento SIFEN). `desde`/`hasta`
 // son enteros (el número de 7 díg. sin ceros a la izquierda). Máx. 1000.
 export function inutilizarNumeracion(tenantId, { tipoDocumento, desde, hasta, motivo, serie }) {
@@ -193,6 +262,11 @@ export function mapearVentaAConector({ venta, items, cliente, receptor }) {
         // Fiado / cuenta corriente = crédito "a plazo" (un solo vencimiento).
         const dias = venta.plazoCreditoDias || 30;
         salida.credito = { tipo: 1, plazo: `${dias} días` };
+    }
+
+    // Si la venta factura una Nota de Remisión ya emitida, se asocia por CDC.
+    if (venta.cdcRemisionAsociada) {
+        salida.cdcRemisionAsociada = venta.cdcRemisionAsociada;
     }
 
     return salida;

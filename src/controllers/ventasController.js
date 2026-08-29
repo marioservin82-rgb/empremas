@@ -194,7 +194,7 @@ function validarYSumarPagos(pagos) {
 
 export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId } = req.usuario;
-    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId } = req.body;
+    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
     if (!COLUMNA_PRECIO[tipoPago]) {
@@ -237,6 +237,22 @@ export async function crearVenta(req, res) {
                     'Factura Legal todavía no está disponible: falta habilitar la facturación electrónica de esta empresa'
                 );
             }
+
+            // Si esta venta factura una Nota de Remisión ya emitida: la
+            // mercadería ya salió del depósito (la remisión descontó el stock),
+            // así que acá NO se vuelve a descontar, y la factura se asocia a la
+            // remisión por su CDC.
+            let remision = null;
+            if (remisionId) {
+                const rr = await cliente.query(
+                    `SELECT id, cdc, estado, facturada, descuenta_stock FROM remisiones WHERE id = $1`,
+                    [remisionId]
+                );
+                remision = rr.rows[0];
+                if (!remision) throw new ErrorNegocio('La remisión no existe');
+                if (remision.facturada) throw new ErrorNegocio('Esta remisión ya fue facturada');
+            }
+            const saltarStock = !!(remision && remision.descuenta_stock);
 
             const columnaPrecio = COLUMNA_PRECIO[tipoPago];
             let total = 0;
@@ -562,7 +578,9 @@ export async function crearVenta(req, res) {
                 // tiene) - se descuenta cada ingrediente de su receta en su
                 // lugar, ya multiplicado por la cantidad vendida (ver
                 // consumosInsumo, calculado en el primer loop).
-                if (item.consumosInsumo) {
+                if (saltarStock) {
+                    // La remisión ya descontó el stock al salir del depósito.
+                } else if (item.consumosInsumo) {
                     for (const consumo of item.consumosInsumo) {
                         await cliente.query(
                             `UPDATE producto_stock SET stock = stock - $3 WHERE producto_id = $1 AND sucursal_id = $2`,
@@ -575,6 +593,13 @@ export async function crearVenta(req, res) {
                         [item.productoId, sucursalId, item.cantidad]
                     );
                 }
+            }
+
+            if (remision) {
+                await cliente.query(
+                    `UPDATE remisiones SET venta_id = $2, facturada = true, actualizado_en = now() WHERE id = $1`,
+                    [remision.id, ventaId]
+                );
             }
 
             if (comprobante === 'factura_legal') {
@@ -600,9 +625,16 @@ export async function crearVenta(req, res) {
                     apiKey: sifenApiKey,
                     establecimiento: sifenEstablecimiento,
                     puntoExpedicion: sucursalResultado.rows[0]?.punto_expedicion || 1,
-                    venta: { tipoPago, pagos: pagos || [], vencimiento, plazoCreditoDias },
+                    venta: {
+                        tipoPago,
+                        pagos: pagos || [],
+                        vencimiento,
+                        plazoCreditoDias,
+                        cdcRemisionAsociada: remision?.cdc || undefined,
+                    },
                     items: itemsCalculados,
                     cliente: clienteResultado.rows[0],
+                    remisionId: remision?.id || null,
                 };
             }
 
@@ -631,6 +663,17 @@ export async function crearVenta(req, res) {
             await emitirYActualizarDe({ empresaId, ...deParaEmitir }).catch((e) =>
                 console.error('[SIFEN] emisión falló:', e?.message)
             );
+
+            // Deja el CDC de la factura en la remisión (para el detalle de la remisión).
+            if (deParaEmitir.remisionId) {
+                await consultaDeEmpresa(
+                    empresaId,
+                    `UPDATE remisiones r SET factura_cdc = de.cdc, actualizado_en = now()
+                       FROM documentos_electronicos de
+                      WHERE de.id = $2 AND r.id = $1 AND de.cdc IS NOT NULL`,
+                    [deParaEmitir.remisionId, deParaEmitir.deId]
+                ).catch(() => {});
+            }
         }
 
         res.status(201).json({ ...venta, tieneDocumentoElectronico: !!deParaEmitir });

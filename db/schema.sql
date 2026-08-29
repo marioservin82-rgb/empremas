@@ -86,6 +86,9 @@ CREATE TABLE empresas (
     sifen_remision            BOOLEAN NOT NULL DEFAULT false,
     sifen_nc_nd               BOOLEAN NOT NULL DEFAULT false,
     sifen_autofactura         BOOLEAN NOT NULL DEFAULT false,
+    -- Preset de transporte para las Notas de Remisión (vehiculo, chofer,
+    -- transportista, modalidad). Se copia a cada remisión y se edita ahí.
+    preset_remision           JSONB,
     -- Datos fiscales del emisor cacheados desde el conector (fuente de verdad).
     -- Van impresos en toda representación gráfica (KuDE): actividad económica,
     -- número de timbrado e inicio de vigencia. Copia de solo lectura: se
@@ -1390,6 +1393,57 @@ CREATE INDEX idx_de_intentos_doc ON documento_electronico_intentos (documento_id
 ALTER TABLE documento_electronico_intentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documento_electronico_intentos FORCE ROW LEVEL SECURITY;
 CREATE POLICY de_intentos_aislamiento ON documento_electronico_intentos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Nota de Remisión electronica (SIFEN iTiDE 7). Dos flujos: desde una factura
+-- ya emitida (con su CDC, no toca stock) o "remision primero, factura despues"
+-- (descuenta stock al emitir; la factura posterior no lo vuelve a descontar).
+CREATE TYPE estado_remision AS ENUM
+    ('borrador', 'pendiente', 'enviado', 'aprobado', 'rechazado', 'error');
+
+CREATE TABLE remisiones (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id            UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    sucursal_id           UUID REFERENCES sucursales(id),
+    usuario_id            UUID NOT NULL REFERENCES usuarios(id),
+    cliente_id            UUID REFERENCES clientes(id),
+    venta_id              UUID REFERENCES ventas(id),
+    factura_cdc           TEXT,
+    fecha_futura_factura  DATE,
+    facturada             BOOLEAN NOT NULL DEFAULT false,
+    motivo                SMALLINT NOT NULL DEFAULT 1,
+    observacion           TEXT,
+    direccion_entrega     TEXT NOT NULL,
+    ciudad_entrega        INTEGER,
+    km_estimados          NUMERIC(10,2) NOT NULL DEFAULT 1,
+    fecha_traslado        DATE NOT NULL DEFAULT CURRENT_DATE,
+    transporte            JSONB NOT NULL,
+    estado                estado_remision NOT NULL DEFAULT 'pendiente',
+    cdc                   TEXT,
+    numero_formateado     TEXT,
+    mensaje_error         TEXT,
+    descuenta_stock       BOOLEAN NOT NULL DEFAULT false,
+    creado_en             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE remision_items (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id    UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    remision_id   UUID NOT NULL REFERENCES remisiones(id) ON DELETE CASCADE,
+    producto_id   UUID NOT NULL REFERENCES productos(id),
+    cantidad      NUMERIC(14,3) NOT NULL
+);
+CREATE INDEX idx_remisiones_empresa ON remisiones (empresa_id);
+CREATE INDEX idx_remisiones_venta ON remisiones (venta_id) WHERE venta_id IS NOT NULL;
+CREATE INDEX idx_remision_items_empresa ON remision_items (empresa_id);
+CREATE INDEX idx_remision_items_remision ON remision_items (remision_id);
+ALTER TABLE remisiones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE remisiones FORCE ROW LEVEL SECURITY;
+ALTER TABLE remision_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE remision_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY remisiones_aislamiento ON remisiones
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+CREATE POLICY remision_items_aislamiento ON remision_items
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 CREATE INDEX idx_pagos_plataforma_empresa ON pagos_plataforma (empresa_id);

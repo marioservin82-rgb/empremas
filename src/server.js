@@ -20,6 +20,7 @@ import produccionRoutes from './routes/produccion.js';
 import vendedoresRoutes from './routes/vendedores.js';
 import mesasRoutes from './routes/mesas.js';
 import pedidosRoutes from './routes/pedidos.js';
+import remisionesRoutes from './routes/remisiones.js';
 import { iniciarBarredorDocumentosElectronicos } from './jobs/barrerDocumentosElectronicos.js';
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/produccion', produccionRoutes);
 app.use('/api/vendedores', vendedoresRoutes);
 app.use('/api/mesas', mesasRoutes);
 app.use('/api/pedidos', pedidosRoutes);
+app.use('/api/remisiones', remisionesRoutes);
 
 app.use((error, req, res, next) => {
     console.error(error);

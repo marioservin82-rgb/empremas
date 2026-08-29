@@ -11,6 +11,8 @@ import {
     actualizarConfigSifen,
     obtenerLogo,
     actualizarLogo,
+    obtenerPresetRemision,
+    actualizarPresetRemision,
 } from '../controllers/empresasController.js';
 
 const router = Router();
@@ -25,5 +27,7 @@ router.get('/sifen', asyncHandler(obtenerConfigSifen));
 router.patch('/sifen', permitirRoles('dueno'), asyncHandler(actualizarConfigSifen));
 router.get('/logo', asyncHandler(obtenerLogo));
 router.patch('/logo', permitirRoles('dueno'), asyncHandler(actualizarLogo));
+router.get('/preset-remision', asyncHandler(obtenerPresetRemision));
+router.put('/preset-remision', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(actualizarPresetRemision));
 
 export default router;

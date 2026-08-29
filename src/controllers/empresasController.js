@@ -43,6 +43,66 @@ export async function obtenerLogo(req, res) {
     res.json({ logo: resultado.rows[0]?.logo ?? null });
 }
 
+// Preset de transporte para las Notas de Remisión (vehículo, chofer,
+// transportista, modalidad). Se copia a cada remisión y se puede editar ahí.
+export async function obtenerPresetRemision(req, res) {
+    const { empresaId } = req.usuario;
+    const r = await pool.query(`SELECT preset_remision FROM empresas WHERE id = $1`, [empresaId]);
+    res.json({ preset: r.rows[0]?.preset_remision ?? null });
+}
+
+export async function actualizarPresetRemision(req, res) {
+    const { empresaId } = req.usuario;
+    const p = req.body?.preset;
+
+    if (!p || typeof p !== 'object' || !p.vehiculo || !p.transportista) {
+        return res.status(400).json({ error: 'Faltan los datos del vehículo o del transportista' });
+    }
+    const v = p.vehiculo;
+    if (!String(v.tipo || '').trim() || !String(v.marca || '').trim() || !String(v.chapa || '').trim()) {
+        return res.status(400).json({ error: 'El vehículo necesita tipo, marca y chapa' });
+    }
+    const t = p.transportista;
+    const ch = t.chofer || {};
+    if (!String(t.nombre || '').trim() || !String(ch.nombre || '').trim() || !String(ch.documentoNumero || '').trim()) {
+        return res.status(400).json({ error: 'El transportista y el chofer necesitan nombre y el chofer un documento' });
+    }
+
+    const preset = {
+        tipoTransporte: Number(p.tipoTransporte) || 1,
+        modalidad: Number(p.modalidad) || 1,
+        responsableFlete: Number(p.responsableFlete) || 5,
+        vehiculo: { tipo: String(v.tipo).trim(), marca: String(v.marca).trim(), chapa: String(v.chapa).trim() },
+        transportista: t.contribuyente
+            ? {
+                  contribuyente: true,
+                  nombre: String(t.nombre).trim(),
+                  ruc: String(t.ruc || '').trim(),
+                  direccion: String(t.direccion || '').trim(),
+                  chofer: {
+                      nombre: String(ch.nombre).trim(),
+                      documentoNumero: String(ch.documentoNumero).trim().replace(/\D/g, ''),
+                      direccion: String(ch.direccion || t.direccion || '').trim(),
+                  },
+              }
+            : {
+                  contribuyente: false,
+                  nombre: String(t.nombre).trim(),
+                  documentoTipo: Number(t.documentoTipo) || 1,
+                  documentoNumero: String(t.documentoNumero || '').trim().replace(/\D/g, ''),
+                  direccion: String(t.direccion || '').trim(),
+                  chofer: {
+                      nombre: String(ch.nombre).trim(),
+                      documentoNumero: String(ch.documentoNumero).trim().replace(/\D/g, ''),
+                      direccion: String(ch.direccion || t.direccion || '').trim(),
+                  },
+              },
+    };
+
+    await pool.query(`UPDATE empresas SET preset_remision = $2 WHERE id = $1`, [empresaId, JSON.stringify(preset)]);
+    res.json({ preset });
+}
+
 export async function actualizarLogo(req, res) {
     const { empresaId } = req.usuario;
     const { logo } = req.body;
