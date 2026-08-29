@@ -185,6 +185,54 @@ export function emitirNota(tenantId, tipo, nota, receptor) {
     return llamar('POST', ruta, { tenantId, nota: { ...nota, receptor } });
 }
 
+// Emite una Autofactura Electrónica (iTiDE 4). `autofactura` con la forma que
+// espera el conector (ver mapearAutofacturaAConector). El receptor del DE es la
+// propia empresa emisora, lo resuelve el conector.
+// Respuesta: { cdc, estado, protocoloAutorizacion, errores, totales }.
+export function emitirAutofactura(tenantId, autofactura) {
+    return llamar('POST', '/v1/documentos/autofactura', { tenantId, autofactura });
+}
+
+// Busca en el catálogo geográfico de SIFEN por nombre (o código exacto).
+// Respuesta: { ciudades: [{ codigo, ciudad, distrito, departamento }] }.
+export function buscarCiudades(q) {
+    return llamar('GET', `/v1/ciudades?q=${encodeURIComponent(q)}`);
+}
+
+// Arma la entrada de POST /v1/documentos/autofactura desde una autofactura de
+// EMPREMAS. `af`: fila de la tabla autofacturas. `items`: filas de autofactura_items.
+export function mapearAutofacturaAConector({ af, items }) {
+    return {
+        vendedor: {
+            naturaleza: Number(af.vendedor_naturaleza) || 1,
+            documentoTipo: Number(af.vendedor_doc_tipo) || 1,
+            documentoNumero: String(af.vendedor_doc_numero || '').replace(/\D/g, ''),
+            nombre: af.vendedor_nombre,
+            direccion: af.vendedor_direccion,
+            numeroCasa: af.vendedor_numero_casa || '0',
+            ciudad: Number(af.vendedor_ciudad),
+        },
+        lugarTransaccion: {
+            direccion: af.transaccion_direccion,
+            ciudad: Number(af.transaccion_ciudad),
+        },
+        constancia: {
+            tipo: Number(af.constancia_tipo) || 1,
+            numero: String(af.constancia_numero || '').replace(/\D/g, ''),
+            control: String(af.constancia_control || ''),
+        },
+        tipoTransaccion: Number(af.tipo_transaccion) || 10,
+        observacion: af.observacion || undefined,
+        items: items.map((it, i) => ({
+            codigo: String(i + 1),
+            descripcion: it.descripcion || 'Producto',
+            cantidad: Number(it.cantidad),
+            unidadMedida: 77,
+            precioUnitario: Math.round(Number(it.precio_unitario)),
+        })),
+    };
+}
+
 // Consulta un RUC en el padrón de SIFEN (para saber si un receptor es
 // contribuyente antes de emitir). `numero` va sin dígito verificador.
 // Respuesta: { ruc, encontrado, razonSocial, digitoVerificador, estado }.

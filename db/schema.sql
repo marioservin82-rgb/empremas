@@ -1501,6 +1501,62 @@ CREATE POLICY notas_electronicas_aislamiento ON notas_electronicas
 CREATE POLICY nota_items_aislamiento ON nota_items
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
+-- Autofactura electrónica (SIFEN iTiDE 4): compra a un no contribuyente /
+-- extranjero. Documento puramente fiscal, no mueve stock (ver
+-- autofacturasController.js y db/migracion-autofactura.sql).
+CREATE TYPE estado_autofactura AS ENUM ('pendiente', 'enviado', 'aprobado', 'rechazado', 'error');
+
+CREATE TABLE autofacturas (
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id             UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    sucursal_id            UUID REFERENCES sucursales(id),
+    usuario_id             UUID NOT NULL REFERENCES usuarios(id),
+    proveedor_id           UUID REFERENCES proveedores(id),
+    vendedor_naturaleza    SMALLINT NOT NULL DEFAULT 1,
+    vendedor_doc_tipo      SMALLINT NOT NULL DEFAULT 1,
+    vendedor_doc_numero    TEXT NOT NULL,
+    vendedor_nombre        TEXT NOT NULL,
+    vendedor_direccion     TEXT NOT NULL,
+    vendedor_numero_casa   TEXT NOT NULL DEFAULT '0',
+    vendedor_ciudad        INTEGER NOT NULL,
+    transaccion_direccion  TEXT NOT NULL,
+    transaccion_ciudad     INTEGER NOT NULL,
+    constancia_tipo        SMALLINT NOT NULL DEFAULT 1,
+    constancia_numero      TEXT NOT NULL,
+    constancia_control     TEXT NOT NULL,
+    tipo_transaccion       SMALLINT NOT NULL DEFAULT 10,
+    observacion            TEXT,
+    total                  NUMERIC(14,2) NOT NULL,
+    estado                 estado_autofactura NOT NULL DEFAULT 'pendiente',
+    cdc                    TEXT,
+    numero_formateado      TEXT,
+    mensaje_error          TEXT,
+    creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE autofactura_items (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    autofactura_id  UUID NOT NULL REFERENCES autofacturas(id) ON DELETE CASCADE,
+    descripcion     TEXT NOT NULL,
+    cantidad        NUMERIC(14,3) NOT NULL,
+    precio_unitario NUMERIC(14,2) NOT NULL,
+    subtotal        NUMERIC(14,2) NOT NULL
+);
+
+CREATE INDEX idx_autofacturas_empresa ON autofacturas (empresa_id);
+CREATE INDEX idx_autofactura_items_empresa ON autofactura_items (empresa_id);
+CREATE INDEX idx_autofactura_items_af ON autofactura_items (autofactura_id);
+ALTER TABLE autofacturas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE autofacturas FORCE ROW LEVEL SECURITY;
+ALTER TABLE autofactura_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE autofactura_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY autofacturas_aislamiento ON autofacturas
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+CREATE POLICY autofactura_items_aislamiento ON autofactura_items
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 CREATE INDEX idx_pagos_plataforma_empresa ON pagos_plataforma (empresa_id);
 
 -- =====================================================================
