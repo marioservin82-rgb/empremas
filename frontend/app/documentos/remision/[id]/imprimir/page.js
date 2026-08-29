@@ -41,6 +41,7 @@ export default function ImprimirRemision() {
   const { id } = useParams();
   const [r, setR] = useState(null);
   const [emp, setEmp] = useState(null);
+  const [qr, setQr] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -55,6 +56,22 @@ export default function ImprimirRemision() {
       })
       .catch((e) => setError(e.message));
   }, [id, router]);
+
+  // QR de verificación: abre la consulta pública del CDC en e-Kuatia. El QR
+  // criptográfico oficial va en el KuDE PDF del conector.
+  useEffect(() => {
+    if (!r?.cdc) return;
+    let cancelado = false;
+    import("qrcode").then((QRCode) => {
+      const url = `https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id=${r.cdc}`;
+      QRCode.toDataURL(url, { margin: 0, width: 240, errorCorrectionLevel: "M" }).then((d) => {
+        if (!cancelado) setQr(d);
+      });
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [r?.cdc]);
 
   if (error) return <main className="p-6 text-sm text-red-600">{error}</main>;
   if (!r || !emp) return <main className="p-6 text-slate-500">Cargando…</main>;
@@ -121,7 +138,9 @@ export default function ImprimirRemision() {
               </div>
             </div>
             <div className="qr">
-              <div className="box">QR<br />SIFEN</div>
+              <div className="box">
+                {qr ? <img src={qr} alt="QR de verificación SIFEN" /> : "QR"}
+              </div>
               <div className="cap">ekuatia.set.gov.py</div>
             </div>
           </div>
@@ -291,14 +310,15 @@ const CSS = `
 .kw .doc .kind{font-family:"Oswald","Arial Narrow",sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid var(--rule);padding:3px 4px;}
 .kw .doc .num{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12px;}
 .kw .doc .timb{color:var(--muted);font-size:8.7px;}
-.kw .control{display:grid;grid-template-columns:1fr 22mm;align-items:center;}
+.kw .control{display:grid;grid-template-columns:1fr 24mm;align-items:center;}
 .kw .control .cdc{padding:4px 8px;border-right:1px solid var(--rule);}
 .kw .lab{font-family:"Oswald","Arial Narrow",sans-serif;font-weight:500;font-size:7.6px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);}
 .kw .cdc .val{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:10px;letter-spacing:.04em;word-break:break-all;}
 .kw .cdc .emis{margin-top:3px;font-size:8.8px;}
 .kw .cdc .emis b{font-weight:600;font-variant-numeric:tabular-nums;}
 .kw .control .qr{padding:3px;text-align:center;}
-.kw .control .qr .box{width:17mm;height:17mm;margin:0 auto;border:1px solid var(--rule);display:flex;align-items:center;justify-content:center;font-size:6.5px;color:var(--muted);text-align:center;line-height:1.1;}
+.kw .control .qr .box{width:18mm;height:18mm;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:6.5px;color:var(--muted);}
+.kw .control .qr .box img{width:100%;height:100%;display:block;image-rendering:pixelated;}
 .kw .control .qr .cap{font-size:6.6px;color:var(--muted);margin-top:1px;}
 .kw .band{font-family:"Oswald","Arial Narrow",sans-serif;font-weight:600;font-size:8.4px;letter-spacing:.08em;text-transform:uppercase;background:var(--band);color:#fff;padding:2.5px 8px;}
 .kw .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 14px;padding:5px 8px;}
@@ -333,6 +353,7 @@ const CSS = `
 @media print{
   @page{size:A4;margin:7mm;}
   .kw{background:#fff;padding:0;}
+  .kw,.kw *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .kw .toolbar{display:none;}
   .kw .kude{width:auto;border:none;box-shadow:none;padding:0;}
 }
