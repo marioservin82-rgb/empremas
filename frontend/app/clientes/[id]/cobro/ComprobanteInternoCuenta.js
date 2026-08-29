@@ -1,6 +1,7 @@
 "use client";
 
 import { imprimirTicket } from "@/lib/agenteImpresion";
+import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -20,7 +21,7 @@ const SEPARADOR = { texto: "--------------------------------" };
 // version A4) y siempre manual, nunca se imprime solo.
 function lineasComprobanteInternoCuenta(empresa, cliente, cobro, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: "COMPROBANTE INTERNO DE CUENTA", negrita: true, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
@@ -65,7 +66,10 @@ export default function ComprobanteInternoCuenta({ empresa, cobro, cliente }) {
         className="recibo-imprimible w-[80mm] rounded-xl bg-white p-[3mm] text-base text-slate-800 shadow"
         style={{ zoom: (empresa.ticket_escala ?? 100) / 100 }}
       >
-        <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
+        <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
+        {nombresEmpresa(empresa).secundario && (
+          <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+        )}
         <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>
         <p className="mt-2 text-center text-lg font-bold">COMPROBANTE INTERNO DE CUENTA</p>
         <p className="text-center text-sm text-slate-500">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
+import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -456,7 +457,7 @@ function lineasCierre(tipoPago) {
 function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   const fecha = new Date(venta.creado_en);
   const lineas = [
-    { texto: empresa?.razon_social, negrita: true, alineacion: "centro" },
+    ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa?.ruc}`, alineacion: "centro" },
   ];
   if (empresa?.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
@@ -506,7 +507,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
 function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   const fecha = new Date(venta.creadoEn);
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
   ];
   if (empresa.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
@@ -635,7 +636,10 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         className="recibo-imprimible w-[80mm] rounded-xl bg-white p-[3mm] font-bold text-base text-slate-800 shadow"
         style={{ zoom: (empresa?.ticket_escala ?? 100) / 100 }}
       >
-        <p className="text-center text-xl">{empresa?.razon_social}</p>
+        <p className="text-center text-xl">{nombresEmpresa(empresa).principal}</p>
+        {nombresEmpresa(empresa).secundario && (
+          <p className="text-center text-sm">{nombresEmpresa(empresa).secundario}</p>
+        )}
         <p className="text-center text-sm">RUC {empresa?.ruc}</p>
         {empresa?.direccion && <p className="text-center text-sm">{empresa.direccion}</p>}
         {empresa?.telefono && <p className="text-center text-sm">Tel: {empresa.telefono}</p>}
@@ -808,7 +812,10 @@ export default function Recibo({
         }
         style={esA4 ? undefined : { zoom: (empresa.ticket_escala ?? 100) / 100 }}
       >
-        <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
+        <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
+        {nombresEmpresa(empresa).secundario && (
+          <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+        )}
         <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>
         {empresa.direccion && <p className="text-center text-sm text-slate-500">{empresa.direccion}</p>}
         {empresa.telefono && <p className="text-center text-sm text-slate-500">Tel: {empresa.telefono}</p>}

@@ -102,6 +102,9 @@ export default function DetallePresupuesto() {
           <h1 className="text-2xl font-bold text-navy">
             {presupuesto.cliente_nombre || "Presupuesto sin cliente"}
           </h1>
+          <p className="text-sm font-semibold text-slate-500">
+            Presupuesto N° {presupuesto.numero ?? "—"}
+          </p>
           <p className="text-sm text-slate-400">
             Vence {new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}
             {presupuesto.vencido && <span className="ml-2 font-semibold text-red-500">VENCIDO</span>}

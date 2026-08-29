@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { nombresEmpresa } from "@/lib/encabezadoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -39,6 +40,7 @@ export default function ExtractoCliente() {
   const recuadroRef = useRef(null);
 
   const [datos, setDatos] = useState(null);
+  const [empresa, setEmpresa] = useState(null);
   const [error, setError] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -66,6 +68,7 @@ export default function ExtractoCliente() {
       return;
     }
     cargar({});
+    apiFetch("/api/empresas/actual").then(setEmpresa).catch(() => {});
   }, [cargar, router]);
 
   function elegirPeriodo(nombre) {
@@ -223,7 +226,16 @@ export default function ExtractoCliente() {
         <div ref={recuadroRef} className="reporte-imprimible rounded-xl bg-white p-6 shadow">
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
           <div className="mb-4 hidden print:block">
-            <p className="text-xl font-bold">Extracto de {cliente.nombre}</p>
+            {empresa && (
+              <>
+                <p className="text-lg font-bold">{nombresEmpresa(empresa).principal}</p>
+                {nombresEmpresa(empresa).secundario && (
+                  <p className="text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+                )}
+                <p className="text-sm text-slate-500">RUC {empresa.ruc}</p>
+              </>
+            )}
+            <p className="mt-2 text-xl font-bold">Extracto de {cliente.nombre}</p>
             <p className="text-sm text-slate-500">
               {textoPeriodo} · Emitido el {fecha(new Date())}
             </p>

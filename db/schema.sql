@@ -17,6 +17,11 @@ CREATE TYPE politica_clientes_vendedor_inactivo AS ENUM ('mantener', 'desasignar
 CREATE TABLE empresas (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     razon_social    TEXT NOT NULL,
+    -- Nombre comercial / de fantasía. Se muestra (junto a la razón social) en
+    -- el ticket interno, el recibo de cobro, los extractos y el presupuesto.
+    -- Para empresas con facturación electrónica lo pisa el conector
+    -- (sincronizarDatosFiscales); las demás lo editan en Perfil de Empresa.
+    nombre_fantasia TEXT,
     ruc             TEXT NOT NULL UNIQUE,
     timbrado        TEXT,
     direccion       TEXT,
@@ -46,6 +51,8 @@ CREATE TABLE empresas (
     -- Numeracion correlativa de los tickets de venta (distinta de la de
     -- recibos de cobro) - mismo mecanismo de UPDATE...RETURNING.
     siguiente_numero_ticket    INTEGER NOT NULL DEFAULT 1,
+    -- Numeracion correlativa de los presupuestos - mismo mecanismo.
+    siguiente_numero_presupuesto INTEGER NOT NULL DEFAULT 1,
     -- Limites de plan (los edita el admin de la plataforma desde su panel,
     -- nunca el propio dueno de la empresa). limite_sucursales reemplaza al
     -- viejo multi_sucursal_habilitado booleano: "hasta N sucursales" en
@@ -949,6 +956,9 @@ CREATE TABLE presupuestos (
     -- cualquiera que pregunte, no necesariamente atada a una persona.
     cliente_id      UUID REFERENCES clientes(id),
     usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    -- Numero correlativo por empresa (mismo mecanismo que los recibos de
+    -- cobro: UPDATE empresas ... RETURNING sobre siguiente_numero_presupuesto).
+    numero          INTEGER,
     -- Que lista de precios se uso como base al armar el presupuesto
     -- (contado/credito/mayorista) - cada item puede despues pisar ese
     -- precio a mano (ver presupuesto_items.precio_unitario).

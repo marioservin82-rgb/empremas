@@ -58,7 +58,10 @@ export default function Presupuestos() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-lg font-bold text-slate-800">{p.cliente_nombre || "Sin cliente"}</p>
+                    <p className="text-lg font-bold text-slate-800">
+                      {p.numero != null && <span className="text-slate-400">N° {p.numero} · </span>}
+                      {p.cliente_nombre || "Sin cliente"}
+                    </p>
                     <p className="text-sm text-slate-400">
                       Vence {new Date(p.vencimiento).toLocaleDateString("es-PY")}
                       {p.vencido && <span className="ml-2 font-semibold text-red-500">VENCIDO</span>}

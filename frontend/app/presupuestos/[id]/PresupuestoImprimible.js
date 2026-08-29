@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
+import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Ver mismo comentario en Recibo.js: sin esto, una cantidad entera sale
@@ -12,9 +13,9 @@ const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
 function lineasPresupuesto(empresa, presupuesto, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
-    { texto: "PRESUPUESTO", alineacion: "centro" },
+    { texto: `PRESUPUESTO N° ${presupuesto.numero ?? "—"}`, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
     SEPARADOR,
   ];
@@ -90,9 +91,12 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         }
         style={esA4 ? undefined : { zoom: (empresa.ticket_escala ?? 100) / 100 }}
       >
-        <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
+        <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
+        {nombresEmpresa(empresa).secundario && (
+          <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+        )}
         <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>
-        <p className="mt-2 text-center text-lg font-bold">PRESUPUESTO</p>
+        <p className="mt-2 text-center text-lg font-bold">PRESUPUESTO N° {presupuesto.numero ?? "—"}</p>
         <p className="text-center text-sm text-slate-500">
           {fecha.toLocaleDateString("es-PY")} {fecha.toLocaleTimeString("es-PY")}
         </p>

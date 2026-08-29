@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
+import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -16,7 +17,7 @@ const SEPARADOR = { texto: "--------------------------------" };
 
 function lineasReciboCobro(empresa, cliente, cobro, fecha) {
   const lineas = [
-    { texto: empresa.razon_social, negrita: true, alineacion: "centro" },
+    ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
@@ -110,7 +111,10 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
           ref={recuadroRef}
           className="reporte-imprimible w-full max-w-2xl rounded-xl bg-white p-6 text-base text-slate-800 shadow"
         >
-          <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
+          <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
+          {nombresEmpresa(empresa).secundario && (
+            <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+          )}
           <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>
           <p className="mt-2 text-center text-lg font-bold">Recibo de cobro N° {cobro.numeroRecibo}</p>
           <p className="text-center text-sm text-slate-500">
@@ -168,7 +172,10 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
           className="recibo-imprimible w-[80mm] rounded-xl bg-white p-[3mm] text-base text-slate-800 shadow"
           style={{ zoom: (empresa.ticket_escala ?? 100) / 100 }}
         >
-          <p className="text-center text-2xl font-bold">{empresa.razon_social}</p>
+          <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
+          {nombresEmpresa(empresa).secundario && (
+            <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+          )}
           <p className="text-center text-sm text-slate-500">RUC {empresa.ruc}</p>
           <p className="mt-2 text-center text-lg font-bold">Recibo de cobro N° {cobro.numeroRecibo}</p>
           <p className="text-center text-sm text-slate-500">

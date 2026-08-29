@@ -5,7 +5,7 @@ export async function obtenerEmpresaActual(req, res) {
     const { empresaId } = req.usuario;
 
     const resultado = await pool.query(
-        `SELECT razon_social, ruc, timbrado, direccion, telefono, plazo_credito_dias,
+        `SELECT razon_social, nombre_fantasia, ruc, timbrado, direccion, telefono, plazo_credito_dias,
                 sifen_estado, sifen_actividades, sifen_timbrado_numero, sifen_timbrado_inicio,
                 sifen_timbrado_fin, sifen_cert_desde, sifen_cert_vence, sifen_cert_vencimiento,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
@@ -189,7 +189,7 @@ export async function actualizarConfiguracion(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const {
         permitirVentaSinStock, ticketEscala,
-        razonSocial, ruc, direccion, direccionAtencion, telefono, email,
+        razonSocial, nombreFantasia, ruc, direccion, direccionAtencion, telefono, email,
         sifenCertVencimiento, sifenCertNota, impresoraAgenteNombre,
         recordatorioDiasAvisoPrevio, recordatorioDiasMoraProlongada,
         recordatorioIncluirRuc, recordatorioIncluirTelefono,
@@ -209,6 +209,9 @@ export async function actualizarConfiguracion(req, res) {
     }
     if (razonSocial !== undefined && !razonSocial?.trim()) {
         return res.status(400).json({ error: 'La razón social no puede quedar vacía' });
+    }
+    if (nombreFantasia !== undefined && String(nombreFantasia).trim().length > 60) {
+        return res.status(400).json({ error: 'El nombre de fantasía no puede superar 60 caracteres' });
     }
     if (ruc !== undefined && !ruc?.trim()) {
         return res.status(400).json({ error: 'El RUC no puede quedar vacío' });
@@ -246,6 +249,9 @@ export async function actualizarConfiguracion(req, res) {
             recordatorio_mensaje_mora_prolongada = COALESCE($21, recordatorio_mensaje_mora_prolongada),
             produccion_habilitada = COALESCE($22, produccion_habilitada),
             sugerencias_venta_habilitadas = COALESCE($23, sugerencias_venta_habilitadas),
+            -- "" limpia el nombre de fantasía; null (campo no enviado) lo deja igual.
+            nombre_fantasia = CASE WHEN $27 IS NULL THEN nombre_fantasia
+                                   WHEN $27 = '' THEN NULL ELSE $27 END,
             -- Activar Lomiteria activa tambien Comisiones (cada mesero es
             -- ademas un vendedor - sin esto no tendria donde configurar su
             -- comision). $26 pisa a $24 solo cuando se prende Lomiteria.
@@ -259,7 +265,7 @@ export async function actualizarConfiguracion(req, res) {
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN $12 ELSE datos_fiscales_modificado_por END
          WHERE id = $1
-         RETURNING razon_social, ruc, timbrado, direccion, direccion_atencion, telefono, email,
+         RETURNING razon_social, nombre_fantasia, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                    comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
@@ -274,7 +280,8 @@ export async function actualizarConfiguracion(req, res) {
             recordatorioIncluirRuc, recordatorioIncluirTelefono, recordatorioMensajePrevio,
             recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
             produccionHabilitada, sugerenciasVentaHabilitadas,
-            comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada]
+            comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada,
+            nombreFantasia === undefined ? null : String(nombreFantasia).trim()]
     );
 
     res.json(resultado.rows[0]);

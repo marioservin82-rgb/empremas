@@ -42,11 +42,22 @@ export async function crearPresupuesto(req, res) {
                 }
             }
 
+            // Número correlativo por empresa (mismo mecanismo que los recibos de
+            // cobro): el UPDATE bloquea la fila de la empresa, así dos altas
+            // simultáneas nunca sacan el mismo número.
+            const numeroResultado = await cliente.query(
+                `UPDATE empresas SET siguiente_numero_presupuesto = siguiente_numero_presupuesto + 1
+                 WHERE id = $1
+                 RETURNING siguiente_numero_presupuesto - 1 AS numero`,
+                [empresaId]
+            );
+            const numero = numeroResultado.rows[0].numero;
+
             const presupuestoInsertado = await cliente.query(
-                `INSERT INTO presupuestos (empresa_id, cliente_id, usuario_id, lista_precio, vencimiento, total)
-                 VALUES ($1, $2, $3, $4, $5, $6)
+                `INSERT INTO presupuestos (empresa_id, cliente_id, usuario_id, numero, lista_precio, vencimiento, total)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                  RETURNING id, creado_en`,
-                [empresaId, clienteId || null, usuarioId, listaPrecio, vencimiento, total]
+                [empresaId, clienteId || null, usuarioId, numero, listaPrecio, vencimiento, total]
             );
             const presupuestoId = presupuestoInsertado.rows[0].id;
 
@@ -60,6 +71,7 @@ export async function crearPresupuesto(req, res) {
 
             return {
                 id: presupuestoId,
+                numero,
                 creadoEn: presupuestoInsertado.rows[0].creado_en,
                 clienteId: clienteId || null,
                 listaPrecio,

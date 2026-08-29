@@ -42,7 +42,10 @@ async function sincronizarDatosFiscales(empresaId, tenant) {
                     sifen_timbrado_inicio = $4,
                     sifen_timbrado_fin    = $5,
                     sifen_cert_desde      = $6,
-                    sifen_cert_vence      = $7
+                    sifen_cert_vence      = $7,
+                    -- El conector es la fuente de verdad del nombre de fantasía
+                    -- para una empresa con facturación electrónica.
+                    nombre_fantasia       = COALESCE($8, nombre_fantasia)
               WHERE id = $1`,
             [
                 empresaId,
@@ -52,6 +55,7 @@ async function sincronizarDatosFiscales(empresaId, tenant) {
                 tenant.timbradoFechaFin || null,
                 tenant.certDesde || null,
                 tenant.certVencimiento || null,
+                tenant.nombreFantasia || null,
             ]
         );
     } catch (error) {

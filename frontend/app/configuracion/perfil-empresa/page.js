@@ -25,6 +25,7 @@ export default function PerfilEmpresa() {
   const [sucursales, setSucursales] = useState([]);
 
   const [razonSocial, setRazonSocial] = useState("");
+  const [nombreFantasia, setNombreFantasia] = useState("");
   const [ruc, setRuc] = useState("");
   const [direccion, setDireccion] = useState("");
   const [direccionAtencion, setDireccionAtencion] = useState("");
@@ -64,6 +65,7 @@ export default function PerfilEmpresa() {
       .then((e) => {
         setEmpresa(e);
         setRazonSocial(e.razon_social || "");
+        setNombreFantasia(e.nombre_fantasia || "");
         setRuc(e.ruc || "");
         setDireccion(e.direccion || "");
         setDireccionAtencion(e.direccion_atencion || "");
@@ -211,6 +213,7 @@ export default function PerfilEmpresa() {
         method: "PATCH",
         body: JSON.stringify({
           razonSocial,
+          nombreFantasia,
           ruc,
           direccion,
           direccionAtencion: direccionAtencion || null,
@@ -266,6 +269,21 @@ export default function PerfilEmpresa() {
 
             <label className={etiqueta}>Razón social</label>
             <input value={razonSocial} onChange={(e) => setRazonSocial(e.target.value)} className={campo} required />
+
+            <label className={etiqueta}>Nombre de fantasía (opcional)</label>
+            <input
+              value={nombreFantasia}
+              onChange={(e) => setNombreFantasia(e.target.value)}
+              className={campo}
+              maxLength={60}
+              placeholder="Nombre comercial. Aparece en el ticket, el recibo, los extractos y el presupuesto."
+            />
+            {empresa.sifen_estado === "produccion" && (
+              <p className="mb-4 -mt-2 text-xs text-slate-400">
+                Tenés facturación electrónica: el nombre de fantasía de los documentos electrónicos
+                se administra desde el soporte de EMPREMAS.
+              </p>
+            )}
 
             <label className={etiqueta}>RUC</label>
             <input value={ruc} onChange={(e) => setRuc(e.target.value)} className={campo} required />
