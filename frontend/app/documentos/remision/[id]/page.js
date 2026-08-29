@@ -171,13 +171,21 @@ export default function DetalleRemision() {
             </Link>
           )}
           {r.estado === "aprobado" && (
-            <button
-              onClick={descargarKude}
-              disabled={descargando}
-              className="rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-60"
-            >
-              {descargando ? "Descargando…" : "Descargar KUDE (PDF)"}
-            </button>
+            <>
+              <Link
+                href={`/documentos/remision/${r.id}/imprimir`}
+                className="rounded-xl bg-navy py-3 text-center font-semibold text-white hover:bg-navy-2"
+              >
+                Imprimir A4
+              </Link>
+              <button
+                onClick={descargarKude}
+                disabled={descargando}
+                className="rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-60"
+              >
+                {descargando ? "Descargando…" : "Descargar KUDE oficial (PDF)"}
+              </button>
+            </>
           )}
           {["error", "rechazado", "enviado", "pendiente"].includes(r.estado) && (
             <button
