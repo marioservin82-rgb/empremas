@@ -190,6 +190,10 @@ export default function DetalleVenta() {
           <GenerarRemision ventaId={id} direccionCliente={venta.cliente_direccion} />
         )}
 
+        {venta.tipo_comprobante === "factura_legal" && venta.de_estado === "aprobado" && (
+          <NotasDeFactura ventaId={id} items={items} totalFactura={Number(venta.total)} />
+        )}
+
         {!venta.anulada && (
           <div className="mt-2 rounded-2xl bg-white p-5 shadow shadow-slate-200">
             {!anulando ? (
@@ -251,6 +255,179 @@ export default function DetalleVenta() {
         )}
       </div>
     </main>
+  );
+}
+
+const MOTIVOS_NC = [
+  { v: 2, t: "Devolución (la mercadería vuelve al stock)" },
+  { v: 3, t: "Descuento" },
+  { v: 4, t: "Bonificación" },
+  { v: 8, t: "Ajuste de precio" },
+  { v: 5, t: "Crédito incobrable" },
+];
+const MOTIVOS_ND = [
+  { v: 7, t: "Recupero de gasto" },
+  { v: 6, t: "Recupero de costo" },
+  { v: 8, t: "Ajuste de precio" },
+];
+
+function NotasDeFactura({ ventaId, items, totalFactura }) {
+  const router = useRouter();
+  const [notas, setNotas] = useState([]);
+  const [modo, setModo] = useState(null); // null | "credito" | "debito"
+  const [motivo, setMotivo] = useState(2);
+  const [obs, setObs] = useState("");
+  const [esTotal, setEsTotal] = useState(true);
+  const [cant, setCant] = useState({});
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+
+  const cargar = () => apiFetch(`/api/notas/de-venta/${ventaId}`).then(setNotas).catch(() => {});
+  useEffect(() => {
+    cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ventaId]);
+
+  function abrir(tipo) {
+    setModo(tipo);
+    setMotivo(tipo === "debito" ? 7 : 2);
+    setEsTotal(true);
+    setCant(Object.fromEntries(items.map((i) => [i.productoId, i.cantidad])));
+    setObs("");
+    setError("");
+  }
+
+  async function emitir() {
+    setError("");
+    setEnviando(true);
+    try {
+      const body = { tipo: modo, ventaId, motivo, observacion: obs || null };
+      if (esTotal) body.esTotal = true;
+      else
+        body.items = items
+          .filter((i) => Number(cant[i.productoId]) > 0)
+          .map((i) => ({ productoId: i.productoId, cantidad: Number(cant[i.productoId]) }));
+      const n = await apiFetch("/api/notas", { method: "POST", body: JSON.stringify(body) });
+      router.push(`/documentos/notas/${n.id}`);
+    } catch (err) {
+      setError(err.message);
+      setEnviando(false);
+    }
+  }
+
+  const motivos = modo === "debito" ? MOTIVOS_ND : MOTIVOS_NC;
+
+  return (
+    <div className="mt-2 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+      {notas.length > 0 && (
+        <div className="mb-3 flex flex-col gap-1">
+          {notas.map((n) => (
+            <Link
+              key={n.id}
+              href={`/documentos/notas/${n.id}`}
+              className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm hover:bg-slate-100"
+            >
+              <span className="font-semibold text-slate-700">
+                {n.tipo === "credito" ? "Nota de Crédito" : "Nota de Débito"} {n.numero_formateado || ""}
+              </span>
+              <span className="text-slate-500">Gs {formatoGs.format(n.total)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {!modo ? (
+        <div className="flex gap-2">
+          <button
+            onClick={() => abrir("credito")}
+            className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+          >
+            Nota de Crédito
+          </button>
+          <button
+            onClick={() => abrir("debito")}
+            className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+          >
+            Nota de Débito
+          </button>
+        </div>
+      ) : (
+        <div>
+          <p className="mb-2 font-semibold text-slate-700">
+            {modo === "credito" ? "Nueva Nota de Crédito" : "Nueva Nota de Débito"}
+          </p>
+
+          <label className="mb-1 block text-sm font-medium text-slate-500">Motivo</label>
+          <select
+            value={motivo}
+            onChange={(e) => setMotivo(Number(e.target.value))}
+            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy"
+          >
+            {motivos.map((m) => (
+              <option key={m.v} value={m.v}>
+                {m.t}
+              </option>
+            ))}
+          </select>
+
+          <label className="mb-2 flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={esTotal} onChange={(e) => setEsTotal(e.target.checked)} />
+            Toda la factura (Gs {formatoGs.format(totalFactura)})
+          </label>
+
+          {!esTotal && (
+            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
+              {items.map((i) => (
+                <div key={i.productoId} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1 text-slate-700">
+                    {i.nombre} <span className="text-slate-400">(vendido: {i.cantidad})</span>
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={i.cantidad}
+                    step="any"
+                    value={cant[i.productoId] ?? 0}
+                    onChange={(e) => setCant((c) => ({ ...c, [i.productoId]: e.target.value }))}
+                    className="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <label className="mb-1 block text-sm font-medium text-slate-500">Observación (opcional)</label>
+          <input
+            value={obs}
+            onChange={(e) => setObs(e.target.value)}
+            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy"
+          />
+
+          {modo === "credito" && esTotal && (
+            <p className="mb-3 text-xs text-amber-600">
+              Al ser por el total, la factura queda anulada y {motivo === 2 ? "la mercadería vuelve al stock" : "no se toca el stock"}.
+            </p>
+          )}
+          {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={emitir}
+              disabled={enviando}
+              className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-50"
+            >
+              {enviando ? "Emitiendo…" : `Emitir ${modo === "credito" ? "NC" : "ND"}`}
+            </button>
+            <button
+              onClick={() => setModo(null)}
+              className="rounded-xl bg-slate-100 px-4 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
