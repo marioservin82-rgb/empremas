@@ -76,6 +76,7 @@ export default function Vender() {
   const [tipoPago, setTipoPago] = useState("contado");
   const [tipoComprobante, setTipoComprobante] = useState("ticket_comun");
   const [presupuestoId, setPresupuestoId] = useState(null);
+  const [remisionId, setRemisionId] = useState(null);
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [resultadosCliente, setResultadosCliente] = useState([]);
@@ -136,6 +137,56 @@ export default function Vender() {
       .then((t) => setCajaAbierta(Boolean(t)))
       .catch(() => setCajaAbierta(false));
 
+    // ¿Venís a facturar una Nota de Remisión? Se precarga el cliente y los
+    // ítems y se fuerza Factura Legal. Tiene prioridad sobre el borrador guardado.
+    const remId = new URLSearchParams(window.location.search).get("remision");
+    if (remId) {
+      localStorage.removeItem(CLAVE_VENTA_EN_CURSO);
+      (async () => {
+        try {
+          const r = await apiFetch(`/api/remisiones/${remId}`);
+          if (r.facturada) {
+            setError("Esta remisión ya fue facturada.");
+            return;
+          }
+          setRemisionId(r.id);
+          setTipoComprobante("factura_legal");
+          if (r.cliente_id) {
+            const c = await apiFetch(`/api/clientes/${r.cliente_id}`).catch(() => null);
+            if (c) setCliente(c);
+          }
+          const prods = await Promise.all(
+            r.items.map((it) => apiFetch(`/api/productos/${it.producto_id}`).catch(() => null)),
+          );
+          setCarrito(
+            r.items
+              .map((it, idx) => {
+                const p = prods[idx];
+                if (!p) return null;
+                return {
+                  productoId: it.producto_id,
+                  nombre: p.nombre,
+                  unidadMedida: p.unidad_medida,
+                  cantidad: Number(it.cantidad),
+                  precios: {
+                    contado: Number(p.precio_contado),
+                    credito: Number(p.precio_credito),
+                    mayorista: Number(p.precio_mayorista),
+                  },
+                  esMayorista: false,
+                };
+              })
+              .filter(Boolean),
+          );
+        } catch (e) {
+          setError(e.message);
+        }
+      })();
+      setRestaurado(true);
+      setListo(true);
+      return;
+    }
+
     // Si había una venta a medio cargar (ej. se fue a Stock a corregir un
     // precio), la recupera antes de que el efecto de guardado de abajo
     // pueda pisarla con el estado vacío inicial.
@@ -146,6 +197,7 @@ export default function Vender() {
         setTipoPago(datos.tipoPago ?? "contado");
         setTipoComprobante(datos.tipoComprobante ?? "ticket_comun");
         setPresupuestoId(datos.presupuestoId ?? null);
+        setRemisionId(datos.remisionId ?? null);
         setCliente(datos.cliente ?? null);
         setCarrito(datos.carrito ?? []);
         setPagos(datos.pagos ?? []);
@@ -215,9 +267,9 @@ export default function Vender() {
     }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
-      JSON.stringify({ tipoPago, tipoComprobante, presupuestoId, cliente, carrito, pagos })
+      JSON.stringify({ tipoPago, tipoComprobante, presupuestoId, remisionId, cliente, carrito, pagos })
     );
-  }, [restaurado, tipoPago, tipoComprobante, presupuestoId, cliente, carrito, pagos]);
+  }, [restaurado, tipoPago, tipoComprobante, presupuestoId, remisionId, cliente, carrito, pagos]);
 
   function cambiarTipoPago(valor) {
     setTipoPago(valor);
@@ -461,6 +513,7 @@ export default function Vender() {
           tipoPago,
           tipoComprobante,
           presupuestoId,
+          remisionId,
           clienteId: cliente?.id,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
           pagos: pagosParaEnviar,
@@ -545,6 +598,7 @@ export default function Vender() {
     setTipoPago("contado");
     setTipoComprobante("ticket_comun");
     setPresupuestoId(null);
+    setRemisionId(null);
     setError("");
   }
 
@@ -628,6 +682,13 @@ export default function Vender() {
             </Link>
           </div>
         </div>
+
+        {remisionId && (
+          <div className="mb-4 rounded-2xl border border-navy/30 bg-navy/5 px-5 py-3 text-sm font-semibold text-navy">
+            Estás facturando una Nota de Remisión — la mercadería ya salió, esto no vuelve a
+            descontar stock.
+          </div>
+        )}
 
         {carrito.length > 0 && (
           <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur">

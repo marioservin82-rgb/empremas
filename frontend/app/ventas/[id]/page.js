@@ -186,6 +186,10 @@ export default function DetalleVenta() {
           }
         />
 
+        {!venta.anulada && venta.tipo_comprobante === "factura_legal" && venta.de_estado === "aprobado" && (
+          <GenerarRemision ventaId={id} direccionCliente={venta.cliente_direccion} />
+        )}
+
         {!venta.anulada && (
           <div className="mt-2 rounded-2xl bg-white p-5 shadow shadow-slate-200">
             {!anulando ? (
@@ -247,5 +251,72 @@ export default function DetalleVenta() {
         )}
       </div>
     </main>
+  );
+}
+
+function GenerarRemision({ ventaId, direccionCliente }) {
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [direccion, setDireccion] = useState(direccionCliente || "");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function generar() {
+    setError("");
+    setEnviando(true);
+    try {
+      const r = await apiFetch("/api/remisiones/desde-venta", {
+        method: "POST",
+        body: JSON.stringify({ ventaId, direccionEntrega: direccion }),
+      });
+      router.push(`/documentos/remision/${r.id}`);
+    } catch (err) {
+      setError(err.message);
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+      {!abierto ? (
+        <button
+          onClick={() => setAbierto(true)}
+          className="w-full rounded-xl bg-slate-100 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+        >
+          Generar Nota de Remisión de esta factura
+        </button>
+      ) : (
+        <div>
+          <p className="mb-1 font-semibold text-slate-700">Nota de Remisión</p>
+          <p className="mb-3 text-xs text-slate-400">
+            Usa los mismos ítems y cliente de la factura. El vehículo y el chofer salen de Datos de
+            transporte.
+          </p>
+          <label className="mb-1 block text-sm font-medium text-slate-500">Dirección de entrega</label>
+          <input
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy"
+            placeholder="Calle, barrio, referencia"
+          />
+          {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={generar}
+              disabled={enviando || !direccion.trim()}
+              className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-50"
+            >
+              {enviando ? "Emitiendo…" : "Emitir remisión"}
+            </button>
+            <button
+              onClick={() => setAbierto(false)}
+              className="rounded-xl bg-slate-100 px-4 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
