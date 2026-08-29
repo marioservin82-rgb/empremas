@@ -105,6 +105,7 @@ export async function obtenerEmpresa(req, res) {
     const empresa = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
                 e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
+                e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          LEFT JOIN contadores_aliados c ON c.id = e.contador_id
@@ -132,7 +133,10 @@ const ESTADOS_VALIDOS = ['prueba', 'activa', 'mora', 'suspendida'];
 
 export async function actualizarEmpresa(req, res) {
     const { id } = req.params;
-    const { plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId } = req.body;
+    const {
+        plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId,
+        produccionHabilitada, lomiteriaHabilitada,
+    } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
         return res.status(400).json({ error: 'Estado inválido' });
@@ -163,10 +167,23 @@ export async function actualizarEmpresa(req, res) {
             limite_sucursales = COALESCE($5, limite_sucursales),
             vence_en = COALESCE($6, vence_en),
             monto_plan_mensual = COALESCE($7, monto_plan_mensual),
-            contador_id = CASE WHEN $8 THEN $9::uuid ELSE contador_id END
+            contador_id = CASE WHEN $8 THEN $9::uuid ELSE contador_id END,
+            produccion_habilitada = COALESCE($10, produccion_habilitada),
+            lomiteria_habilitada = COALESCE($11, lomiteria_habilitada),
+            -- El módulo de Lomitería necesita Vendedores por comisión (cada
+            -- mesero es un vendedor): al prenderlo se prende también.
+            comisiones_habilitadas = CASE WHEN COALESCE($11, lomiteria_habilitada) THEN true
+                                          ELSE comisiones_habilitadas END
          WHERE id = $1
-         RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en, monto_plan_mensual, contador_id`,
-        [id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId !== undefined, contadorId]
+         RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en,
+                   monto_plan_mensual, contador_id, produccion_habilitada, lomiteria_habilitada,
+                   comisiones_habilitadas`,
+        [
+            id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
+            contadorId !== undefined, contadorId,
+            produccionHabilitada === undefined ? null : produccionHabilitada,
+            lomiteriaHabilitada === undefined ? null : lomiteriaHabilitada,
+        ]
     );
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Empresa no encontrada' });

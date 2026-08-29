@@ -32,9 +32,10 @@ CREATE TABLE empresas (
     -- prefiere permitir vender igual (el stock queda en negativo).
     permitir_venta_sin_stock BOOLEAN NOT NULL DEFAULT false,
     -- Modulo de Produccion (insumos, recetas, ordenes de produccion) -
-    -- apagado por defecto, oculto por completo en la app hasta que el
-    -- dueno lo activa desde Perfil de Empresa. Un almacenero/ferretero
-    -- comun no lo necesita nunca.
+    -- apagado por defecto, oculto por completo en la app. Lo habilita
+    -- EMPREMAS por empresa desde el panel admin (actualizarEmpresa), NO el
+    -- dueno - un almacenero/ferretero comun no lo necesita nunca y su
+    -- toggle solo ensuciaba la config. Idem lomiteria_habilitada.
     produccion_habilitada    BOOLEAN NOT NULL DEFAULT false,
     -- Las dos franjas de sugerencia en Vender (venta cruzada al agregar un
     -- producto, y "este cliente suele llevar" al elegir un cliente) - en

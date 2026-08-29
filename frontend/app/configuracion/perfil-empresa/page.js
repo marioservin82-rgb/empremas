@@ -44,11 +44,9 @@ export default function PerfilEmpresa() {
   const [exito, setExito] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
-  const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -73,11 +71,9 @@ export default function PerfilEmpresa() {
         setEmail(e.email || "");
         setCertVencimiento(e.sifen_cert_vencimiento ? e.sifen_cert_vencimiento.slice(0, 10) : "");
         setCertNota(e.sifen_cert_nota || "");
-        setProduccionHabilitada(!!e.produccion_habilitada);
         setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
-        setLomiteriaHabilitada(!!e.lomiteria_habilitada);
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -135,19 +131,6 @@ export default function PerfilEmpresa() {
     }
   }
 
-  async function cambiarProduccionHabilitada(valor) {
-    setProduccionHabilitada(valor);
-    try {
-      await apiFetch("/api/empresas/actual", {
-        method: "PATCH",
-        body: JSON.stringify({ produccionHabilitada: valor }),
-      });
-    } catch (err) {
-      setProduccionHabilitada(!valor);
-      setError(err.message);
-    }
-  }
-
   async function cambiarSugerenciasVenta(valor) {
     setSugerenciasVentaHabilitadas(valor);
     try {
@@ -164,27 +147,14 @@ export default function PerfilEmpresa() {
   async function cambiarComisionesHabilitadas(valor) {
     setComisionesHabilitadas(valor);
     try {
-      await apiFetch("/api/empresas/actual", {
+      const actualizado = await apiFetch("/api/empresas/actual", {
         method: "PATCH",
         body: JSON.stringify({ comisionesHabilitadas: valor }),
       });
-    } catch (err) {
-      setComisionesHabilitadas(!valor);
-      setError(err.message);
-    }
-  }
-
-  async function cambiarLomiteriaHabilitada(valor) {
-    setLomiteriaHabilitada(valor);
-    if (valor) setComisionesHabilitadas(true);
-    try {
-      const actualizado = await apiFetch("/api/empresas/actual", {
-        method: "PATCH",
-        body: JSON.stringify({ lomiteriaHabilitada: valor }),
-      });
+      // El backend fuerza comisiones = true si la empresa tiene Lomitería.
       setComisionesHabilitadas(!!actualizado.comisiones_habilitadas);
     } catch (err) {
-      setLomiteriaHabilitada(!valor);
+      setComisionesHabilitadas(!valor);
       setError(err.message);
     }
   }
@@ -333,28 +303,20 @@ export default function PerfilEmpresa() {
             />
           </div>
 
-          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
-            <div>
-              <p className="font-semibold text-slate-800">Módulo de Producción</p>
-              <p className="text-sm text-slate-400">
-                Para negocios que fabrican (ladrillera, chipería...): insumos, recetas, órdenes de producción y
-                costo real por unidad. Si está apagado, no aparece en ningún lado de la app.
+          {(empresa.produccion_habilitada || empresa.lomiteria_habilitada) && (
+            <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+              <p className="font-semibold text-slate-800">Módulos activos</p>
+              <p className="mt-1 text-sm text-slate-400">
+                {[
+                  empresa.produccion_habilitada && "Producción",
+                  empresa.lomiteria_habilitada && "Lomitería / Restaurante",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}{" "}
+                — los gestiona EMPREMAS. Escribinos si querés activar o desactivar alguno.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => cambiarProduccionHabilitada(!produccionHabilitada)}
-              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
-                produccionHabilitada ? "bg-emerald-600" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
-                  produccionHabilitada ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
-          </div>
+          )}
 
           <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <div>
@@ -438,29 +400,6 @@ export default function PerfilEmpresa() {
                 </p>
               </div>
             )}
-          </div>
-
-          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
-            <div>
-              <p className="font-semibold text-slate-800">Módulo de Lomitería / Restaurante</p>
-              <p className="text-sm text-slate-400">
-                Mesas, toma de pedido, comanda de cocina y caja compartida entre meseros. Activa también Vendedores
-                por comisión (cada mesero es un vendedor). Si está apagado, no aparece en ningún lado de la app.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => cambiarLomiteriaHabilitada(!lomiteriaHabilitada)}
-              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
-                lomiteriaHabilitada ? "bg-emerald-600" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
-                  lomiteriaHabilitada ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
           </div>
 
           <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

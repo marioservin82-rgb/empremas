@@ -195,10 +195,14 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioIncluirRuc, recordatorioIncluirTelefono,
         recordatorioMensajePrevio, recordatorioMensajeHoy,
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
-        produccionHabilitada, sugerenciasVentaHabilitadas,
+        sugerenciasVentaHabilitadas,
         comisionesHabilitadas, politicaClientesVendedorInactivo,
-        lomiteriaHabilitada,
     } = req.body;
+    // Producción y Lomitería/Restaurante ya NO se activan desde la app del
+    // cliente — los habilita EMPREMAS por empresa (panel admin). Se ignora
+    // cualquier valor que llegue en el body.
+    const produccionHabilitada = null;
+    const lomiteriaHabilitada = null;
 
     if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
         return res.status(400).json({ error: 'Política inválida' });
@@ -255,7 +259,10 @@ export async function actualizarConfiguracion(req, res) {
             -- Activar Lomiteria activa tambien Comisiones (cada mesero es
             -- ademas un vendedor - sin esto no tendria donde configurar su
             -- comision). $26 pisa a $24 solo cuando se prende Lomiteria.
-            comisiones_habilitadas = CASE WHEN $26 = true THEN true ELSE COALESCE($24, comisiones_habilitadas) END,
+            -- Lomitería (la habilita el admin) fuerza Vendedores por comisión:
+            -- el cliente no puede apagar comisiones si tiene el módulo activo.
+            comisiones_habilitadas = CASE WHEN lomiteria_habilitada THEN true
+                                          ELSE COALESCE($24, comisiones_habilitadas) END,
             politica_clientes_vendedor_inactivo = COALESCE($25, politica_clientes_vendedor_inactivo),
             lomiteria_habilitada = COALESCE($26, lomiteria_habilitada),
             datos_fiscales_modificado_en = CASE

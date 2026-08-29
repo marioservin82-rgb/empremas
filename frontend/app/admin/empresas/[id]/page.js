@@ -17,6 +17,28 @@ function paraInput(fecha) {
   return new Date(fecha).toISOString().slice(0, 10);
 }
 
+function ModuloToggle({ titulo, descripcion, activo, onCambiar }) {
+  return (
+    <div className="mb-3 flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4 last:mb-0">
+      <div>
+        <p className="font-semibold text-slate-800">{titulo}</p>
+        <p className="text-sm text-slate-400">{descripcion}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onCambiar(!activo)}
+        className={`relative mt-1 h-8 w-14 shrink-0 rounded-full transition ${
+          activo ? "bg-emerald-600" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${activo ? "left-7" : "left-1"}`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function AdminEmpresaDetalle() {
   const router = useRouter();
   const { id } = useParams();
@@ -89,6 +111,20 @@ export default function AdminEmpresaDetalle() {
       setError(err.message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function guardarModulo(campo, valor) {
+    setError("");
+    setExito("");
+    try {
+      await adminFetch(`/api/admin/empresas/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ [campo]: valor }),
+      });
+      await cargar();
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -228,6 +264,31 @@ export default function AdminEmpresaDetalle() {
           >
             {guardando ? "Guardando..." : "Guardar cambios"}
           </button>
+        </div>
+
+        <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">Módulos por tipo de negocio</h2>
+          <p className="mb-4 text-sm text-slate-400">
+            El cliente no los puede activar solo — se prenden acá según lo que use cada comercio.
+          </p>
+
+          <ModuloToggle
+            titulo="Módulo de Producción"
+            descripcion="Fabricación (ladrillera, chipería...): insumos, recetas, órdenes y costo real por unidad."
+            activo={!!empresa.produccion_habilitada}
+            onCambiar={(v) => guardarModulo("produccionHabilitada", v)}
+          />
+          <ModuloToggle
+            titulo="Módulo de Lomitería / Restaurante"
+            descripcion="Mesas, toma de pedido, comanda de cocina y caja compartida. Activa también Vendedores por comisión."
+            activo={!!empresa.lomiteria_habilitada}
+            onCambiar={(v) => guardarModulo("lomiteriaHabilitada", v)}
+          />
+          {empresa.lomiteria_habilitada && (
+            <p className="mt-1 text-xs text-slate-400">
+              Vendedores por comisión: activo (lo exige Lomitería).
+            </p>
+          )}
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
