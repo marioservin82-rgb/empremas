@@ -114,7 +114,13 @@ export default function AdminFacturacionElectronica() {
           <Alta id={id} onListo={cargar} setExito={setExito} setError={setError} empresa={empresa} />
         ) : (
           <>
-            <DatosTenant conector={data.conector} />
+            <DatosTenant
+              id={id}
+              conector={data.conector}
+              onCambio={cargar}
+              setExito={setExito}
+              setError={setError}
+            />
             <Homologacion
               id={id}
               estado={empresa.estado}
@@ -160,6 +166,7 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
     ruc: rucBase || "",
     dvRuc: dvBase || "",
     razonSocial: empresa.razonSocial || "",
+    nombreFantasia: "",
     tipoContribuyente: "1",
     establecimiento: "1",
     puntoExpedicion: "1",
@@ -287,6 +294,14 @@ function Alta({ id, onListo, setExito, setError, empresa }) {
             </div>
             <label className={etiqueta}>Razón social</label>
             <input value={f.razonSocial} onChange={set("razonSocial")} className={campo} />
+            <label className={etiqueta}>Nombre de fantasía (opcional)</label>
+            <input
+              value={f.nombreFantasia}
+              onChange={set("nombreFantasia")}
+              className={campo}
+              maxLength={60}
+              placeholder="Como figura en el registro de la DNIT. Sale en el XML y en NC/ND, remisión y autofactura."
+            />
             <label className={etiqueta}>Tipo de contribuyente</label>
             <select value={f.tipoContribuyente} onChange={set("tipoContribuyente")} className={campo}>
               <option value="1">Persona física</option>
@@ -422,9 +437,33 @@ function diasHasta(v) {
   return Math.ceil((new Date(String(v).slice(0, 10)) - new Date(new Date().toDateString())) / 86400000);
 }
 
-function DatosTenant({ conector }) {
+function DatosTenant({ id, conector, onCambio, setExito, setError }) {
+  const [fantasia, setFantasia] = useState(conector?.nombreFantasia || "");
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
   if (!conector) return null;
   const actividades = Array.isArray(conector.actividadesEconomicas) ? conector.actividadesEconomicas : [];
+
+  async function guardarFantasia() {
+    setError("");
+    setExito("");
+    setGuardando(true);
+    try {
+      await adminFetch(`/api/admin/empresas/${id}/facturacion-electronica/emisor`, {
+        method: "PATCH",
+        body: JSON.stringify({ nombreFantasia: fantasia }),
+      });
+      setExito("Nombre de fantasía actualizado.");
+      setEditando(false);
+      await onCambio();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   const certDias = diasHasta(conector.certVencimiento);
   const certClase =
     certDias == null
@@ -449,7 +488,8 @@ function DatosTenant({ conector }) {
     <div className={tarjeta}>
       <h2 className="mb-1 text-lg font-bold text-slate-800">Datos en el conector</h2>
       <p className="mb-4 text-xs text-slate-400">
-        Solo lectura. Estos datos se editan en el conector y van impresos en cada factura (KuDE).
+        Datos del emisor impresos en cada documento (KuDE). El timbrado, la dirección y las
+        actividades se editan en el conector; el nombre de fantasía se puede editar acá.
       </p>
       <dl className="grid grid-cols-2 gap-y-2 text-sm">
         {filas.map(([k, v]) => (
@@ -458,6 +498,54 @@ function DatosTenant({ conector }) {
             <dd className="font-medium text-slate-700">{v}</dd>
           </div>
         ))}
+        <div className="contents">
+          <dt className="text-slate-400">Nombre de fantasía</dt>
+          <dd className="font-medium text-slate-700">
+            {editando ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  value={fantasia}
+                  onChange={(e) => setFantasia(e.target.value)}
+                  maxLength={60}
+                  className={`${campo} mb-0`}
+                  placeholder="Sin nombre de fantasía"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={guardarFantasia}
+                    disabled={guardando}
+                    className="rounded-lg bg-slate-800 px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                  >
+                    {guardando ? "Guardando…" : "Guardar"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFantasia(conector.nombreFantasia || "");
+                      setEditando(false);
+                    }}
+                    className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Sale en el XML de todos los documentos y en el PDF de NC/ND, remisión y autofactura.
+                  La Factura no lo muestra (plantilla de la DNIT).
+                </p>
+              </div>
+            ) : (
+              <span>
+                {conector.nombreFantasia || "—"}{" "}
+                <button
+                  onClick={() => setEditando(true)}
+                  className="ml-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  editar
+                </button>
+              </span>
+            )}
+          </dd>
+        </div>
         <div className="contents">
           <dt className="text-slate-400">Certificado de firma</dt>
           <dd className={`font-medium ${certClase}`}>

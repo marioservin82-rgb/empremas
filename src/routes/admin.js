@@ -26,6 +26,7 @@ import {
     darDeAlta as darDeAltaSifen,
     correrHomologacion as correrHomologacionSifen,
     pasarAProduccion as pasarAProduccionSifen,
+    actualizarEmisor as actualizarEmisorSifen,
     actualizarDocumentosHabilitados as actualizarDocsHabilitados,
     ajustarNumeracion as ajustarNumeracionSifen,
     inutilizarRango as inutilizarRangoSifen,
@@ -48,6 +49,7 @@ router.get('/empresas/:id/facturacion-electronica', asyncHandler(obtenerEstadoSi
 router.post('/empresas/:id/facturacion-electronica', asyncHandler(darDeAltaSifen));
 router.post('/empresas/:id/facturacion-electronica/homologacion', asyncHandler(correrHomologacionSifen));
 router.patch('/empresas/:id/facturacion-electronica', asyncHandler(pasarAProduccionSifen));
+router.patch('/empresas/:id/facturacion-electronica/emisor', asyncHandler(actualizarEmisorSifen));
 router.put('/empresas/:id/documentos-habilitados', asyncHandler(actualizarDocsHabilitados));
 router.post('/empresas/:id/facturacion-electronica/numeracion', asyncHandler(ajustarNumeracionSifen));
 router.post('/empresas/:id/facturacion-electronica/inutilizar', asyncHandler(inutilizarRangoSifen));

@@ -290,6 +290,40 @@ export async function pasarAProduccion(req, res) {
     res.json({ empresa: vistaEmpresa(actualizada), conector: tenant });
 }
 
+// PATCH /api/admin/empresas/:id/facturacion-electronica/emisor
+// Edita datos del emisor que van impresos en los documentos electrónicos y
+// que hoy sólo se podían cargar en el alta. Por ahora: nombre de fantasía
+// (gEmis/dNomFanEmi). Vacío lo borra.
+export async function actualizarEmisor(req, res) {
+    const empresa = await empresaBase(req.params.id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    if (!empresa.sifen_conector_tenant_id) {
+        return res.status(409).json({ error: 'Esta empresa no tiene facturación electrónica configurada' });
+    }
+
+    const b = req.body || {};
+    const cambios = {};
+    if (b.nombreFantasia !== undefined) {
+        const v = String(b.nombreFantasia || '').trim();
+        if (v.length > 60) return res.status(400).json({ error: 'El nombre de fantasía no puede superar 60 caracteres' });
+        cambios.nombreFantasia = v || null;
+    }
+    if (Object.keys(cambios).length === 0) {
+        return res.status(400).json({ error: 'No hay nada para actualizar' });
+    }
+
+    let tenant;
+    try {
+        tenant = await actualizarTenant(empresa.sifen_conector_tenant_id, cambios);
+    } catch (error) {
+        return res.status(422).json({ error: error.message });
+    }
+
+    await sincronizarDatosFiscales(empresa.id, tenant);
+    const actualizada = await empresaBase(req.params.id);
+    res.json({ empresa: vistaEmpresa(actualizada), conector: tenant });
+}
+
 // iTiDE por nombre de documento (para el ajuste de numeración).
 const TIPOS_ITIDE = { factura: 1, autofactura: 4, nota_credito: 5, nota_debito: 6, remision: 7 };
 
