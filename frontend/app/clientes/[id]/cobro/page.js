@@ -243,6 +243,7 @@ export default function CobroCliente() {
           <p className="text-3xl font-extrabold text-amber-600">Gs {formatoGs.format(cliente.saldo)}</p>
         </div>
 
+        <div className={totalSeleccionable > 0 ? "lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6" : ""}>
         {totalSeleccionable > 0 && (
           <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
             <div className="mb-3 flex items-center justify-between">
@@ -306,7 +307,7 @@ export default function CobroCliente() {
           </div>
         )}
 
-        <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
+        <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200 lg:sticky lg:top-6">
           <p className="mb-2 text-sm font-medium text-slate-500">¿Cómo te paga?</p>
 
           {pagos.length > 0 && (
@@ -392,6 +393,7 @@ export default function CobroCliente() {
           >
             {enviando ? "Guardando..." : "Confirmar cobro"}
           </button>
+        </div>
         </div>
       </div>
     </main>

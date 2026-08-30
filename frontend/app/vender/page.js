@@ -723,7 +723,7 @@ export default function Vender() {
         )}
 
         {carrito.length > 0 && (
-          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur">
+          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur lg:hidden">
             <p className="text-sm font-semibold text-slate-500">Total</p>
             <p className="text-2xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
           </div>
@@ -923,6 +923,7 @@ export default function Vender() {
         )}
 
         {puedeAgregarProductos && (
+          <div className={carrito.length > 0 ? "lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6" : ""}>
           <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200" onKeyDown={avanzarConEnter}>
             <form onSubmit={buscarProducto} className="mb-3 flex gap-2">
               <input
@@ -1021,9 +1022,7 @@ export default function Vender() {
               </div>
             )}
 
-            {carrito.length > 0 && (
-              <>
-                {tipoPago !== "credito" && (
+            {carrito.length > 0 && tipoPago !== "credito" && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     {cliente ? (
                       <div>
@@ -1193,9 +1192,11 @@ export default function Vender() {
                     )}
                   </div>
                 )}
+          </div>
 
-                <div className="mt-4 border-t border-slate-200 pt-4">
-                    <p className="mb-2 text-sm font-medium text-slate-500">
+          {carrito.length > 0 && (
+              <div className="mt-4 lg:mt-0 lg:sticky lg:top-6 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+                <p className="mb-2 text-sm font-medium text-slate-500">
                       {tipoPago === "credito" ? "Entrega inicial (opcional)" : "Forma de cobro"}
                     </p>
                     {tipoPago === "credito" && (
@@ -1251,7 +1252,7 @@ export default function Vender() {
                               }`}
                             >
                               <span className="text-lg leading-none">{ICONO_FORMA_PAGO[f.valor]}</span>
-                              <span className="text-center text-[11px] font-semibold leading-tight">{f.etiqueta}</span>
+                              <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">{f.etiqueta}</span>
                             </button>
                           ))}
                         </div>
@@ -1299,7 +1300,6 @@ export default function Vender() {
                           : "Total cubierto"}
                       </p>
                     ) : null}
-                </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
                   <p className="mb-2 text-sm font-medium text-slate-500">Comprobante</p>
@@ -1315,7 +1315,7 @@ export default function Vender() {
                         }`}
                       >
                         <span className="text-lg leading-none">{t.icono}</span>
-                        <span className="text-center text-[11px] font-semibold leading-tight">{t.etiqueta}</span>
+                        <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">{t.etiqueta}</span>
                       </button>
                     ))}
                     <button
@@ -1331,7 +1331,7 @@ export default function Vender() {
                       }`}
                     >
                       <span className="text-lg leading-none">📋</span>
-                      <span className="text-center text-[11px] font-semibold leading-tight">
+                      <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">
                         Factura Legal{!sifenConfigurado ? " (no config.)" : ""}
                       </span>
                     </button>
@@ -1358,8 +1358,8 @@ export default function Vender() {
                     ? "Atajo: Ctrl+Shift+Enter fía toda la venta y confirma de una"
                     : "Atajo: Ctrl+Enter cobra en efectivo y confirma de una"}
                 </p>
-              </>
-            )}
+              </div>
+          )}
           </div>
         )}
       </div>
