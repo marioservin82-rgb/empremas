@@ -1412,6 +1412,62 @@ CREATE POLICY de_intentos_aislamiento ON documento_electronico_intentos
 CREATE TYPE estado_remision AS ENUM
     ('borrador', 'pendiente', 'enviado', 'aprobado', 'rechazado', 'error');
 
+-- Flota de transporte para las remisiones: vehículos y choferes propios +
+-- transportistas externos (fleteros). Se eligen (o se cargan en el momento,
+-- y quedan guardados) al emitir una remisión. Ver flotaController.js.
+CREATE TABLE remision_vehiculos (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id     UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    tipo           TEXT NOT NULL,
+    marca          TEXT NOT NULL,
+    chapa          TEXT NOT NULL,
+    predeterminado BOOLEAN NOT NULL DEFAULT false,
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX uq_remision_vehiculos_chapa ON remision_vehiculos (empresa_id, upper(chapa));
+CREATE INDEX idx_remision_vehiculos_empresa ON remision_vehiculos (empresa_id);
+
+CREATE TABLE remision_choferes (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id       UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    nombre           TEXT NOT NULL,
+    documento_numero TEXT NOT NULL,
+    direccion        TEXT NOT NULL,
+    predeterminado   BOOLEAN NOT NULL DEFAULT false,
+    activo           BOOLEAN NOT NULL DEFAULT true,
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX uq_remision_choferes_doc ON remision_choferes (empresa_id, documento_numero);
+CREATE INDEX idx_remision_choferes_empresa ON remision_choferes (empresa_id);
+
+CREATE TABLE remision_transportistas (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id       UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    contribuyente    BOOLEAN NOT NULL DEFAULT false,
+    nombre           TEXT NOT NULL,
+    ruc              TEXT,
+    documento_tipo   SMALLINT NOT NULL DEFAULT 1,
+    documento_numero TEXT,
+    direccion        TEXT NOT NULL,
+    activo           BOOLEAN NOT NULL DEFAULT true,
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_remision_transportistas_empresa ON remision_transportistas (empresa_id);
+
+ALTER TABLE remision_vehiculos      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE remision_vehiculos      FORCE  ROW LEVEL SECURITY;
+ALTER TABLE remision_choferes       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE remision_choferes       FORCE  ROW LEVEL SECURITY;
+ALTER TABLE remision_transportistas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE remision_transportistas FORCE  ROW LEVEL SECURITY;
+CREATE POLICY remision_vehiculos_aislamiento ON remision_vehiculos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+CREATE POLICY remision_choferes_aislamiento ON remision_choferes
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+CREATE POLICY remision_transportistas_aislamiento ON remision_transportistas
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
 CREATE TABLE remisiones (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     empresa_id            UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
@@ -1426,8 +1482,20 @@ CREATE TABLE remisiones (
     observacion           TEXT,
     direccion_entrega     TEXT NOT NULL,
     ciudad_entrega        INTEGER,
+    direccion_salida      TEXT,            -- si sale de otra dirección; null = la del negocio
+    ciudad_salida         INTEGER,
     km_estimados          NUMERIC(10,2) NOT NULL DEFAULT 1,
-    fecha_traslado        DATE NOT NULL DEFAULT CURRENT_DATE,
+    fecha_traslado        DATE NOT NULL DEFAULT CURRENT_DATE,   -- inicio del traslado (SIFEN dIniTras)
+    fecha_fin_traslado    DATE,                                 -- fin estimado (SIFEN dFinTras)
+    -- Modo interno EMPREMAS: propio | fletero | cliente_retira.
+    modo_transporte       TEXT NOT NULL DEFAULT 'propio',
+    tipo_transporte       SMALLINT NOT NULL DEFAULT 1,   -- SIFEN iTipTrans (1 propio, 2 tercero)
+    responsable_flete     SMALLINT NOT NULL DEFAULT 5,   -- SIFEN iRespFlete
+    vehiculo_id           UUID REFERENCES remision_vehiculos(id),
+    chofer_id             UUID REFERENCES remision_choferes(id),
+    transportista_id      UUID REFERENCES remision_transportistas(id),
+    -- Foto congelada del transporte que se le manda al conector (por si después
+    -- se cambia o se da de baja el vehículo / chofer de la flota).
     transporte            JSONB NOT NULL,
     estado                estado_remision NOT NULL DEFAULT 'pendiente',
     cdc                   TEXT,

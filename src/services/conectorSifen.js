@@ -106,7 +106,9 @@ export function emitirRemision(tenantId, remision) {
 // productoId?, nombre, cantidad }]. `remision`: fila de la tabla remisiones.
 export function mapearRemisionAConector({ remision, items, receptor }) {
     const t = remision.transporte || {};
-    const fecha = (remision.fecha_traslado || '').toString().slice(0, 10) || undefined;
+    const soloFecha = (v) => (v ? v.toString().slice(0, 10) : undefined);
+    const inicio = soloFecha(remision.fecha_traslado);
+    const fin = soloFecha(remision.fecha_fin_traslado) || inicio;
 
     const salida = {
         receptor,
@@ -118,12 +120,20 @@ export function mapearRemisionAConector({ remision, items, receptor }) {
         })),
         motivo: Number(remision.motivo) || 1,
         kmEstimados: Number(remision.km_estimados) || 1,
-        fechaInicioTraslado: fecha,
-        fechaFinTraslado: fecha,
+        fechaInicioTraslado: inicio,
+        fechaFinTraslado: fin,
         entrega: {
             direccion: remision.direccion_entrega || 'Sin dirección',
             ...(remision.ciudad_entrega ? { ciudad: Number(remision.ciudad_entrega) } : {}),
         },
+        ...(remision.direccion_salida
+            ? {
+                  salida: {
+                      direccion: remision.direccion_salida,
+                      ...(remision.ciudad_salida ? { ciudad: Number(remision.ciudad_salida) } : {}),
+                  },
+              }
+            : {}),
         tipoTransporte: Number(t.tipoTransporte) || 1,
         modalidad: Number(t.modalidad) || 1,
         responsableFlete: Number(t.responsableFlete) || 5,

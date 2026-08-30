@@ -8,6 +8,7 @@ import {
     descargarKude as descargarKudeConector,
     ErrorConector,
 } from '../services/conectorSifen.js';
+import { resolverVehiculo, resolverChofer, resolverTransportista } from './flotaController.js';
 
 // Deriva "EST-PUN-NNNNNNN" del CDC de SIFEN.
 function numeroDesdeCdc(cdc) {
@@ -17,7 +18,8 @@ function numeroDesdeCdc(cdc) {
 
 async function empresaConector(cliente, empresaId) {
     const r = await cliente.query(
-        `SELECT sifen_estado, sifen_conector_tenant_id, sifen_remision, preset_remision
+        `SELECT sifen_estado, sifen_conector_tenant_id, sifen_remision,
+                razon_social, nombre_fantasia, ruc, direccion
          FROM empresas WHERE id = $1`,
         [empresaId]
     );
@@ -26,7 +28,96 @@ async function empresaConector(cliente, empresaId) {
         habilitada: !!e.sifen_remision,
         enProduccion: e.sifen_estado === 'produccion' && !!e.sifen_conector_tenant_id,
         tenantId: e.sifen_conector_tenant_id,
-        preset: e.preset_remision || null,
+        // Datos del emisor para armar el "transportista" cuando el traslado es propio.
+        emisor: {
+            nombre: e.nombre_fantasia || e.razon_social || 'EMISOR',
+            ruc: e.ruc || '',
+            direccion: e.direccion || 'Sin dirección',
+        },
+    };
+}
+
+// Modo de transporte (interno EMPREMAS) -> iTipTrans / iRespFlete de SIFEN.
+//   propio         : nuestro camión y chofer            -> tipo 1, resp 5
+//   fletero        : transportista externo contratado   -> tipo 2, resp según quién paga (1/2/3)
+//   cliente_retira : el cliente viene con su vehículo   -> tipo 2, resp 2 (receptor)
+const RESP_FLETE_QUIEN_PAGA = { nosotros: 1, cliente: 2, tercero: 3 };
+
+/**
+ * Resuelve todos los datos de transporte de una remisión: elige o crea el
+ * vehículo, el chofer y (si corresponde) el transportista, y arma la "foto"
+ * JSONB que espera el conector. Lo nuevo que se carga queda guardado.
+ *
+ * body: { modoTransporte, vehiculoId|vehiculoNuevo, choferId|choferNuevo,
+ *         transportistaId|transportistaNuevo, quienPagaFlete }
+ */
+async function resolverTransporte(cliente, empresaId, body, emisor, clienteRecord) {
+    const modo = ['propio', 'fletero', 'cliente_retira'].includes(body.modoTransporte)
+        ? body.modoTransporte
+        : 'propio';
+
+    const vehiculo = await resolverVehiculo(cliente, empresaId, body);
+    const chofer = await resolverChofer(cliente, empresaId, body);
+
+    let transportistaRow = null;
+    let transportistaSnap;
+
+    if (modo === 'fletero') {
+        transportistaRow = await resolverTransportista(cliente, empresaId, body);
+        transportistaSnap = transportistaRow.contribuyente
+            ? { contribuyente: true, nombre: transportistaRow.nombre, ruc: transportistaRow.ruc, direccion: transportistaRow.direccion }
+            : {
+                  contribuyente: false,
+                  nombre: transportistaRow.nombre,
+                  documentoTipo: transportistaRow.documento_tipo || 1,
+                  documentoNumero: transportistaRow.documento_numero,
+                  direccion: transportistaRow.direccion,
+              };
+    } else if (modo === 'cliente_retira') {
+        const doc = String(clienteRecord?.documento || '').trim();
+        const nombre = clienteRecord?.nombre || 'CLIENTE';
+        const dir = clienteRecord?.direccion || 'Sin dirección';
+        transportistaSnap = doc.includes('-')
+            ? { contribuyente: true, nombre, ruc: doc, direccion: dir }
+            : { contribuyente: false, nombre, documentoTipo: 1, documentoNumero: doc.replace(/\D/g, '') || '0', direccion: dir };
+    } else {
+        // propio: el transportista es la propia empresa
+        transportistaSnap = emisor.ruc.includes('-')
+            ? { contribuyente: true, nombre: emisor.nombre, ruc: emisor.ruc, direccion: emisor.direccion }
+            : { contribuyente: false, nombre: emisor.nombre, documentoTipo: 1, documentoNumero: emisor.ruc.replace(/\D/g, '') || '0', direccion: emisor.direccion };
+    }
+
+    const tipoTransporte = modo === 'propio' ? 1 : 2;
+    const responsableFlete =
+        modo === 'propio'
+            ? 5
+            : modo === 'cliente_retira'
+              ? 2
+              : RESP_FLETE_QUIEN_PAGA[body.quienPagaFlete] || 3;
+
+    const transporte = {
+        tipoTransporte,
+        modalidad: 1,
+        responsableFlete,
+        vehiculo: { tipo: vehiculo.tipo, marca: vehiculo.marca, chapa: vehiculo.chapa },
+        transportista: {
+            ...transportistaSnap,
+            chofer: {
+                nombre: chofer.nombre,
+                documentoNumero: chofer.documento_numero,
+                direccion: chofer.direccion,
+            },
+        },
+    };
+
+    return {
+        transporte,
+        modo,
+        tipoTransporte,
+        responsableFlete,
+        vehiculoId: vehiculo.id,
+        choferId: chofer.id,
+        transportistaId: transportistaRow?.id || null,
     };
 }
 
@@ -95,9 +186,12 @@ async function emitirYActualizarRemision(empresaId, remisionId) {
     }
 }
 
-// POST /api/remisiones — alta manual (cliente + ítems + entrega).
+// POST /api/remisiones — alta manual (cliente + ítems + entrega + transporte).
 // body: { clienteId?, items:[{productoId,cantidad}], direccionEntrega, ciudadEntrega?,
-//         motivo?, observacion?, aFacturarDespues?, fechaFuturaFactura?, transporte? }
+//         direccionSalida?, ciudadSalida?, fechaInicioTraslado?, fechaFinTraslado?,
+//         motivo?, observacion?, aFacturarDespues?, fechaFuturaFactura?,
+//         modoTransporte, vehiculoId|vehiculoNuevo, choferId|choferNuevo,
+//         transportistaId|transportistaNuevo, quienPagaFlete }
 export async function crearRemision(req, res) {
     const { empresaId, usuarioId, sucursalId } = req.usuario;
     const b = req.body || {};
@@ -116,19 +210,21 @@ export async function crearRemision(req, res) {
             if (!emp.habilitada) throw new ErrorNegocio('La Nota de Remisión no está habilitada para esta empresa');
             if (!emp.enProduccion) throw new ErrorNegocio('La facturación electrónica todavía no está en producción');
 
-            const transporte = b.transporte || emp.preset;
-            if (!transporte || !transporte.vehiculo || !transporte.transportista) {
-                throw new ErrorNegocio('Configurá los datos de transporte (vehículo y chofer) antes de emitir remisiones');
-            }
-
             let clienteIdFinal = b.clienteId || null;
+            let clienteRecord = null;
             if (!clienteIdFinal) {
                 const gen = await cliente.query(
-                    `SELECT id FROM clientes WHERE empresa_id = $1 AND es_generico = true LIMIT 1`,
+                    `SELECT id, nombre, documento, direccion FROM clientes WHERE empresa_id = $1 AND es_generico = true LIMIT 1`,
                     [empresaId]
                 );
-                clienteIdFinal = gen.rows[0]?.id || null;
+                clienteRecord = gen.rows[0] || null;
+                clienteIdFinal = clienteRecord?.id || null;
+            } else {
+                const c = await cliente.query(`SELECT id, nombre, documento, direccion FROM clientes WHERE id = $1`, [clienteIdFinal]);
+                clienteRecord = c.rows[0] || null;
             }
+
+            const tr = await resolverTransporte(cliente, empresaId, b, emp.emisor, clienteRecord);
 
             const itemsCalc = [];
             for (const it of items) {
@@ -144,17 +240,28 @@ export async function crearRemision(req, res) {
             const ins = await cliente.query(
                 `INSERT INTO remisiones
                     (empresa_id, sucursal_id, usuario_id, cliente_id, motivo, observacion,
-                     direccion_entrega, ciudad_entrega, km_estimados, fecha_traslado,
-                     fecha_futura_factura, transporte, descuenta_stock, estado)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10, CURRENT_DATE),$11,$12,$13,'pendiente')
+                     direccion_entrega, ciudad_entrega, direccion_salida, ciudad_salida,
+                     km_estimados, fecha_traslado, fecha_fin_traslado,
+                     fecha_futura_factura, transporte, descuenta_stock,
+                     modo_transporte, tipo_transporte, responsable_flete,
+                     vehiculo_id, chofer_id, transportista_id, estado)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+                         COALESCE($12, CURRENT_DATE), $13, $14, $15, $16,
+                         $17,$18,$19,$20,$21,$22,'pendiente')
                  RETURNING id`,
                 [
                     empresaId, sucursalId, usuarioId, clienteIdFinal,
                     Number(b.motivo) || 1, b.observacion || null,
                     String(b.direccionEntrega).trim(), b.ciudadEntrega ? Number(b.ciudadEntrega) : null,
-                    Number(b.kmEstimados) || 1, b.fechaTraslado || null,
+                    b.direccionSalida ? String(b.direccionSalida).trim() : null,
+                    b.ciudadSalida ? Number(b.ciudadSalida) : null,
+                    Number(b.kmEstimados) || 1,
+                    b.fechaInicioTraslado || b.fechaTraslado || null,
+                    b.fechaFinTraslado || null,
                     aFacturarDespues ? (b.fechaFuturaFactura || new Date().toISOString().slice(0, 10)) : null,
-                    JSON.stringify(transporte), descuentaStock,
+                    JSON.stringify(tr.transporte), descuentaStock,
+                    tr.modo, tr.tipoTransporte, tr.responsableFlete,
+                    tr.vehiculoId, tr.choferId, tr.transportistaId,
                 ]
             );
             const id = ins.rows[0].id;
@@ -203,15 +310,12 @@ export async function crearRemisionDesdeVenta(req, res) {
             if (!emp.habilitada) throw new ErrorNegocio('La Nota de Remisión no está habilitada para esta empresa');
             if (!emp.enProduccion) throw new ErrorNegocio('La facturación electrónica todavía no está en producción');
 
-            const transporte = b.transporte || emp.preset;
-            if (!transporte || !transporte.vehiculo || !transporte.transportista) {
-                throw new ErrorNegocio('Configurá los datos de transporte antes de emitir remisiones');
-            }
-
             const v = await cliente.query(
-                `SELECT v.cliente_id, de.estado AS de_estado, de.cdc AS de_cdc
+                `SELECT v.cliente_id, de.estado AS de_estado, de.cdc AS de_cdc,
+                        c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.direccion AS cliente_direccion
                  FROM ventas v
                  LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
+                 LEFT JOIN clientes c ON c.id = v.cliente_id
                  WHERE v.id = $1`,
                 [ventaId]
             );
@@ -224,6 +328,12 @@ export async function crearRemisionDesdeVenta(req, res) {
             const ya = await cliente.query(`SELECT id FROM remisiones WHERE venta_id = $1`, [ventaId]);
             if (ya.rows[0]) throw new ErrorNegocio('Esta venta ya tiene una remisión');
 
+            const tr = await resolverTransporte(cliente, empresaId, b, emp.emisor, {
+                nombre: venta.cliente_nombre,
+                documento: venta.cliente_documento,
+                direccion: venta.cliente_direccion,
+            });
+
             const items = (
                 await cliente.query(`SELECT producto_id, cantidad FROM venta_items WHERE venta_id = $1`, [ventaId])
             ).rows;
@@ -231,15 +341,26 @@ export async function crearRemisionDesdeVenta(req, res) {
             const ins = await cliente.query(
                 `INSERT INTO remisiones
                     (empresa_id, sucursal_id, usuario_id, cliente_id, venta_id, factura_cdc, facturada,
-                     motivo, observacion, direccion_entrega, ciudad_entrega, km_estimados, fecha_traslado,
-                     transporte, descuenta_stock, estado)
-                 VALUES ($1,$2,$3,$4,$5,$6,true,$7,$8,$9,$10,$11,COALESCE($12,CURRENT_DATE),$13,false,'pendiente')
+                     motivo, observacion, direccion_entrega, ciudad_entrega, direccion_salida, ciudad_salida,
+                     km_estimados, fecha_traslado, fecha_fin_traslado, transporte, descuenta_stock,
+                     modo_transporte, tipo_transporte, responsable_flete,
+                     vehiculo_id, chofer_id, transportista_id, estado)
+                 VALUES ($1,$2,$3,$4,$5,$6,true,$7,$8,$9,$10,$11,$12,$13,
+                         COALESCE($14,CURRENT_DATE), $15, $16, false,
+                         $17,$18,$19,$20,$21,$22,'pendiente')
                  RETURNING id`,
                 [
                     empresaId, sucursalId, usuarioId, venta.cliente_id, ventaId, venta.de_cdc,
                     Number(b.motivo) || 1, b.observacion || null,
                     String(b.direccionEntrega).trim(), b.ciudadEntrega ? Number(b.ciudadEntrega) : null,
-                    Number(b.kmEstimados) || 1, b.fechaTraslado || null, JSON.stringify(transporte),
+                    b.direccionSalida ? String(b.direccionSalida).trim() : null,
+                    b.ciudadSalida ? Number(b.ciudadSalida) : null,
+                    Number(b.kmEstimados) || 1,
+                    b.fechaInicioTraslado || b.fechaTraslado || null,
+                    b.fechaFinTraslado || null,
+                    JSON.stringify(tr.transporte),
+                    tr.modo, tr.tipoTransporte, tr.responsableFlete,
+                    tr.vehiculoId, tr.choferId, tr.transportistaId,
                 ]
             );
             const id = ins.rows[0].id;
@@ -284,10 +405,16 @@ export async function obtenerRemision(req, res) {
     const { id } = req.params;
     const r = await consultaDeEmpresa(
         empresaId,
-        `SELECT r.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, u.nombre AS usuario_nombre
+        `SELECT r.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, u.nombre AS usuario_nombre,
+                veh.tipo AS vehiculo_tipo, veh.marca AS vehiculo_marca, veh.chapa AS vehiculo_chapa,
+                ch.nombre AS chofer_nombre, ch.documento_numero AS chofer_documento,
+                tra.nombre AS transportista_nombre
          FROM remisiones r
          LEFT JOIN clientes c ON c.id = r.cliente_id
          LEFT JOIN usuarios u ON u.id = r.usuario_id
+         LEFT JOIN remision_vehiculos veh ON veh.id = r.vehiculo_id
+         LEFT JOIN remision_choferes ch ON ch.id = r.chofer_id
+         LEFT JOIN remision_transportistas tra ON tra.id = r.transportista_id
          WHERE r.id = $1`,
         [id]
     );

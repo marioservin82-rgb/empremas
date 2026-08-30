@@ -6,6 +6,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { linkWhatsapp } from "@/lib/whatsapp";
 import Recibo from "@/app/vender/Recibo";
+import BuscadorCiudad from "@/app/documentos/BuscadorCiudad";
+import SelectorTransporte from "@/app/documentos/remision/SelectorTransporte";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -435,6 +437,8 @@ function GenerarRemision({ ventaId, direccionCliente }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [direccion, setDireccion] = useState(direccionCliente || "");
+  const [ciudadEntrega, setCiudadEntrega] = useState(null);
+  const [transporte, setTransporte] = useState({ modoTransporte: "propio" });
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
@@ -444,7 +448,12 @@ function GenerarRemision({ ventaId, direccionCliente }) {
     try {
       const r = await apiFetch("/api/remisiones/desde-venta", {
         method: "POST",
-        body: JSON.stringify({ ventaId, direccionEntrega: direccion }),
+        body: JSON.stringify({
+          ventaId,
+          direccionEntrega: direccion,
+          ciudadEntrega: ciudadEntrega?.codigo || null,
+          ...transporte,
+        }),
       });
       router.push(`/documentos/remision/${r.id}`);
     } catch (err) {
@@ -463,20 +472,27 @@ function GenerarRemision({ ventaId, direccionCliente }) {
           Generar Nota de Remisión de esta factura
         </button>
       ) : (
-        <div>
-          <p className="mb-1 font-semibold text-slate-700">Nota de Remisión</p>
-          <p className="mb-3 text-xs text-slate-400">
-            Usa los mismos ítems y cliente de la factura. El vehículo y el chofer salen de Datos de
-            transporte.
-          </p>
-          <label className="mb-1 block text-sm font-medium text-slate-500">Dirección de entrega</label>
-          <input
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy"
-            placeholder="Calle, barrio, referencia"
-          />
-          {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        <div className="flex flex-col gap-3">
+          <p className="font-semibold text-slate-700">Nota de Remisión</p>
+          <p className="-mt-2 text-xs text-slate-400">Usa los mismos ítems y cliente de la factura.</p>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-500">Dirección de entrega (destino)</label>
+            <input
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy"
+              placeholder="Calle, barrio, referencia"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-500">Ciudad del destino</label>
+            <BuscadorCiudad valor={ciudadEntrega} onSelect={setCiudadEntrega} placeholder="Buscar ciudad del destino" />
+          </div>
+
+          <SelectorTransporte onChange={setTransporte} />
+
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <div className="flex gap-2">
             <button
               onClick={generar}
