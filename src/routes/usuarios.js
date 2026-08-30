@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import {
     fijarMiPin,
     miEstadoPin,
+    cambiarMiPassword,
     yo,
     listarUsuarios,
     listarMeseros,
@@ -19,6 +20,10 @@ const router = Router();
 router.use(autenticar);
 
 router.get('/yo', asyncHandler(yo));
+// Cualquier rol logueado cambia su propia contraseña (dueno inclusive) -
+// a diferencia del resto de /usuarios, que es solo dueno gestionando a
+// otros.
+router.patch('/mi-password', asyncHandler(cambiarMiPassword));
 
 // Solo dueno/encargado pueden tener PIN: son los unicos que pueden
 // autorizar una anulacion.

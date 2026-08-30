@@ -191,6 +191,50 @@ export async function actualizarEmpresa(req, res) {
     res.json(resultado.rows[0]);
 }
 
+// Sin proveedor de mensajeria conectado todavia (WhatsApp/email), asi
+// que "olvide mi contraseña" no puede mandar un codigo solo - el dueño
+// contacta a soporte (boton de WhatsApp ya armado en /recuperar-contrasena)
+// y un admin de la plataforma verifica quien es y le genera una
+// contraseña temporal desde aca, para pasarsela el mismo por WhatsApp.
+// Password legible (sin 0/O/1/l/I, que se confunden al dictarla o leerla).
+const ALFABETO_PASSWORD_TEMPORAL = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+
+function generarPasswordTemporal(largo = 10) {
+    let resultado = '';
+    for (let i = 0; i < largo; i++) {
+        resultado += ALFABETO_PASSWORD_TEMPORAL[Math.floor(Math.random() * ALFABETO_PASSWORD_TEMPORAL.length)];
+    }
+    return resultado;
+}
+
+export async function resetearPasswordDueno(req, res) {
+    const { id } = req.params;
+
+    const dueno = await pool.query(
+        `SELECT id, nombre, email, telefono FROM usuarios
+         WHERE empresa_id = $1 AND rol = 'dueno'
+         ORDER BY creado_en ASC LIMIT 1`,
+        [id]
+    );
+    if (!dueno.rows[0]) {
+        return res.status(404).json({ error: 'No se encontró el dueño de esta empresa' });
+    }
+
+    const passwordNueva = generarPasswordTemporal();
+    const passwordHash = await bcrypt.hash(passwordNueva, 10);
+    await pool.query(`UPDATE usuarios SET password_hash = $2 WHERE id = $1`, [dueno.rows[0].id, passwordHash]);
+
+    // La contraseña en texto plano se devuelve UNA sola vez, en esta
+    // respuesta - nunca se guarda en ningún lado. El admin la copia y se
+    // la pasa al dueño por el mismo canal donde ya lo contactó (WhatsApp).
+    res.json({
+        duenoNombre: dueno.rows[0].nombre,
+        duenoEmail: dueno.rows[0].email,
+        duenoTelefono: dueno.rows[0].telefono,
+        passwordNueva,
+    });
+}
+
 // Configuracion global de la plataforma (numero de soporte de EMPREMAS,
 // mostrado a todos los tenants). Tabla de una sola fila - GET trae esa
 // fila (o null si todavia no existe ninguna) y PATCH la actualiza si

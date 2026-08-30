@@ -8,6 +8,7 @@ export default function Login() {
   const router = useRouter();
   const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -61,16 +62,32 @@ export default function Login() {
           <label className="mb-1 block text-sm font-medium text-slate-700">
             Contraseña
           </label>
-          <input
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-            placeholder="••••••••"
-          />
+          <div className="relative mb-1">
+            <input
+              type={mostrarPassword ? "text" : "password"}
+              name="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400 hover:text-slate-600"
+              tabIndex={-1}
+            >
+              {mostrarPassword ? "Ocultar" : "Ver"}
+            </button>
+          </div>
+
+          <p className="mb-4 text-right">
+            <Link href="/recuperar-contrasena" className="text-sm font-medium text-navy hover:text-brand">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
 
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

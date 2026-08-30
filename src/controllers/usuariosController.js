@@ -212,6 +212,32 @@ export async function actualizarUsuario(req, res) {
     res.json(resultado.rows[0]);
 }
 
+// Cualquier rol (dueno/encargado/cajero/mesero) cambia su propia
+// contraseña, sin importar como haya entrado a la sesion (login normal o
+// una temporal que le paso el admin de la plataforma tras un "olvidé mi
+// contraseña" - ver adminController.resetearPasswordDueno). Pide la
+// contraseña actual (no alcanza con estar logueado) para que una sesion
+// abierta y desatendida no alcance para robarle la cuenta a otro.
+export async function cambiarMiPassword(req, res) {
+    const { usuarioId } = req.usuario;
+    const { passwordActual, passwordNueva } = req.body;
+
+    if (!passwordNueva || passwordNueva.length < 6) {
+        return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    const resultado = await pool.query(`SELECT password_hash FROM usuarios WHERE id = $1`, [usuarioId]);
+    const usuario = resultado.rows[0];
+    if (!usuario || !(await bcrypt.compare(passwordActual || '', usuario.password_hash))) {
+        return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+    }
+
+    const passwordHash = await bcrypt.hash(passwordNueva, 10);
+    await pool.query(`UPDATE usuarios SET password_hash = $2 WHERE id = $1`, [usuarioId, passwordHash]);
+
+    res.json({ ok: true });
+}
+
 // El propio dueno/encargado fija o cambia su PIN numerico (4 digitos),
 // usado despues para autorizar acciones sensibles como anular una venta.
 export async function fijarMiPin(req, res) {

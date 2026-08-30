@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { adminFetch } from "@/lib/adminApi";
+import { linkWhatsapp } from "@/lib/whatsapp";
 
 const ESTADOS = ["prueba", "activa", "mora", "suspendida"];
 
@@ -62,6 +63,9 @@ export default function AdminEmpresaDetalle() {
   const [periodoHasta, setPeriodoHasta] = useState("");
   const [notas, setNotas] = useState("");
   const [registrandoPago, setRegistrandoPago] = useState(false);
+
+  const [reseteando, setReseteando] = useState(false);
+  const [passwordReseteada, setPasswordReseteada] = useState(null);
 
   function cargar() {
     return adminFetch(`/api/admin/empresas/${id}`).then((e) => {
@@ -149,6 +153,25 @@ export default function AdminEmpresaDetalle() {
     } finally {
       setRegistrandoPago(false);
     }
+  }
+
+  async function resetearPasswordDueno() {
+    setError("");
+    setExito("");
+    setPasswordReseteada(null);
+    setReseteando(true);
+    try {
+      const resultado = await adminFetch(`/api/admin/empresas/${id}/resetear-password-dueno`, { method: "POST" });
+      setPasswordReseteada(resultado);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReseteando(false);
+    }
+  }
+
+  function copiarPassword() {
+    navigator.clipboard?.writeText(passwordReseteada.passwordNueva).catch(() => {});
   }
 
   const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-100";
@@ -289,6 +312,58 @@ export default function AdminEmpresaDetalle() {
               Vendedores por comisión: activo (lo exige Lomitería).
             </p>
           )}
+        </div>
+
+        <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">Recuperación de contraseña</h2>
+          <p className="mb-4 text-sm text-slate-400">
+            Para cuando el dueño te contacta por WhatsApp porque olvidó su contraseña — generá una temporal acá y
+            pasásela vos. Se le pisa la que tenía.
+          </p>
+
+          {passwordReseteada && (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-800">
+                Nueva contraseña para <span className="font-semibold">{passwordReseteada.duenoNombre}</span> (
+                {passwordReseteada.duenoEmail || passwordReseteada.duenoTelefono}):
+              </p>
+              <p className="my-2 rounded-lg bg-white px-3 py-2 text-center font-mono text-xl font-bold tracking-wider text-slate-800">
+                {passwordReseteada.passwordNueva}
+              </p>
+              <p className="mb-3 text-xs text-emerald-700">
+                Guardala ahora — no se vuelve a mostrar. Decile que la cambie apenas entre (arriba a la derecha, "Mi contraseña").
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={copiarPassword}
+                  className="flex-1 rounded-xl bg-slate-100 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                  Copiar
+                </button>
+                {passwordReseteada.duenoTelefono && (
+                  <a
+                    href={linkWhatsapp(
+                      passwordReseteada.duenoTelefono,
+                      `Hola ${passwordReseteada.duenoNombre}, tu nueva contraseña temporal de EMPREMAS es: ${passwordReseteada.passwordNueva}\n\nEntrá y cambiala apenas puedas desde "Mi contraseña" (arriba a la derecha del panel).`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 rounded-xl bg-emerald-600 py-2 text-center text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Enviar por WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={resetearPasswordDueno}
+            disabled={reseteando}
+            className="w-full rounded-xl bg-slate-800 py-3 text-lg font-semibold text-white transition hover:bg-slate-900 disabled:opacity-60"
+          >
+            {reseteando ? "Generando..." : "Generar contraseña temporal"}
+          </button>
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
