@@ -96,6 +96,8 @@ export default function Vender() {
   const [nuevoClienteCelular, setNuevoClienteCelular] = useState("");
   const [nuevoClienteLineaCredito, setNuevoClienteLineaCredito] = useState("");
   const [creandoCliente, setCreandoCliente] = useState(false);
+  const [buscandoRucCliente, setBuscandoRucCliente] = useState(false);
+  const [avisoRucCliente, setAvisoRucCliente] = useState("");
 
   const [busquedaProducto, setBusquedaProducto] = useState("");
   const [resultadosProducto, setResultadosProducto] = useState([]);
@@ -117,6 +119,10 @@ export default function Vender() {
   const [recibo, setRecibo] = useState(null);
   const [restaurado, setRestaurado] = useState(false);
   const [sifenConfigurado, setSifenConfigurado] = useState(false);
+  // Distinto de sifenConfigurado: la consulta a la DNIT (para el alta
+  // rapida de cliente) solo funciona vía el conector, no con Sifende
+  // directo - mismo criterio ya usado en compras/nueva para proveedores.
+  const [viaConector, setViaConector] = useState(false);
   // null = todavia no se sabe, false = no hay caja abierta, true = si.
   // Sin caja abierta no se puede vender - cada dia hay que abrirla y
   // cerrarla, para que el arqueo de caja tenga sentido.
@@ -131,7 +137,10 @@ export default function Vender() {
       .then(setEmpresaInfo)
       .catch((err) => setError(err.message));
     apiFetch("/api/empresas/sifen")
-      .then((c) => setSifenConfigurado(c.configurado))
+      .then((c) => {
+        setSifenConfigurado(c.configurado);
+        setViaConector(c.via === "conector");
+      })
       .catch(() => {});
     apiFetch("/api/turnos/actual")
       .then((t) => setCajaAbierta(Boolean(t)))
@@ -311,6 +320,29 @@ export default function Vender() {
     setNuevoClienteDocumento("");
     setNuevoClienteCelular("");
     setNuevoClienteLineaCredito("");
+    setAvisoRucCliente("");
+  }
+
+  async function buscarRucClienteRapido() {
+    const numero = (nuevoClienteDocumento || "").trim();
+    if (!numero) return;
+    setBuscandoRucCliente(true);
+    setAvisoRucCliente("");
+    setError("");
+    try {
+      const r = await apiFetch(`/api/clientes/consultar-ruc?numero=${encodeURIComponent(numero)}`);
+      if (r.encontrado) {
+        setNuevoClienteNombre(r.razonSocial || nuevoClienteNombre);
+        if (r.documento) setNuevoClienteDocumento(r.documento);
+        setAvisoRucCliente(`${r.razonSocial}${r.estado ? ` · ${r.estado}` : ""}`);
+      } else {
+        setAvisoRucCliente("No figura en el padrón de la DNIT — cargá el nombre a mano.");
+      }
+    } catch (err) {
+      setAvisoRucCliente(err.message);
+    } finally {
+      setBuscandoRucCliente(false);
+    }
   }
 
   async function crearClienteRapido(e) {
@@ -747,28 +779,48 @@ export default function Vender() {
             {creandoClienteRapido ? (
               <form onSubmit={crearClienteRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-3">
                 <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
+
+                <div className="mb-1 flex gap-2">
+                  <input
+                    value={nuevoClienteDocumento}
+                    onChange={(e) => setNuevoClienteDocumento(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (viaConector) buscarRucClienteRapido();
+                      }
+                    }}
+                    placeholder="Cédula/RUC (opcional)"
+                    autoFocus
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                  />
+                  {viaConector && (
+                    <button
+                      type="button"
+                      onClick={buscarRucClienteRapido}
+                      disabled={buscandoRucCliente || !nuevoClienteDocumento.trim()}
+                      className="shrink-0 rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white hover:bg-navy-2 disabled:opacity-50"
+                    >
+                      {buscandoRucCliente ? "Buscando…" : "Buscar"}
+                    </button>
+                  )}
+                </div>
+                {avisoRucCliente && <p className="mb-2 text-xs text-slate-500">{avisoRucCliente}</p>}
+
                 <input
                   required
                   value={nuevoClienteNombre}
                   onChange={(e) => setNuevoClienteNombre(e.target.value)}
                   placeholder="Nombre y apellido"
-                  autoFocus
                   className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
-                <div className="mb-2 flex gap-2">
-                  <input
-                    value={nuevoClienteDocumento}
-                    onChange={(e) => setNuevoClienteDocumento(e.target.value)}
-                    placeholder="Cédula/RUC (opcional)"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-                  />
-                  <input
-                    value={nuevoClienteCelular}
-                    onChange={(e) => setNuevoClienteCelular(e.target.value)}
-                    placeholder="Celular (opcional)"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-                  />
-                </div>
+                <input
+                  value={nuevoClienteCelular}
+                  onChange={(e) => setNuevoClienteCelular(e.target.value)}
+                  placeholder="Celular (opcional)"
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                />
                 <input
                   type="number"
                   min="0"
@@ -1066,28 +1118,48 @@ export default function Vender() {
                         {creandoClienteRapido ? (
                           <form onSubmit={crearClienteRapido} onKeyDown={avanzarConEnter} className="mt-3 rounded-xl border border-slate-200 p-3">
                             <p className="mb-2 text-sm font-semibold text-slate-700">Cliente nuevo</p>
+
+                            <div className="mb-1 flex gap-2">
+                              <input
+                                value={nuevoClienteDocumento}
+                                onChange={(e) => setNuevoClienteDocumento(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (viaConector) buscarRucClienteRapido();
+                                  }
+                                }}
+                                placeholder="Cédula/RUC (opcional)"
+                                autoFocus
+                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                              />
+                              {viaConector && (
+                                <button
+                                  type="button"
+                                  onClick={buscarRucClienteRapido}
+                                  disabled={buscandoRucCliente || !nuevoClienteDocumento.trim()}
+                                  className="shrink-0 rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white hover:bg-navy-2 disabled:opacity-50"
+                                >
+                                  {buscandoRucCliente ? "Buscando…" : "Buscar"}
+                                </button>
+                              )}
+                            </div>
+                            {avisoRucCliente && <p className="mb-2 text-xs text-slate-500">{avisoRucCliente}</p>}
+
                             <input
                               required
                               value={nuevoClienteNombre}
                               onChange={(e) => setNuevoClienteNombre(e.target.value)}
                               placeholder="Nombre y apellido"
-                              autoFocus
                               className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                             />
-                            <div className="mb-2 flex gap-2">
-                              <input
-                                value={nuevoClienteDocumento}
-                                onChange={(e) => setNuevoClienteDocumento(e.target.value)}
-                                placeholder="Cédula/RUC (opcional)"
-                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-                              />
-                              <input
-                                value={nuevoClienteCelular}
-                                onChange={(e) => setNuevoClienteCelular(e.target.value)}
-                                placeholder="Celular (opcional)"
-                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-                              />
-                            </div>
+                            <input
+                              value={nuevoClienteCelular}
+                              onChange={(e) => setNuevoClienteCelular(e.target.value)}
+                              placeholder="Celular (opcional)"
+                              className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                            />
                             <div className="flex gap-2">
                               <button
                                 type="button"
