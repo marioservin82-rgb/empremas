@@ -219,15 +219,20 @@ export async function eliminarEmpresa(req, res) {
         return res.status(409).json({ error: 'Esta empresa tiene pagos de plataforma registrados — no se puede eliminar.' });
     }
 
-    await pool.query('BEGIN');
+    // Cliente dedicado: BEGIN/COMMIT sobre el pool no funciona (cada query
+    // puede ir por otra conexión).
+    const cliente = await pool.connect();
     try {
+        await cliente.query('BEGIN');
         // comisiones_contador no tiene ON DELETE CASCADE hacia empresas.
-        await pool.query(`DELETE FROM comisiones_contador WHERE empresa_id = $1`, [id]);
-        await pool.query(`DELETE FROM empresas WHERE id = $1`, [id]);
-        await pool.query('COMMIT');
+        await cliente.query(`DELETE FROM comisiones_contador WHERE empresa_id = $1`, [id]);
+        await cliente.query(`DELETE FROM empresas WHERE id = $1`, [id]);
+        await cliente.query('COMMIT');
     } catch (error) {
-        await pool.query('ROLLBACK');
+        await cliente.query('ROLLBACK');
         throw error;
+    } finally {
+        cliente.release();
     }
     res.json({ ok: true, razon_social: emp.rows[0].razon_social });
 }
