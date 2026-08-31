@@ -82,6 +82,9 @@ export default function Vender() {
   const [resultadosCliente, setResultadosCliente] = useState([]);
   const [cliente, setCliente] = useState(null);
   const [buscandoClienteOpcional, setBuscandoClienteOpcional] = useState(false);
+  // Stop antes de emitir una Factura Legal sin cliente: guarda los pagos
+  // pendientes hasta que el cajero decida (agregar cliente o emitir igual).
+  const [avisoSinNombre, setAvisoSinNombre] = useState(null);
   // Productos mas comprados historicamente por el cliente elegido - capa
   // aparte de la sugerencia de venta cruzada (esa es sobre el producto,
   // esta es sobre la persona).
@@ -535,7 +538,14 @@ export default function Vender() {
   // efectivo y confirma en el mismo gesto - si confirmarVenta leyera el
   // estado, todavia veria los pagos de antes de ese agregado (setState
   // es asincrono, no se refleja en el mismo tick).
-  async function confirmarVenta(pagosParaEnviar = pagos) {
+  async function confirmarVenta(pagosParaEnviar = pagos, forzarSinNombre = false) {
+    // Stop: una Factura Legal sin cliente sale a "Consumidor Final" y no se
+    // le puede hacer Nota de Crédito después. Se frena para que el cajero
+    // decida en vez de emitirla sin querer.
+    if (!forzarSinNombre && tipoComprobante === "factura_legal" && !cliente) {
+      setAvisoSinNombre(pagosParaEnviar);
+      return;
+    }
     setError("");
     setEnviando(true);
     try {
@@ -1363,6 +1373,48 @@ export default function Vender() {
           </div>
         )}
       </div>
+
+      {avisoSinNombre !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <p className="text-lg font-bold text-amber-700">Factura Legal sin cliente</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Esta factura va a salir a nombre de <strong>Consumidor Final</strong>. Si el cliente
+              después necesita devolver algo, <strong>no vas a poder hacerle una Nota de Crédito</strong>.
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Si te van a pedir factura legal, conviene cargar el cliente con su RUC o cédula.
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setAvisoSinNombre(null);
+                  setBuscandoClienteOpcional(true);
+                }}
+                className="rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light"
+              >
+                Agregar cliente
+              </button>
+              <button
+                onClick={() => {
+                  const pagosPend = avisoSinNombre;
+                  setAvisoSinNombre(null);
+                  confirmarVenta(pagosPend, true);
+                }}
+                className="rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                Emitir a Consumidor Final igual
+              </button>
+              <button
+                onClick={() => setAvisoSinNombre(null)}
+                className="py-1 text-sm font-medium text-slate-400 hover:text-slate-600"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
