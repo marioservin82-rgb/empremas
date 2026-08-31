@@ -1048,7 +1048,7 @@ export async function obtenerVenta(req, res) {
     const venta = await consultaDeEmpresa(
         empresaId,
         `SELECT v.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.celular AS cliente_celular,
-                c.direccion AS cliente_direccion,
+                c.direccion AS cliente_direccion, c.es_generico AS cliente_es_generico,
                 u.nombre AS anulada_por_nombre,
                 de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
                 de.mensaje_error AS de_mensaje_error, de.intento AS de_intento,

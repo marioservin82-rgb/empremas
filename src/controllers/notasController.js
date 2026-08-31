@@ -125,9 +125,11 @@ export async function crearNota(req, res) {
 
             const v = await cliente.query(
                 `SELECT v.id, v.total, v.tipo_pago, v.cliente_id, v.anulada, v.tipo_comprobante,
-                        de.estado AS de_estado, de.cdc AS de_cdc
+                        de.estado AS de_estado, de.cdc AS de_cdc,
+                        c.es_generico AS cliente_es_generico, c.documento AS cliente_documento
                  FROM ventas v
                  LEFT JOIN documentos_electronicos de ON de.venta_id = v.id
+                 LEFT JOIN clientes c ON c.id = v.cliente_id
                  WHERE v.id = $1`,
                 [b.ventaId]
             );
@@ -136,6 +138,15 @@ export async function crearNota(req, res) {
             if (venta.tipo_comprobante !== 'factura_legal') throw new ErrorNegocio('Esa venta no es una Factura Legal');
             if (venta.de_estado !== 'aprobado' || !venta.de_cdc) {
                 throw new ErrorNegocio('La factura todavía no está aprobada por SIFEN');
+            }
+            // SIFEN (error 1331) rechaza una NC/ND cuyo comprador no está
+            // identificado: no se puede emitir sobre una factura a Consumidor
+            // Final. El cliente tiene que tener RUC o cédula.
+            if (venta.cliente_es_generico || !String(venta.cliente_documento || '').trim()) {
+                throw new ErrorNegocio(
+                    'SIFEN no permite Nota de Crédito/Débito sobre una factura a Consumidor Final. ' +
+                    'La factura tiene que estar a nombre de un cliente con RUC o cédula.'
+                );
             }
 
             const ventaItems = (

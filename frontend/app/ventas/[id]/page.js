@@ -193,7 +193,14 @@ export default function DetalleVenta() {
         )}
 
         {venta.tipo_comprobante === "factura_legal" && venta.de_estado === "aprobado" && (
-          <NotasDeFactura ventaId={id} items={items} totalFactura={Number(venta.total)} />
+          venta.cliente_es_generico ? (
+            <p className="mt-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-700 shadow shadow-slate-200">
+              Esta factura es a Consumidor Final — SIFEN no permite emitirle Nota de Crédito/Débito.
+              Para poder anularla con NC, la factura tiene que estar a nombre de un cliente con RUC o cédula.
+            </p>
+          ) : (
+            <NotasDeFactura ventaId={id} items={items} totalFactura={Number(venta.total)} />
+          )
         )}
 
         {!venta.anulada && (
