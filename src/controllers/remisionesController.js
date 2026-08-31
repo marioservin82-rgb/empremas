@@ -129,6 +129,7 @@ async function emitirYActualizarRemision(empresaId, remisionId) {
         empresaId,
         `SELECT r.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento,
                 c.es_generico AS cliente_es_generico, c.clasificacion_sifen AS cliente_clasificacion_sifen,
+                c.direccion AS cliente_direccion,
                 e.sifen_conector_tenant_id
          FROM remisiones r
          JOIN empresas e ON e.id = r.empresa_id
@@ -160,6 +161,12 @@ async function emitirYActualizarRemision(empresaId, remisionId) {
             },
             tenantId,
         });
+        // La Nota de Remisión (a diferencia de la factura) exige la dirección
+        // del receptor. Si el cliente no la tiene, se usa la de entrega.
+        receptor.direccion =
+            String(r.cliente_direccion || '').trim() ||
+            String(r.direccion_entrega || '').trim() ||
+            'Sin dirección';
         const payload = mapearRemisionAConector({ remision: r, items, receptor });
         const resp = await emitirRemisionConector(tenantId, payload);
         const estado = (resp.estado || 'enviado').toLowerCase();

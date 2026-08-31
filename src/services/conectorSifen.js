@@ -106,7 +106,15 @@ export function emitirRemision(tenantId, remision) {
 // productoId?, nombre, cantidad }]. `remision`: fila de la tabla remisiones.
 export function mapearRemisionAConector({ remision, items, receptor }) {
     const t = remision.transporte || {};
-    const soloFecha = (v) => (v ? v.toString().slice(0, 10) : undefined);
+    // Las columnas DATE llegan como objeto Date de node-postgres. SIFEN quiere
+    // "yyyy-MM-dd" — un Date.toString() da "Mon Aug 31 ..." y lo rechaza.
+    const soloFecha = (v) => {
+        if (!v) return undefined;
+        if (v instanceof Date) {
+            return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+        }
+        return String(v).slice(0, 10);
+    };
     const inicio = soloFecha(remision.fecha_traslado);
     const fin = soloFecha(remision.fecha_fin_traslado) || inicio;
 
@@ -168,7 +176,7 @@ export function mapearRemisionAConector({ remision, items, receptor }) {
     if (remision.factura_cdc) {
         salida.cdcFacturaAsociada = remision.factura_cdc;
     } else if (remision.fecha_futura_factura) {
-        salida.fechaFuturaFactura = remision.fecha_futura_factura.toString().slice(0, 10);
+        salida.fechaFuturaFactura = soloFecha(remision.fecha_futura_factura);
     }
 
     return salida;
