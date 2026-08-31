@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { autenticar } from '../middleware/autenticar.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { crearPresupuesto, listarPresupuestos, obtenerPresupuesto } from '../controllers/presupuestosController.js';
+import {
+    crearPresupuesto,
+    actualizarPresupuesto,
+    listarPresupuestos,
+    obtenerPresupuesto,
+} from '../controllers/presupuestosController.js';
 
 const router = Router();
 
@@ -11,5 +16,6 @@ router.use(autenticar);
 router.post('/', asyncHandler(crearPresupuesto));
 router.get('/', asyncHandler(listarPresupuestos));
 router.get('/:id', asyncHandler(obtenerPresupuesto));
+router.patch('/:id', asyncHandler(actualizarPresupuesto));
 
 export default router;

@@ -90,6 +90,85 @@ export async function crearPresupuesto(req, res) {
     }
 }
 
+// Edita un presupuesto ya creado (ej. "agregame tal cosa al mismo
+// presupuesto") - reemplaza la lista de items entera, mismo criterio ya
+// usado en el resto de la app para un formulario que reenvia todo
+// (categorias_cliente, producto_asociaciones...). El numero correlativo y
+// quien lo creo no cambian. Las ventas ya generadas antes de editar no se
+// tocan - son una foto propia (venta_items), no dependen de
+// presupuesto_items en vivo.
+export async function actualizarPresupuesto(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const { clienteId, listaPrecio, vencimiento, items } = req.body;
+
+    if (!LISTAS_PRECIO.includes(listaPrecio)) {
+        return res.status(400).json({ error: 'listaPrecio debe ser contado, credito o mayorista' });
+    }
+    if (!vencimiento) {
+        return res.status(400).json({ error: 'El presupuesto necesita una fecha de vencimiento' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'El presupuesto necesita al menos un producto' });
+    }
+
+    try {
+        await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const existente = await cliente.query(`SELECT id FROM presupuestos WHERE id = $1`, [id]);
+            if (!existente.rows[0]) {
+                throw new ErrorNegocio('Presupuesto no encontrado');
+            }
+
+            let total = 0;
+            const itemsCalculados = [];
+            for (const { productoId, cantidad, precioUnitario } of items) {
+                if (!(cantidad > 0) || !(precioUnitario >= 0)) {
+                    throw new ErrorNegocio('Cada producto necesita una cantidad y un precio válidos');
+                }
+                const productoResultado = await cliente.query(`SELECT id FROM productos WHERE id = $1`, [productoId]);
+                if (!productoResultado.rows[0]) {
+                    throw new ErrorNegocio('Uno de los productos ya no existe');
+                }
+                const subtotal = precioUnitario * cantidad;
+                total += subtotal;
+                itemsCalculados.push({ productoId, cantidad, precioUnitario, subtotal });
+            }
+
+            if (clienteId) {
+                const clienteResultado = await cliente.query(`SELECT id FROM clientes WHERE id = $1`, [clienteId]);
+                if (!clienteResultado.rows[0]) {
+                    throw new ErrorNegocio('El cliente ya no existe');
+                }
+            }
+
+            await cliente.query(
+                `UPDATE presupuestos SET cliente_id = $2, lista_precio = $3, vencimiento = $4, total = $5 WHERE id = $1`,
+                [id, clienteId || null, listaPrecio, vencimiento, total]
+            );
+
+            await cliente.query(`DELETE FROM presupuesto_items WHERE presupuesto_id = $1`, [id]);
+            for (const item of itemsCalculados) {
+                await cliente.query(
+                    `INSERT INTO presupuesto_items (empresa_id, presupuesto_id, producto_id, cantidad, precio_unitario, subtotal)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [empresaId, id, item.productoId, item.cantidad, item.precioUnitario, item.subtotal]
+                );
+            }
+        });
+
+        // Se devuelve releido con el mismo shape que obtenerPresupuesto, para
+        // que la pantalla de edicion pueda redirigir a la de detalle sin
+        // tener que rearmar la respuesta a mano.
+        await obtenerPresupuesto(req, res);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            const status = error.message === 'Presupuesto no encontrado' ? 404 : 400;
+            return res.status(status).json({ error: error.message });
+        }
+        throw error;
+    }
+}
+
 export async function listarPresupuestos(req, res) {
     const { empresaId } = req.usuario;
 

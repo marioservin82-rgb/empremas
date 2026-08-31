@@ -95,16 +95,26 @@ export default function DetallePresupuesto() {
   return (
     <main className="flex flex-1 flex-col items-center p-6">
       <div className="w-full max-w-2xl">
-        <div className="py-6">
-          <Link href="/presupuestos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-            ← Volver
+        <div className="flex items-start justify-between py-6">
+          <div>
+            <Link href="/presupuestos" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+              ← Volver
+            </Link>
+            <h1 className="text-2xl font-bold text-navy">
+              {presupuesto.cliente_nombre || "Presupuesto sin cliente"}
+            </h1>
+            <p className="text-sm font-semibold text-slate-500">
+              Presupuesto N° {presupuesto.numero ?? "—"}
+            </p>
+          </div>
+          <Link
+            href={`/presupuestos/${id}/editar`}
+            className="rounded-xl bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy-2"
+          >
+            Editar
           </Link>
-          <h1 className="text-2xl font-bold text-navy">
-            {presupuesto.cliente_nombre || "Presupuesto sin cliente"}
-          </h1>
-          <p className="text-sm font-semibold text-slate-500">
-            Presupuesto N° {presupuesto.numero ?? "—"}
-          </p>
+        </div>
+        <div className="-mt-4 pb-6">
           <p className="text-sm text-slate-400">
             Vence {new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}
             {presupuesto.vencido && <span className="ml-2 font-semibold text-red-500">VENCIDO</span>}
