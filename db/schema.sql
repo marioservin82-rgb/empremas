@@ -1371,6 +1371,10 @@ CREATE TABLE documentos_electronicos (
     iva_5               NUMERIC(14,2),
     iva_10              NUMERIC(14,2),
     total_iva           NUMERIC(14,2),
+    -- Evento de cancelación en SIFEN (al anular la venta, dentro de 48h).
+    cancelado_en_sifen  BOOLEAN NOT NULL DEFAULT false,
+    cancelacion_mensaje TEXT,   -- motivo del último intento fallido de cancelación
+    cancelacion_en      TIMESTAMPTZ,
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
     actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (venta_id)

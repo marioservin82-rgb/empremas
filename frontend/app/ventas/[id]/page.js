@@ -138,6 +138,9 @@ export default function DetalleVenta() {
               {new Date(venta.anulada_en).toLocaleDateString("es-PY")}{" "}
               {new Date(venta.anulada_en).toLocaleTimeString("es-PY")} · Autorizó: {venta.anulada_por_nombre}
             </p>
+            {venta.tipo_comprobante === "factura_legal" && venta.de_estado === "aprobado" && (
+              <CancelacionSifen venta={venta} onCambio={cargar} />
+            )}
           </div>
         )}
 
@@ -517,6 +520,51 @@ function GenerarRemision({ ventaId, direccionCliente }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Estado de la cancelación en SIFEN de una Factura Legal anulada.
+function CancelacionSifen({ venta, onCambio }) {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function cancelar() {
+    setError("");
+    setEnviando(true);
+    try {
+      await apiFetch(`/api/ventas/${venta.id}/cancelar-sifen`, {
+        method: "POST",
+        body: JSON.stringify({ motivo: venta.motivo_anulacion || "Anulación de la venta" }),
+      });
+      await onCambio();
+    } catch (err) {
+      setError(err.message);
+      setEnviando(false);
+    }
+  }
+
+  if (venta.de_cancelado_en_sifen) {
+    return <p className="mt-2 text-sm font-semibold text-red-700">✓ Cancelada también en SIFEN</p>;
+  }
+
+  return (
+    <div className="mt-3 border-t border-red-200 pt-3">
+      <p className="mb-1 text-sm font-semibold text-red-700">Todavía NO está cancelada en SIFEN</p>
+      {venta.de_cancelacion_mensaje && (
+        <p className="mb-2 text-xs text-red-600">Último intento: {venta.de_cancelacion_mensaje}</p>
+      )}
+      <p className="mb-2 text-xs text-red-500">
+        La cancelación en SIFEN sólo se puede hacer dentro de las 48 horas de emitida la factura.
+      </p>
+      {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
+      <button
+        onClick={cancelar}
+        disabled={enviando}
+        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+      >
+        {enviando ? "Cancelando…" : "Cancelar en SIFEN"}
+      </button>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
     listarFacturasElectronicas,
     obtenerVenta,
     anularVenta,
+    cancelarVentaEnSifen,
     reporteVentas,
     reintentarSifen,
     descargarKudeVenta,
@@ -41,6 +42,7 @@ router.get('/', asyncHandler(listarVentas));
 router.get('/:id', asyncHandler(obtenerVenta));
 router.get('/:id/kude', asyncHandler(descargarKudeVenta));
 router.post('/:id/anular', permitirRoles('dueno', 'encargado', 'cajero'), asyncHandler(anularVenta));
+router.post('/:id/cancelar-sifen', permitirRoles('dueno', 'encargado'), asyncHandler(cancelarVentaEnSifen));
 router.post('/:id/reintentar-sifen', permitirRoles('dueno', 'encargado'), asyncHandler(reintentarSifen));
 
 export default router;

@@ -6,6 +6,7 @@ import {
     obtenerHomologacion,
     obtenerTenant,
     inutilizarNumeracion,
+    reiniciarNumeracion as reiniciarNumeracionConector,
 } from '../services/conectorSifen.js';
 
 // CSC público de prueba de la DNIT (no es secreto - está en la guía oficial).
@@ -357,6 +358,35 @@ export async function ajustarNumeracion(req, res) {
             numerosIniciales: { [tipo]: ultimoNumero },
         });
         res.json({ ok: true, conector: tenant });
+    } catch (error) {
+        res.status(422).json({ error: error.message });
+    }
+}
+
+// POST /api/admin/empresas/:id/facturacion-electronica/reiniciar-numeracion
+// Borra los documentos de un tipo que quedaron de la homologación y deja el
+// contador en 0, para que la primera emisión real de ese tipo arranque en 1.
+// Sólo autofactura / NC / ND / remisión. { tipo, confirmar }.
+export async function reiniciarNumeracion(req, res) {
+    const empresa = await empresaBase(req.params.id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    if (!empresa.sifen_conector_tenant_id) {
+        return res.status(409).json({ error: 'Esta empresa no tiene facturación electrónica configurada' });
+    }
+
+    const b = req.body || {};
+    const tipo = TIPOS_ITIDE[b.tipo] || Number(b.tipo);
+    if (![4, 5, 6, 7].includes(tipo)) {
+        return res.status(400).json({ error: 'Sólo se puede reiniciar autofactura, nota_credito, nota_debito o remision' });
+    }
+
+    try {
+        const r = await reiniciarNumeracionConector(empresa.sifen_conector_tenant_id, {
+            tipo,
+            dejarEn: 0,
+            confirmar: !!b.confirmar,
+        });
+        res.json(r);
     } catch (error) {
         res.status(422).json({ error: error.message });
     }

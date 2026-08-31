@@ -825,6 +825,91 @@ function AjusteNumeracion({ id, estado, setExito, setError }) {
       <button onClick={guardar} disabled={guardando || ultimoNumero === ""} className={btnPrimario}>
         {guardando ? "Aplicando…" : "Ajustar"}
       </button>
+
+      <ReiniciarNumeracion id={id} setExito={setExito} setError={setError} />
+    </div>
+  );
+}
+
+// Borra los documentos de homologación de un tipo y deja el contador en 0
+// (la primera emisión real de ese tipo arranca en 1). No aplica a Factura.
+function ReiniciarNumeracion({ id, setExito, setError }) {
+  const [tipo, setTipo] = useState("nota_credito");
+  const [previa, setPrevia] = useState(null);
+  const [cargando, setCargando] = useState(false);
+
+  async function llamar(confirmar) {
+    setError("");
+    setExito("");
+    setCargando(true);
+    try {
+      const r = await adminFetch(`/api/admin/empresas/${id}/facturacion-electronica/reiniciar-numeracion`, {
+        method: "POST",
+        body: JSON.stringify({ tipo, confirmar }),
+      });
+      if (r.dryRun) {
+        setPrevia(r);
+      } else {
+        setPrevia(null);
+        setExito(`Numeración de ${tipo} reiniciada: se borraron ${r.borrados} documentos. La próxima será la 1.`);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 border-t border-slate-200 pt-4">
+      <p className="mb-1 text-sm font-semibold text-slate-700">Reiniciar a 1 (limpiar homologación)</p>
+      <p className="mb-3 text-xs text-slate-400">
+        Borra los documentos que quedaron de las pruebas y deja el contador en 0, para que la primera
+        emisión real de ese tipo sea la N° 1. No se puede hacer con la Factura.
+      </p>
+      <div className="flex items-end gap-2">
+        <select
+          value={tipo}
+          onChange={(e) => {
+            setTipo(e.target.value);
+            setPrevia(null);
+          }}
+          className={`${campo} mb-0`}
+        >
+          <option value="nota_credito">Nota de Crédito</option>
+          <option value="nota_debito">Nota de Débito</option>
+          <option value="autofactura">Autofactura</option>
+          <option value="remision">Nota de Remisión</option>
+        </select>
+        <button
+          onClick={() => llamar(false)}
+          disabled={cargando}
+          className="shrink-0 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-60"
+        >
+          Ver qué se borraría
+        </button>
+      </div>
+
+      {previa && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p>
+            Se borrarían <strong>{previa.seBorrarian}</strong> documentos de ese tipo
+            {previa.aprobadosQueSeBorrarian > 0 && ` (${previa.aprobadosQueSeBorrarian} aprobados en pruebas)`}
+            {previa.rangoFechas &&
+              ` — del ${new Date(previa.rangoFechas.desde).toLocaleDateString("es-PY")} al ${new Date(
+                previa.rangoFechas.hasta,
+              ).toLocaleDateString("es-PY")}`}
+            . El contador queda en 0.
+          </p>
+          <button
+            onClick={() => llamar(true)}
+            disabled={cargando}
+            className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            {cargando ? "Reiniciando…" : "Sí, reiniciar"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

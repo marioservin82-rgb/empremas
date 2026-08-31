@@ -8,6 +8,7 @@ import {
     emitirFactura as emitirFacturaConector,
     descargarKude as descargarKudeConector,
     consultarDocumento as consultarDocumentoConector,
+    cancelarDocumento as cancelarDocumentoConector,
     mapearVentaAConector,
     resolverReceptor as resolverReceptorConector,
     ErrorConector,
@@ -1052,6 +1053,7 @@ export async function obtenerVenta(req, res) {
                 u.nombre AS anulada_por_nombre,
                 de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
                 de.mensaje_error AS de_mensaje_error, de.intento AS de_intento,
+                de.cancelado_en_sifen AS de_cancelado_en_sifen, de.cancelacion_mensaje AS de_cancelacion_mensaje,
                 de.gravado_5, de.gravado_10, de.exentas AS de_exentas,
                 de.iva_5, de.iva_10, de.total_iva
          FROM ventas v
@@ -1206,13 +1208,93 @@ export async function anularVenta(req, res) {
             return { id, anuladaPor: autorizadaPor };
         });
 
-        res.json(resultado);
+        // Si la venta tenía Factura Legal aprobada, se comunica la anulación a
+        // SIFEN (evento de cancelación). Va DESPUÉS de la transacción: si SIFEN
+        // no acepta (p. ej. pasaron las 48h), la anulación local igual queda
+        // hecha y el resultado se guarda para reintentar desde el detalle.
+        const cancelacionSifen = await cancelarFacturaEnSifen(empresaId, id, motivo.trim());
+
+        res.json({ ...resultado, cancelacionSifen });
     } catch (error) {
         if (error instanceof ErrorNegocio) {
             return res.status(400).json({ error: error.message });
         }
         throw error;
     }
+}
+
+// Comunica a SIFEN la cancelación de la Factura Legal de una venta (evento de
+// cancelación). No lanza: devuelve { aplicable, ok, mensaje }.
+async function cancelarFacturaEnSifen(empresaId, ventaId, motivo) {
+    const r = await consultaDeEmpresa(
+        empresaId,
+        `SELECT de.id AS de_id, de.cdc, de.estado, de.cancelado_en_sifen,
+                e.sifen_estado, e.sifen_conector_tenant_id
+         FROM documentos_electronicos de
+         JOIN empresas e ON e.id = de.empresa_id
+         WHERE de.venta_id = $1 AND de.tipo = 'factura_electronica'`,
+        [ventaId]
+    );
+    const de = r.rows[0];
+    const viaConector = de && de.sifen_estado === 'produccion' && !!de.sifen_conector_tenant_id;
+    if (!de || !viaConector || de.estado !== 'aprobado' || !de.cdc) {
+        return { aplicable: false };
+    }
+    if (de.cancelado_en_sifen) {
+        return { aplicable: true, ok: true, mensaje: 'Ya estaba cancelada en SIFEN' };
+    }
+
+    // El motivo de SIFEN debe tener 5-500 caracteres.
+    const motivoSifen = (motivo && motivo.length >= 5 ? motivo : `Anulación: ${motivo || 'operación no concretada'}`).slice(0, 500);
+
+    try {
+        await cancelarDocumentoConector(de.sifen_conector_tenant_id, de.cdc, motivoSifen);
+        await consultaDeEmpresa(
+            empresaId,
+            `UPDATE documentos_electronicos
+                SET cancelado_en_sifen = true, cancelacion_mensaje = NULL, cancelacion_en = now()
+              WHERE id = $1`,
+            [de.de_id]
+        );
+        return { aplicable: true, ok: true, mensaje: 'Cancelada en SIFEN' };
+    } catch (error) {
+        const mensaje = error instanceof ErrorConector ? error.message : 'No se pudo cancelar en SIFEN';
+        await consultaDeEmpresa(
+            empresaId,
+            `UPDATE documentos_electronicos SET cancelacion_mensaje = $2, cancelacion_en = now() WHERE id = $1`,
+            [de.de_id, mensaje]
+        );
+        return { aplicable: true, ok: false, mensaje };
+    }
+}
+
+// POST /api/ventas/:id/cancelar-sifen  { motivo }
+// Reintenta la cancelación en SIFEN de una venta ya anulada (p. ej. facturas
+// anuladas antes de que existiera este paso, o si la primera vez SIFEN no
+// respondió).
+export async function cancelarVentaEnSifen(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const motivo = String(req.body?.motivo || '').trim();
+
+    const v = await consultaDeEmpresa(
+        empresaId,
+        `SELECT anulada, motivo_anulacion FROM ventas WHERE id = $1`,
+        [id]
+    );
+    if (!v.rows[0]) return res.status(404).json({ error: 'Venta no encontrada' });
+    if (!v.rows[0].anulada) {
+        return res.status(400).json({ error: 'Primero anulá la venta en EMPREMAS' });
+    }
+
+    const resultado = await cancelarFacturaEnSifen(empresaId, id, motivo || v.rows[0].motivo_anulacion || 'Anulación');
+    if (!resultado.aplicable) {
+        return res.status(400).json({ error: 'Esta venta no tiene Factura Legal aprobada para cancelar en SIFEN' });
+    }
+    if (!resultado.ok) {
+        return res.status(422).json({ error: resultado.mensaje });
+    }
+    res.json(resultado);
 }
 
 // Reporte simple de ventas de un periodo: total vendido, cantidad de

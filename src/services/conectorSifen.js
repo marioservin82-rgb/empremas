@@ -174,6 +174,19 @@ export function mapearRemisionAConector({ remision, items, receptor }) {
     return salida;
 }
 
+// Reinicia la numeración de un tipo de documento (borra los que quedaron de
+// la homologación y deja el contador en `dejarEn`). Sin `confirmar` es un
+// dry-run. Sólo autofactura(4) / NC(5) / ND(6) / remisión(7), nunca factura.
+export function reiniciarNumeracion(tenantId, { tipo, dejarEn = 0, confirmar = false }) {
+    return llamar('POST', `/v1/tenants/${tenantId}/numeracion/reiniciar`, { tipo, dejarEn, confirmar });
+}
+
+// Cancela un documento electrónico ya aprobado en SIFEN (evento de
+// cancelación, dentro de las 48h). `motivo` 5-500 caracteres.
+export function cancelarDocumento(tenantId, cdc, motivo) {
+    return llamar('POST', `/v1/documentos/${encodeURIComponent(cdc)}/cancelar`, { tenantId, motivo });
+}
+
 // Inutiliza un rango de numeración no usado (evento SIFEN). `desde`/`hasta`
 // son enteros (el número de 7 díg. sin ceros a la izquierda). Máx. 1000.
 export function inutilizarNumeracion(tenantId, { tipoDocumento, desde, hasta, motivo, serie }) {
