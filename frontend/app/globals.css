@@ -94,4 +94,17 @@ h1, h2, h3 {
     left: 0;
     width: 100%;
   }
+
+  /* KuDE A4 propio (Nota de Remisión y futuros): mismo mecanismo. La
+     maquetacion fina (margenes, colores) la maneja el <style> de la pagina. */
+  .kw,
+  .kw * {
+    visibility: visible;
+  }
+  .kw .kude {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
 }

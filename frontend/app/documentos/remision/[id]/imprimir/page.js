@@ -352,9 +352,10 @@ const CSS = `
 .kw .legal b{color:var(--ink);font-weight:600;}
 @media print{
   @page{size:A4;margin:7mm;}
-  .kw{background:#fff;padding:0;}
+  .kw{background:#fff;padding:0;min-height:0;}
   .kw,.kw *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .kw .toolbar{display:none;}
-  .kw .kude{width:auto;border:none;box-shadow:none;padding:0;}
+  /* .kw .kude se posiciona en globals.css (top-left, ancho completo) */
+  .kw .kude{border:none;box-shadow:none;padding:0;}
 }
 `;
