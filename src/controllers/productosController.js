@@ -13,7 +13,7 @@ async function ocultarCostoSiCorresponde(productos, rol, empresaId, usuarioId) {
 }
 
 export async function listarProductos(req, res) {
-    const { q, limit, offset, excluirInsumos, excluirCompuestos } = req.query;
+    const { q, limit, offset, excluirInsumos, excluirCompuestos, incluirInactivos } = req.query;
     const { empresaId, usuarioId, rol, sucursalId } = req.usuario;
     // Vender manda excluirInsumos=true (un insumo de produccion nunca se
     // vende directo al publico) - Stock y el resto de las pantallas de
@@ -23,6 +23,11 @@ export async function listarProductos(req, res) {
     // Ajuste de inventario manda excluirCompuestos=true: un producto
     // compuesto nunca tiene stock propio para ajustar (ver ajustarInventario).
     const condicionCompuesto = excluirCompuestos === 'true' ? 'AND p.es_compuesto = false' : '';
+    // Por defecto solo activos (ningun otro lugar de la app - Vender,
+    // Compras, etc. - manda incluirInactivos, asi que ahi no cambia nada).
+    // Solo la pantalla de Stock lo manda, con el toggle "Ver desactivados",
+    // para poder encontrar de nuevo un producto dado de baja y reactivarlo.
+    const condicionActivo = incluirInactivos === 'true' ? '' : 'AND p.activo = true';
 
     // LEFT JOIN: un producto sin fila todavia en producto_stock para esta
     // sucursal (ej. recien creado en otra sucursal) muestra 0, no se cae.
@@ -32,7 +37,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $3
-               WHERE p.activo = true AND (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionInsumo} ${condicionCompuesto}
+               WHERE (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionActivo} ${condicionInsumo} ${condicionCompuesto}
                ORDER BY p.nombre LIMIT 50`,
               [q, `%${q}%`, sucursalId]
           )
@@ -49,7 +54,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE p.activo = true ${condicionInsumo} ${condicionCompuesto} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+               WHERE true ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
               [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 
@@ -465,6 +470,39 @@ export async function actualizarProducto(req, res) {
         if (error instanceof ErrorNegocio) {
             const status = error.message === 'Producto no encontrado' ? 404 : 400;
             return res.status(status).json({ error: error.message });
+        }
+        throw error;
+    }
+}
+
+// Borrado real (no es lo mismo que desactivar): solo tiene sentido para
+// un producto cargado por error y que nunca se uso de verdad - en cuanto
+// tiene cualquier historial real (una venta, una compra, un ajuste, una
+// receta que lo usa, etc.) Postgres rechaza el DELETE por la referencia
+// de llave foranea (nunca se agrego ON DELETE CASCADE a esas tablas a
+// proposito, para no poder borrar en cascada un historial real) - ese
+// error se traduce aca a un mensaje claro en vez del error crudo de la
+// base, sugiriendo desactivar en su lugar.
+export async function eliminarProducto(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    try {
+        const resultado = await consultaDeEmpresa(
+            empresaId,
+            `DELETE FROM productos WHERE id = $1 AND empresa_id = $2 RETURNING id`,
+            [id, empresaId]
+        );
+        if (!resultado.rows[0]) {
+            return res.status(404).json({ error: 'Producto no encontrado' });
+        }
+        res.json({ ok: true });
+    } catch (error) {
+        if (error.code === '23503') {
+            return res.status(409).json({
+                error:
+                    'Este producto ya tiene movimientos registrados (ventas, compras, ajustes, recetas...) — no se puede eliminar. Podés desactivarlo en su lugar.',
+            });
         }
         throw error;
     }

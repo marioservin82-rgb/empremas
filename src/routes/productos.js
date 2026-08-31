@@ -7,6 +7,7 @@ import {
     obtenerProducto,
     crearProducto,
     actualizarProducto,
+    eliminarProducto,
     importarProductos,
     ajustarInventario,
     historialAjustes,
@@ -33,6 +34,7 @@ router.get('/', asyncHandler(listarProductos));
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(crearProducto));
 router.get('/:id', asyncHandler(obtenerProducto));
 router.patch('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(actualizarProducto));
+router.delete('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(eliminarProducto));
 router.get('/:id/ajustes', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(historialAjustes));
 router.post('/:id/ajustes', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(ajustarInventario));
 router.get('/:id/asociados', asyncHandler(listarAsociados));

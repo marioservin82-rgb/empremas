@@ -21,6 +21,7 @@ export default function Stock() {
   const [permitirVentaSinStock, setPermitirVentaSinStock] = useState(null);
   const [sucursalActual, setSucursalActual] = useState(null);
   const [valorStock, setValorStock] = useState(null);
+  const [verDesactivados, setVerDesactivados] = useState(false);
 
   async function cambiarPermitirVentaSinStock(valor) {
     setPermitirVentaSinStock(valor);
@@ -40,13 +41,14 @@ export default function Stock() {
   // navegador, sobre todo justo al volver acá después de cargar un
   // producto nuevo. Buscando por nombre/código sí sigue trayendo todo lo
   // que matchea de una, porque ahí la lista ya viene acotada sola.
-  const buscar = useCallback(async (q) => {
+  const buscar = useCallback(async (q, inactivos) => {
     setCargando(true);
     setError("");
     try {
+      const paramInactivos = inactivos ? "&incluirInactivos=true" : "";
       const ruta = q
-        ? `/api/productos?q=${encodeURIComponent(q)}`
-        : `/api/productos?limit=${TAMANO_PAGINA}&offset=0`;
+        ? `/api/productos?q=${encodeURIComponent(q)}${paramInactivos}`
+        : `/api/productos?limit=${TAMANO_PAGINA}&offset=0${paramInactivos}`;
       const resultado = await apiFetch(ruta);
       setProductos(resultado);
       setHayMas(!q && resultado.length === TAMANO_PAGINA);
@@ -60,7 +62,10 @@ export default function Stock() {
   async function cargarMas() {
     setCargandoMas(true);
     try {
-      const resultado = await apiFetch(`/api/productos?limit=${TAMANO_PAGINA}&offset=${productos.length}`);
+      const paramInactivos = verDesactivados ? "&incluirInactivos=true" : "";
+      const resultado = await apiFetch(
+        `/api/productos?limit=${TAMANO_PAGINA}&offset=${productos.length}${paramInactivos}`
+      );
       setProductos((actual) => [...actual, ...resultado]);
       setHayMas(resultado.length === TAMANO_PAGINA);
     } catch (err) {
@@ -95,12 +100,12 @@ export default function Stock() {
 
   const busquedaDebounced = useDebounced(busqueda);
   useEffect(() => {
-    buscar(busquedaDebounced);
-  }, [busquedaDebounced, buscar]);
+    buscar(busquedaDebounced, verDesactivados);
+  }, [busquedaDebounced, verDesactivados, buscar]);
 
   function onSubmitBusqueda(e) {
     e.preventDefault();
-    buscar(busqueda);
+    buscar(busqueda, verDesactivados);
   }
 
   return (
@@ -178,6 +183,16 @@ export default function Stock() {
           </button>
         </form>
 
+        <label className="mb-6 -mt-3 flex items-center gap-2 text-sm text-slate-500">
+          <input
+            type="checkbox"
+            checked={verDesactivados}
+            onChange={(e) => setVerDesactivados(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Ver también los desactivados
+        </label>
+
         {permitirVentaSinStock !== null && (
           <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-5 shadow shadow-slate-200">
             <div>
@@ -212,10 +227,20 @@ export default function Stock() {
         ) : (
           <div className="flex flex-col gap-3">
             {productos.map((p) => (
-              <div key={p.id} className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
+              <div
+                key={p.id}
+                className={`rounded-2xl bg-white p-5 shadow shadow-slate-200 ${!p.activo ? "opacity-60" : ""}`}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-lg font-bold text-slate-800">{p.nombre}</p>
+                    <p className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                      {p.nombre}
+                      {!p.activo && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                          Desactivado
+                        </span>
+                      )}
+                    </p>
                     <p className="text-sm text-slate-400">
                       {p.codigo_barras || "sin código"} · IVA {p.tasa_iva}%
                     </p>

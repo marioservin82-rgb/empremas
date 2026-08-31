@@ -16,6 +16,12 @@ export default function EditarProducto() {
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
+  const [activo, setActivo] = useState(true);
+  const [cambiandoActivo, setCambiandoActivo] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState("");
+
   const [asociados, setAsociados] = useState([]);
   const [busquedaAsociado, setBusquedaAsociado] = useState("");
   const [resultadosAsociado, setResultadosAsociado] = useState([]);
@@ -31,6 +37,7 @@ export default function EditarProducto() {
     apiFetch(`/api/productos/${id}`)
       .then((p) => {
         setCostoPromedio(Number(p.precio_costo));
+        setActivo(p.activo);
         setForm({
           nombre: p.nombre,
           codigoBarras: p.codigo_barras || "",
@@ -190,6 +197,34 @@ export default function EditarProducto() {
       setError(err.message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function cambiarActivo(nuevoValor) {
+    setCambiandoActivo(true);
+    setError("");
+    try {
+      await apiFetch(`/api/productos/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ activo: nuevoValor }),
+      });
+      setActivo(nuevoValor);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCambiandoActivo(false);
+    }
+  }
+
+  async function eliminarProducto() {
+    setErrorEliminar("");
+    setEliminando(true);
+    try {
+      await apiFetch(`/api/productos/${id}`, { method: "DELETE" });
+      router.push("/stock");
+    } catch (err) {
+      setErrorEliminar(err.message);
+      setEliminando(false);
     }
   }
 
@@ -456,6 +491,74 @@ export default function EditarProducto() {
             {guardando ? "Guardando..." : "Guardar cambios"}
           </button>
         </form>
+
+        <div className="mt-4 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
+          <h2 className="mb-1 text-lg font-bold text-navy">Dar de baja</h2>
+          <p className="mb-4 text-xs text-slate-400">
+            Desactivar lo saca de las búsquedas de Vender y Compras sin borrar nada — podés reactivarlo cuando
+            quieras. Eliminar es definitivo y solo funciona si el producto nunca tuvo movimientos.
+          </p>
+
+          {!activo && (
+            <p className="mb-4 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+              Este producto está desactivado.
+            </p>
+          )}
+
+          <div className="mb-4 flex gap-2">
+            {activo ? (
+              <button
+                onClick={() => cambiarActivo(false)}
+                disabled={cambiandoActivo}
+                className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 transition hover:bg-slate-200 disabled:opacity-60"
+              >
+                {cambiandoActivo ? "Desactivando..." : "Desactivar producto"}
+              </button>
+            ) : (
+              <button
+                onClick={() => cambiarActivo(true)}
+                disabled={cambiandoActivo}
+                className="flex-1 rounded-xl bg-emerald-50 py-3 font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+              >
+                {cambiandoActivo ? "Reactivando..." : "Reactivar producto"}
+              </button>
+            )}
+          </div>
+
+          {!confirmarEliminar ? (
+            <button
+              onClick={() => {
+                setConfirmarEliminar(true);
+                setErrorEliminar("");
+              }}
+              className="w-full rounded-xl border border-dashed border-red-300 py-3 font-semibold text-red-600 hover:bg-red-50"
+            >
+              Eliminar producto definitivamente
+            </button>
+          ) : (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="mb-3 text-sm font-semibold text-red-700">
+                ¿Seguro que querés eliminar "{form.nombre}"? Esto no se puede deshacer.
+              </p>
+              {errorEliminar && <p className="mb-3 text-sm text-red-700">{errorEliminar}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmarEliminar(false)}
+                  className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={eliminarProducto}
+                  disabled={eliminando}
+                  className="flex-1 rounded-lg bg-red-600 py-2 font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  {eliminando ? "Eliminando..." : "Sí, eliminar definitivamente"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
           <h2 className="mb-1 text-lg font-bold text-navy">Productos asociados</h2>
