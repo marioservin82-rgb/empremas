@@ -177,7 +177,11 @@ export async function crearNota(req, res) {
 
             const total = items.reduce((a, it) => a + it.precioUnitario * it.cantidad, 0);
             const esTotalReal = Math.round(total) >= Math.round(Number(venta.total)) - 1;
-            const reingresaStock = tipo === 'credito' && MOTIVOS_REINGRESAN_STOCK.has(motivo);
+            // Si la venta YA fue anulada (el cajero la anuló antes), el stock y el
+            // saldo del cliente ya se revirtieron ahí — la NC es sólo el documento
+            // fiscal, no vuelve a tocar stock ni saldo (si no, doble reingreso).
+            const yaAnulada = !!venta.anulada;
+            const reingresaStock = !yaAnulada && tipo === 'credito' && MOTIVOS_REINGRESAN_STOCK.has(motivo);
 
             const ins = await cliente.query(
                 `INSERT INTO notas_electronicas
@@ -206,8 +210,9 @@ export async function crearNota(req, res) {
                 }
             }
 
-            // Efecto en el saldo del cliente si la factura era a crédito.
-            if (venta.tipo_pago === 'credito' && venta.cliente_id) {
+            // Efecto en el saldo del cliente si la factura era a crédito (y no
+            // estaba ya anulada, en cuyo caso el saldo ya se revirtió).
+            if (!yaAnulada && venta.tipo_pago === 'credito' && venta.cliente_id) {
                 const delta = tipo === 'credito' ? -total : total;
                 await cliente.query(`UPDATE clientes SET saldo = saldo + $2 WHERE id = $1`, [venta.cliente_id, delta]);
             }
