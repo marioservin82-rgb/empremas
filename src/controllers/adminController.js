@@ -191,6 +191,47 @@ export async function actualizarEmpresa(req, res) {
     res.json(resultado.rows[0]);
 }
 
+// DELETE /api/admin/empresas/:id
+// Borra una empresa y TODOS sus datos (cascade). Sólo para limpiar registros
+// de prueba / abandonados: se niega si la empresa está activa, si ya vendió,
+// si tiene pagos registrados o si tiene facturación electrónica configurada.
+export async function eliminarEmpresa(req, res) {
+    const { id } = req.params;
+
+    const emp = await pool.query(
+        `SELECT razon_social, estado, sifen_conector_tenant_id FROM empresas WHERE id = $1`,
+        [id]
+    );
+    if (!emp.rows[0]) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    if (emp.rows[0].estado === 'activa') {
+        return res.status(409).json({ error: 'No se puede eliminar una empresa activa. Suspendela primero.' });
+    }
+    if (emp.rows[0].sifen_conector_tenant_id) {
+        return res.status(409).json({ error: 'Esta empresa tiene facturación electrónica configurada — no se puede eliminar desde acá.' });
+    }
+    const ventas = await pool.query(`SELECT 1 FROM ventas WHERE empresa_id = $1 LIMIT 1`, [id]);
+    if (ventas.rows[0]) {
+        return res.status(409).json({ error: 'Esta empresa ya registró ventas — se conserva por el historial.' });
+    }
+    const pagos = await pool.query(`SELECT 1 FROM pagos_plataforma WHERE empresa_id = $1 LIMIT 1`, [id]);
+    if (pagos.rows[0]) {
+        return res.status(409).json({ error: 'Esta empresa tiene pagos de plataforma registrados — no se puede eliminar.' });
+    }
+
+    await pool.query('BEGIN');
+    try {
+        // comisiones_contador no tiene ON DELETE CASCADE hacia empresas.
+        await pool.query(`DELETE FROM comisiones_contador WHERE empresa_id = $1`, [id]);
+        await pool.query(`DELETE FROM empresas WHERE id = $1`, [id]);
+        await pool.query('COMMIT');
+    } catch (error) {
+        await pool.query('ROLLBACK');
+        throw error;
+    }
+    res.json({ ok: true, razon_social: emp.rows[0].razon_social });
+}
+
 // Sin proveedor de mensajeria conectado todavia (WhatsApp/email), asi
 // que "olvide mi contraseña" no puede mandar un codigo solo - el dueño
 // contacta a soporte (boton de WhatsApp ya armado en /recuperar-contrasena)

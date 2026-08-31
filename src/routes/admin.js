@@ -7,6 +7,7 @@ import {
     listarEmpresas,
     obtenerEmpresa,
     actualizarEmpresa,
+    eliminarEmpresa,
     resetearPasswordDueno,
     registrarPago,
     obtenerConfiguracion,
@@ -46,6 +47,7 @@ router.patch('/mi-password', cambiarPassword);
 router.get('/empresas', listarEmpresas);
 router.get('/empresas/:id', obtenerEmpresa);
 router.patch('/empresas/:id', actualizarEmpresa);
+router.delete('/empresas/:id', asyncHandler(eliminarEmpresa));
 router.post('/empresas/:id/resetear-password-dueno', asyncHandler(resetearPasswordDueno));
 router.post('/empresas/:id/pagos', registrarPago);
 router.get('/empresas/:id/facturacion-electronica', asyncHandler(obtenerEstadoSifen));

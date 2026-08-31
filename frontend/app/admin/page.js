@@ -45,6 +45,14 @@ export default function AdminEmpresas() {
   const [error, setError] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todas");
   const [ordenAsc, setOrdenAsc] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+
+  function cargarEmpresas() {
+    return adminFetch("/api/admin/empresas")
+      .then(setEmpresas)
+      .catch((err) => setError(err.message))
+      .finally(() => setCargando(false));
+  }
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_admin_token")) {
@@ -54,10 +62,8 @@ export default function AdminEmpresas() {
     adminFetch("/api/admin/yo")
       .then(setAdmin)
       .catch(() => router.push("/admin/login"));
-    adminFetch("/api/admin/empresas")
-      .then(setEmpresas)
-      .catch((err) => setError(err.message))
-      .finally(() => setCargando(false));
+    cargarEmpresas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   function salir() {
@@ -65,8 +71,27 @@ export default function AdminEmpresas() {
     router.push("/admin/login");
   }
 
+  async function eliminarEmpresa(e, ev) {
+    ev.stopPropagation();
+    if (!window.confirm(`¿Eliminar «${e.razon_social}» y TODOS sus datos? Esto no se puede deshacer.`)) return;
+    setError("");
+    try {
+      await adminFetch(`/api/admin/empresas/${e.id}`, { method: "DELETE" });
+      await cargarEmpresas();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const q = busqueda.trim().toLowerCase();
   const empresasVisibles = empresas
     .filter((e) => filtroEstado === "todas" || e.estado_negocio === filtroEstado)
+    .filter(
+      (e) =>
+        !q ||
+        e.razon_social.toLowerCase().includes(q) ||
+        String(e.ruc || "").toLowerCase().includes(q),
+    )
     .sort((a, b) => {
       const fa = new Date(a.creado_en).getTime();
       const fb = new Date(b.creado_en).getTime();
@@ -101,6 +126,15 @@ export default function AdminEmpresas() {
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {!cargando && (
+          <input
+            value={busqueda}
+            onChange={(ev) => setBusqueda(ev.target.value)}
+            placeholder="Buscar empresa por nombre o RUC…"
+            className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+          />
+        )}
 
         {!cargando && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -175,6 +209,14 @@ export default function AdminEmpresas() {
                       >
                         {ETIQUETA_ESTADO_NEGOCIO[e.estado_negocio]}
                       </span>
+                      {e.estado !== "activa" && !e.ultima_venta && (
+                        <button
+                          onClick={(ev) => eliminarEmpresa(e, ev)}
+                          className="text-xs font-semibold text-red-500 hover:text-red-700"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
