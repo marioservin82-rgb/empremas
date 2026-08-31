@@ -9,6 +9,7 @@ export default function AdminConfiguracion() {
   const router = useRouter();
   const [whatsappSoporte, setWhatsappSoporte] = useState("");
   const [umbralAlertaContador, setUmbralAlertaContador] = useState("");
+  const [datosPago, setDatosPago] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
@@ -23,6 +24,7 @@ export default function AdminConfiguracion() {
       .then((c) => {
         setWhatsappSoporte(c.whatsappSoporte || "");
         setUmbralAlertaContador(c.umbralAlertaContador ?? 15);
+        setDatosPago(c.datosPago || "");
       })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false));
@@ -39,10 +41,12 @@ export default function AdminConfiguracion() {
         body: JSON.stringify({
           whatsappSoporte: whatsappSoporte || null,
           umbralAlertaContador: Number(umbralAlertaContador) || 15,
+          datosPago: datosPago || null,
         }),
       });
       setWhatsappSoporte(actualizado.whatsappSoporte || "");
       setUmbralAlertaContador(actualizado.umbralAlertaContador ?? 15);
+      setDatosPago(actualizado.datosPago || "");
       setExito(true);
     } catch (err) {
       setError(err.message);
@@ -91,6 +95,18 @@ export default function AdminConfiguracion() {
             <p className="-mt-3 mb-4 text-xs text-slate-400">
               Cuando un contador aliado acumula esta cantidad de clientes activos referidos, aparece una alerta en su
               ficha sugiriendo pedirle que empiece a facturar su comisión de forma formal.
+            </p>
+
+            <label className={etiqueta}>Datos para el cobro de la mensualidad</label>
+            <textarea
+              value={datosPago}
+              onChange={(e) => setDatosPago(e.target.value)}
+              rows={4}
+              className={campo}
+              placeholder={"Banco Itaú · Cta. cte. 123456 · Mario Servín · CI 1234567\nTigo Money: 0981 234 567"}
+            />
+            <p className="-mt-3 mb-4 text-xs text-slate-400">
+              Se incluye en el mensaje de WhatsApp que le mandás a una empresa cuando su plan está por vencer.
             </p>
 
             {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

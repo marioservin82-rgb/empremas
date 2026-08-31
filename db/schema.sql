@@ -1260,6 +1260,10 @@ CREATE TABLE configuracion_plataforma (
     -- pedirle que empiece a facturar su comision de forma formal. Un solo
     -- numero global (no por contador), ajustable con el tiempo.
     umbral_alerta_contador  INTEGER NOT NULL DEFAULT 15,
+    -- Datos de pago de EMPREMAS (texto libre: banco, cuenta, titular,
+    -- billeteras...). Se usan en el mensaje de WhatsApp de aviso de
+    -- vencimiento que el admin le manda a cada empresa.
+    datos_pago          TEXT,
     actualizado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

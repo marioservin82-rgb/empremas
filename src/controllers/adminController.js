@@ -75,7 +75,7 @@ export async function yo(req, res) {
 export async function listarEmpresas(req, res) {
     const resultado = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
-                e.telefono, e.creado_en,
+                e.monto_plan_mensual, e.telefono, e.creado_en,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          ORDER BY e.razon_social ASC`
@@ -286,15 +286,18 @@ export async function resetearPasswordDueno(req, res) {
 // fila (o null si todavia no existe ninguna) y PATCH la actualiza si
 // existe o la crea si es la primera vez que se guarda.
 export async function obtenerConfiguracion(req, res) {
-    const resultado = await pool.query(`SELECT whatsapp_soporte, umbral_alerta_contador FROM configuracion_plataforma LIMIT 1`);
+    const resultado = await pool.query(
+        `SELECT whatsapp_soporte, umbral_alerta_contador, datos_pago FROM configuracion_plataforma LIMIT 1`
+    );
     res.json({
         whatsappSoporte: resultado.rows[0]?.whatsapp_soporte ?? null,
         umbralAlertaContador: resultado.rows[0]?.umbral_alerta_contador ?? 15,
+        datosPago: resultado.rows[0]?.datos_pago ?? null,
     });
 }
 
 export async function actualizarConfiguracion(req, res) {
-    const { whatsappSoporte, umbralAlertaContador } = req.body;
+    const { whatsappSoporte, umbralAlertaContador, datosPago } = req.body;
     if (umbralAlertaContador !== undefined && !(Number(umbralAlertaContador) >= 1)) {
         return res.status(400).json({ error: 'El umbral debe ser 1 o mayor' });
     }
@@ -305,20 +308,22 @@ export async function actualizarConfiguracion(req, res) {
               `UPDATE configuracion_plataforma SET
                   whatsapp_soporte = $2,
                   umbral_alerta_contador = COALESCE($3, umbral_alerta_contador),
+                  datos_pago = $4,
                   actualizado_en = now()
-               WHERE id = $1 RETURNING whatsapp_soporte, umbral_alerta_contador`,
-              [existente.rows[0].id, whatsappSoporte || null, umbralAlertaContador]
+               WHERE id = $1 RETURNING whatsapp_soporte, umbral_alerta_contador, datos_pago`,
+              [existente.rows[0].id, whatsappSoporte || null, umbralAlertaContador, datosPago || null]
           )
         : await pool.query(
-              `INSERT INTO configuracion_plataforma (whatsapp_soporte, umbral_alerta_contador)
-               VALUES ($1, COALESCE($2, 15))
-               RETURNING whatsapp_soporte, umbral_alerta_contador`,
-              [whatsappSoporte || null, umbralAlertaContador]
+              `INSERT INTO configuracion_plataforma (whatsapp_soporte, umbral_alerta_contador, datos_pago)
+               VALUES ($1, COALESCE($2, 15), $3)
+               RETURNING whatsapp_soporte, umbral_alerta_contador, datos_pago`,
+              [whatsappSoporte || null, umbralAlertaContador, datosPago || null]
           );
 
     res.json({
         whatsappSoporte: resultado.rows[0].whatsapp_soporte,
         umbralAlertaContador: resultado.rows[0].umbral_alerta_contador,
+        datosPago: resultado.rows[0].datos_pago,
     });
 }
 

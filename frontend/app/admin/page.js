@@ -46,6 +46,8 @@ export default function AdminEmpresas() {
   const [filtroEstado, setFiltroEstado] = useState("todas");
   const [ordenAsc, setOrdenAsc] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [soloPorVencer, setSoloPorVencer] = useState(false);
+  const [datosPago, setDatosPago] = useState("");
 
   function cargarEmpresas() {
     return adminFetch("/api/admin/empresas")
@@ -62,6 +64,9 @@ export default function AdminEmpresas() {
     adminFetch("/api/admin/yo")
       .then(setAdmin)
       .catch(() => router.push("/admin/login"));
+    adminFetch("/api/admin/configuracion")
+      .then((c) => setDatosPago(c.datosPago || ""))
+      .catch(() => {});
     cargarEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
@@ -83,9 +88,43 @@ export default function AdminEmpresas() {
     }
   }
 
+  const HOY = new Date();
+  HOY.setHours(0, 0, 0, 0);
+  const diasHastaVencer = (e) => {
+    if (!e.vence_en) return null;
+    return Math.round((new Date(String(e.vence_en).slice(0, 10)) - HOY) / 86400000);
+  };
+  const etiquetaVenc = (e) => {
+    const d = diasHastaVencer(e);
+    if (d == null) return null;
+    if (d < 0) return { texto: `Venció hace ${-d} d`, clase: "bg-red-100 text-red-700" };
+    if (d === 0) return { texto: "Vence hoy", clase: "bg-red-100 text-red-700" };
+    if (d <= 7) return { texto: `Vence en ${d} d`, clase: "bg-amber-100 text-amber-700" };
+    return null;
+  };
+
+  // Mensaje de WhatsApp: renovación si está por vencer / vencida, si no el genérico.
+  function mensajeWhatsapp(e) {
+    const d = diasHastaVencer(e);
+    if (d != null && d <= 7) {
+      const cuando =
+        d < 0
+          ? `venció el ${formatoFecha(e.vence_en)}`
+          : d === 0
+            ? "vence hoy"
+            : `vence el ${formatoFecha(e.vence_en)}`;
+      const monto = e.monto_plan_mensual
+        ? ` Para renovarlo, transferí Gs ${Number(e.monto_plan_mensual).toLocaleString("es-PY")} a:`
+        : " Para renovarlo, transferí a:";
+      return `Hola ${e.razon_social}, tu plan de EMPREMAS ${cuando}.${monto}\n${datosPago || "(cargá los datos de pago en Configuración de soporte)"}\nCualquier duda, escribinos.`;
+    }
+    return `Hola ${e.razon_social}, te contactamos de EMPREMAS`;
+  }
+
   const q = busqueda.trim().toLowerCase();
   const empresasVisibles = empresas
     .filter((e) => filtroEstado === "todas" || e.estado_negocio === filtroEstado)
+    .filter((e) => !soloPorVencer || (diasHastaVencer(e) != null && diasHastaVencer(e) <= 7))
     .filter(
       (e) =>
         !q ||
@@ -93,6 +132,7 @@ export default function AdminEmpresas() {
         String(e.ruc || "").toLowerCase().includes(q),
     )
     .sort((a, b) => {
+      if (soloPorVencer) return (diasHastaVencer(a) ?? 999) - (diasHastaVencer(b) ?? 999);
       const fa = new Date(a.creado_en).getTime();
       const fb = new Date(b.creado_en).getTime();
       return ordenAsc ? fa - fb : fb - fa;
@@ -150,6 +190,14 @@ export default function AdminEmpresas() {
                   {f.etiqueta}
                 </button>
               ))}
+              <button
+                onClick={() => setSoloPorVencer((v) => !v)}
+                className={`rounded-full px-3 py-1 text-sm font-semibold transition ${
+                  soloPorVencer ? "bg-red-600 text-white" : "bg-red-50 text-red-600 hover:bg-red-100"
+                }`}
+              >
+                Por vencer / vencidas
+              </button>
             </div>
             <button
               onClick={() => setOrdenAsc((v) => !v)}
@@ -165,7 +213,8 @@ export default function AdminEmpresas() {
         ) : (
           <div className="flex flex-col gap-3">
             {empresasVisibles.map((e) => {
-              const linkWa = linkWhatsapp(e.telefono, `Hola ${e.razon_social}, te contactamos de EMPREMAS`);
+              const linkWa = linkWhatsapp(e.telefono, mensajeWhatsapp(e));
+              const venc = etiquetaVenc(e);
               return (
                 <div
                   key={e.id}
@@ -201,6 +250,11 @@ export default function AdminEmpresas() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
+                      {venc && (
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${venc.clase}`}>
+                          {venc.texto}
+                        </span>
+                      )}
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ESTILO_ESTADO[e.estado]}`}>
                         {e.estado}
                       </span>
