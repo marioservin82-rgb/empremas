@@ -841,6 +841,133 @@ export async function reintentarSifen(req, res) {
     res.json(actualizado.rows[0]);
 }
 
+// Convierte una venta ya emitida como ticket comun/A4/sin comprobante en
+// Factura Legal (SIFEN) - sin tocar stock ni caja: la venta ya quedo
+// registrada en su momento (venta_items, producto_stock, venta_pagos,
+// clientes.saldo si era credito), esto solo le agrega el documento
+// electronico que le faltaba.
+//
+// A proposito NO pasa por resolverDocumentoDeVenta para la emision: esa
+// funcion tiene una guarda anti-doble-emision ("si el DE esta 'pendiente'
+// y se toco hace menos de 3 min, asumir que YA hay una emision en curso y
+// no hacer nada") pensada para el boton "Reintentar"/el barredor de fondo,
+// donde 'pendiente' reciente significa "otro proceso ya lo esta
+// procesando". Aca el DE recien se creo, en 'pendiente' porque todavia NO
+// se intento nunca - con esa guarda, la emision real jamas se dispara y el
+// documento queda pegado hasta que alguien entre a mano a /ventas/:id y
+// aprete Reintentar. Se llama emitirYActualizarDe directo, mismo camino
+// que ya usa crearVenta para una Factura Legal nueva.
+//
+// Aviso importante (no es un bug, es una limitacion real de SIFEN/del
+// conector): la factura sale con fecha de EMISION de hoy, nunca la fecha
+// original de la venta - mismo comportamiento que cualquier Factura Legal
+// ya tiene hoy (sifenService.js/conectorSifen.js siempre mandan "ahora").
+export async function convertirAFacturaLegal(req, res) {
+    const { empresaId } = req.usuario;
+    const { id: ventaId } = req.params;
+
+    const empresaResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT sifen_api_key, sifen_estado, sifen_conector_tenant_id, sifen_establecimiento, plazo_credito_dias
+         FROM empresas WHERE id = $1`,
+        [empresaId]
+    );
+    const empresaFila = empresaResultado.rows[0];
+    const facturaPorConector = empresaFila?.sifen_estado === 'produccion' && !!empresaFila?.sifen_conector_tenant_id;
+    if (!facturaPorConector && !empresaFila?.sifen_api_key) {
+        return res
+            .status(400)
+            .json({ error: 'Factura Legal todavía no está disponible: falta habilitar la facturación electrónica de esta empresa' });
+    }
+
+    let deParaEmitir;
+    try {
+        deParaEmitir = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const ventaResultado = await cliente.query(
+                `SELECT tipo_pago, vencimiento, sucursal_id, tipo_comprobante, anulada FROM ventas WHERE id = $1 FOR UPDATE`,
+                [ventaId]
+            );
+            const venta = ventaResultado.rows[0];
+            if (!venta) throw new ErrorNegocio('La venta no existe');
+            if (venta.anulada) throw new ErrorNegocio('Esta venta está anulada — no se puede convertir');
+            if (venta.tipo_comprobante === 'factura_legal') {
+                throw new ErrorNegocio('Esta venta ya es una Factura Legal');
+            }
+
+            const deExistente = await cliente.query(`SELECT id FROM documentos_electronicos WHERE venta_id = $1`, [
+                ventaId,
+            ]);
+            if (deExistente.rows.length > 0) {
+                throw new ErrorNegocio('Esta venta ya tiene un documento electrónico asociado');
+            }
+
+            await cliente.query(`UPDATE ventas SET tipo_comprobante = 'factura_legal' WHERE id = $1`, [ventaId]);
+            const deInsertado = await cliente.query(
+                `INSERT INTO documentos_electronicos (empresa_id, venta_id) VALUES ($1, $2) RETURNING id`,
+                [empresaId, ventaId]
+            );
+
+            const itemsResultado = await cliente.query(
+                `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", p.nombre, p.tasa_iva
+                 FROM venta_items vi JOIN productos p ON p.id = vi.producto_id WHERE vi.venta_id = $1`,
+                [ventaId]
+            );
+            const pagosResultado = await cliente.query(
+                `SELECT forma_pago AS "formaPago", monto FROM venta_pagos WHERE venta_id = $1`,
+                [ventaId]
+            );
+            const clienteResultado = await cliente.query(
+                `SELECT nombre, documento, es_generico, clasificacion_sifen FROM clientes WHERE id =
+                    (SELECT cliente_id FROM ventas WHERE id = $1)`,
+                [ventaId]
+            );
+            const sucursalResultado = await cliente.query(`SELECT punto_expedicion FROM sucursales WHERE id = $1`, [
+                venta.sucursal_id,
+            ]);
+
+            return {
+                deId: deInsertado.rows[0].id,
+                via: facturaPorConector ? 'conector' : 'sifende',
+                conectorTenantId: empresaFila.sifen_conector_tenant_id,
+                apiKey: empresaFila.sifen_api_key,
+                establecimiento: empresaFila.sifen_establecimiento,
+                puntoExpedicion: sucursalResultado.rows[0]?.punto_expedicion || 1,
+                venta: {
+                    tipoPago: venta.tipo_pago,
+                    pagos: pagosResultado.rows,
+                    vencimiento: venta.vencimiento,
+                    plazoCreditoDias: empresaFila.plazo_credito_dias,
+                },
+                items: itemsResultado.rows,
+                cliente: clienteResultado.rows[0] || { nombre: 'Consumidor Final', es_generico: true },
+            };
+        });
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
+
+    // Emision real, FUERA de la transaccion de arriba (mismo criterio que
+    // crearVenta): si SIFEN falla o tarda, la conversion ya quedo
+    // registrada (tipo_comprobante='factura_legal' + DE en 'error') - se
+    // reintenta con el mismo boton "Reintentar" que ya existe en
+    // /ventas/:id (ese SI pasa por resolverDocumentoDeVenta, correcto para
+    // un DE que ya tuvo un primer intento), sin perder nada.
+    await emitirYActualizarDe({ empresaId, ...deParaEmitir }).catch((e) =>
+        console.error('[SIFEN] conversión a factura legal falló:', e?.message)
+    );
+
+    const actualizado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT de.estado, de.cdc, de.numero_formateado, de.mensaje_error
+         FROM documentos_electronicos de WHERE de.venta_id = $1`,
+        [ventaId]
+    );
+    res.json({ ventaId, ...actualizado.rows[0] });
+}
+
 // Descarga el KuDE (PDF con QR) de la Factura Legal de una venta, solo
 // disponible una vez que SIFEN la aprobo. El PDF en si no se guarda en
 // EMPREMAS - se pide a Sifende al vuelo cada vez.
@@ -897,7 +1024,7 @@ export async function listarVentas(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT v.*, c.nombre AS cliente_nombre
+        `SELECT v.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
          ${where}

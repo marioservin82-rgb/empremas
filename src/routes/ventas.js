@@ -13,6 +13,7 @@ import {
     reporteVentas,
     reintentarSifen,
     descargarKudeVenta,
+    convertirAFacturaLegal,
 } from '../controllers/ventasController.js';
 
 const router = Router();
@@ -44,5 +45,6 @@ router.get('/:id/kude', asyncHandler(descargarKudeVenta));
 router.post('/:id/anular', permitirRoles('dueno', 'encargado', 'cajero'), asyncHandler(anularVenta));
 router.post('/:id/cancelar-sifen', permitirRoles('dueno', 'encargado'), asyncHandler(cancelarVentaEnSifen));
 router.post('/:id/reintentar-sifen', permitirRoles('dueno', 'encargado'), asyncHandler(reintentarSifen));
+router.post('/:id/convertir-factura-legal', permitirRoles('dueno', 'encargado'), asyncHandler(convertirAFacturaLegal));
 
 export default router;

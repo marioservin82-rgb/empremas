@@ -34,6 +34,11 @@ export default function Ventas() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [puedeVerReporte, setPuedeVerReporte] = useState(false);
+  // Distinto de puedeVerReporte (que incluye al cajero con el permiso
+  // ver_reportes): convertir a Factura Legal es una accion de fondo fiscal,
+  // gateada estricto a dueno/encargado en el backend (mismo criterio que
+  // reintentar-sifen/cancelar-sifen), sin permiso extra que la habilite.
+  const [esDuenoOEncargado, setEsDuenoOEncargado] = useState(false);
 
   const buscar = useCallback(async (params) => {
     setCargando(true);
@@ -61,6 +66,9 @@ export default function Ventas() {
     // cajero); si no da 403, mostramos el link.
     apiFetch("/api/ventas/reporte")
       .then(() => setPuedeVerReporte(true))
+      .catch(() => {});
+    apiFetch("/api/usuarios/yo")
+      .then((u) => setEsDuenoOEncargado(u.rol === "dueno" || u.rol === "encargado"))
       .catch(() => {});
   }, [router]);
 
@@ -118,6 +126,11 @@ export default function Ventas() {
             {puedeVerReporte && (
               <Link href="/ventas/facturas-electronicas" className="text-sm font-semibold text-navy hover:text-brand">
                 Facturas electrónicas
+              </Link>
+            )}
+            {esDuenoOEncargado && (
+              <Link href="/ventas/convertir-factura-legal" className="text-sm font-semibold text-navy hover:text-brand">
+                Convertir a Factura Legal
               </Link>
             )}
             {puedeVerReporte && (
