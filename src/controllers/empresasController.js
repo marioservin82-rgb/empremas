@@ -254,8 +254,13 @@ export async function actualizarConfiguracion(req, res) {
             produccion_habilitada = COALESCE($22, produccion_habilitada),
             sugerencias_venta_habilitadas = COALESCE($23, sugerencias_venta_habilitadas),
             -- "" limpia el nombre de fantasía; null (campo no enviado) lo deja igual.
-            nombre_fantasia = CASE WHEN $27 IS NULL THEN nombre_fantasia
-                                   WHEN $27 = '' THEN NULL ELSE $27 END,
+            -- Cast explicito ::text: sin el, Postgres no siempre puede inferir el
+            -- tipo de $27 cuando la PRIMERA referencia que ve es "$27 IS NULL"
+            -- (sin contexto de tipo) - eso hacia fallar con 500 CUALQUIER PATCH a
+            -- este endpoint que no mandara nombreFantasia (la gran mayoria: ticket
+            -- de impresora, recordatorios, etc.), aunque nunca se tocara este campo.
+            nombre_fantasia = CASE WHEN $27::text IS NULL THEN nombre_fantasia
+                                   WHEN $27::text = '' THEN NULL ELSE $27::text END,
             -- Activar Lomiteria activa tambien Comisiones (cada mesero es
             -- ademas un vendedor - sin esto no tendria donde configurar su
             -- comision). $26 pisa a $24 solo cuando se prende Lomiteria.

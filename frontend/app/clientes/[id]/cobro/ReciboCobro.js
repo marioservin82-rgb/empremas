@@ -15,19 +15,27 @@ const ETIQUETA_FORMA_PAGO = {
 
 const SEPARADOR = { texto: "--------------------------------" };
 
-function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre) {
+function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qrDataUrl) {
   const lineas = [
     ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
   ];
-  // Sin QR grafico por este camino (impresora termica via agente, texto
-  // plano) - mismo criterio ya usado para el CDC de Factura Legal: el
-  // codigo de verificacion queda como texto, para poder chequearlo a mano
-  // si hace falta aunque no se pueda escanear desde este ticket puntual.
   if (cobro.codigoVerificacion) {
-    lineas.push({ texto: `Cod. verificación: ${cobro.codigoVerificacion}`, alineacion: "centro" });
+    if (qrDataUrl) {
+      // El agente ya sabe imprimir una imagen real (comando ESC/POS de
+      // raster bit a bit, ver agente-impresion/src/imagenEscpos.js) -
+      // mismo QR ya generado para la pantalla/A4, mismo destino
+      // (/verificar-recibo). Si por lo que sea el QR todavia no estaba
+      // listo cuando se apreto Imprimir (se genera async), qrDataUrl
+      // llega vacio y se cae al texto de abajo como respaldo.
+      lineas.push({ tipo: "imagen", dataUrl: qrDataUrl, alineacion: "centro" });
+      lineas.push({ texto: `Recibo N° ${cobro.numeroRecibo}`, negrita: true, alineacion: "centro" });
+      lineas.push({ texto: "Escaneá para verificar", alineacion: "centro" });
+    } else {
+      lineas.push({ texto: `Cod. verificación: ${cobro.codigoVerificacion}`, alineacion: "centro" });
+    }
   }
   lineas.push(SEPARADOR, { texto: `Cliente: ${cliente.nombre}`, negrita: true });
   if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
@@ -57,7 +65,15 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre) {
     { texto: "*** PAGADO ***", negrita: true, alineacion: "centro" },
     SEPARADOR,
     { texto: `Emitido por: ${emisorNombre || ""}` },
-    { texto: "Firma: ______________________", alineacion: "centro" }
+    // Espacio real para firmar a mano, no solo la raya pegada al texto:
+    // el rotulo va solo, despues dos lineas en blanco (el hueco donde se
+    // firma) y recien ahi la raya, mismo criterio que un comprobante de
+    // papel comun.
+    { texto: "" },
+    { texto: "Firma:" },
+    { texto: "" },
+    { texto: "" },
+    { texto: "____________________________", alineacion: "centro" }
   );
   return lineas;
 }
@@ -105,7 +121,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
     } else {
       imprimirTicket(
         empresa.impresora_agente_nombre,
-        lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre),
+        lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qr),
         () => window.print()
       );
     }
@@ -206,7 +222,8 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
 
           <div className="my-4 border-t border-slate-200" />
           <p className="text-sm">Emitido por: {emisorNombre}</p>
-          <p className="mt-6 text-sm">Firma: ______________________</p>
+          <p className="mt-6 text-sm text-slate-500">Firma</p>
+          <div className="mt-10 border-t border-slate-400" />
         </div>
       ) : (
         <div
@@ -272,7 +289,8 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
           <p className="text-sm">Emitido por: {emisorNombre}</p>
-          <p className="mt-4 text-sm">Firma: ______________________</p>
+          <p className="mt-4 text-sm text-slate-500">Firma</p>
+          <div className="mt-8 border-t border-slate-400" />
         </div>
       )}
 

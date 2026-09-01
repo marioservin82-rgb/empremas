@@ -6,6 +6,7 @@
 // todas las impresoras termicas de recibos (Epson, Xprinter, genericas
 // compatibles), documentado por Epson pero adoptado como estandar de facto.
 const iconv = require('iconv-lite');
+const { bufferImagenEscpos } = require('./imagenEscpos.js');
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -118,6 +119,7 @@ function envolverTexto(texto, ancho) {
 }
 
 // lineas: [{ texto, negrita: bool, alineacion: 'izquierda'|'centro'|'derecha', tamano: 'normal'|'alto'|'grande' }]
+//        | [{ tipo: 'imagen', dataUrl: 'data:image/png;base64,...', alineacion }]
 //
 // Tamaño por defecto 'normal': con la Fuente A (mas nitida, ver arriba)
 // doble alto salía "un poco grande" - Mario pidió probar normal para
@@ -130,6 +132,24 @@ function armarBuffer(lineas, { cortar = true } = {}) {
     let tamanoActual = 'normal';
 
     for (const linea of lineas) {
+        if (linea.tipo === 'imagen') {
+            const quiereAlineacion = linea.alineacion || 'centro';
+            if (quiereAlineacion !== alineacionActual) {
+                partes.push(alinear(quiereAlineacion));
+                alineacionActual = quiereAlineacion;
+            }
+            try {
+                partes.push(bufferImagenEscpos(linea.dataUrl));
+                partes.push(SALTO_LINEA);
+            } catch (error) {
+                // Si la imagen no se pudo decodificar/armar (formato
+                // raro, dato vacio) no se pierde el ticket entero - sigue
+                // con el resto de las lineas de texto.
+                console.error('[ESC/POS] no se pudo imprimir la imagen:', error.message);
+            }
+            continue;
+        }
+
         const quiereAlineacion = linea.alineacion || 'izquierda';
         const quiereNegrita = !!linea.negrita;
         const quiereTamano = linea.tamano || 'normal';
