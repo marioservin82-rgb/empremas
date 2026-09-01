@@ -290,3 +290,76 @@ export async function listarCobros(req, res) {
 
     res.json(resultado.rows);
 }
+
+// Reconstruye un cobro ya emitido, con la misma forma que devuelve
+// crearCobro, para poder reimprimir el Recibo de Cobro (ReciboCobro.js)
+// sin volver a cobrar nada. codigoVerificacion se recalcula igual que en
+// verificarRecibo - nunca se guardo en la base, asi que siempre sale del
+// mismo calculo sobre lo que ya esta persistido, nunca desactualizado.
+//
+// A proposito NO trae saldoAnterior/saldoRestante/clienteSaldoQuedaEnCero
+// (por eso el Comprobante interno de cuenta, que si los necesita, no se
+// puede reimprimir con fidelidad - esos valores solo eran ciertos en el
+// instante del cobro, y el saldo del cliente ya pudo moverse despues).
+export async function obtenerCobro(req, res) {
+    const { empresaId } = req.usuario;
+    const { id: clienteId, cobroId } = req.params;
+
+    const cobroResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.id, c.cliente_id, c.numero_recibo, c.monto, c.creado_en, u.nombre AS emisor_nombre
+         FROM cobros c
+         JOIN usuarios u ON u.id = c.usuario_id
+         WHERE c.id = $1 AND c.cliente_id = $2`,
+        [cobroId, clienteId]
+    );
+    const cobro = cobroResultado.rows[0];
+    if (!cobro) {
+        return res.status(404).json({ error: 'Cobro no encontrado' });
+    }
+
+    const pagosResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT forma_pago, monto FROM cobro_pagos WHERE cobro_id = $1`,
+        [cobroId]
+    );
+
+    const aplicacionesResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT ca.venta_id, ca.monto_aplicado, v.numero_ticket, de.numero_formateado AS de_numero_formateado
+         FROM cobro_aplicaciones ca
+         JOIN ventas v ON v.id = ca.venta_id
+         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
+         WHERE ca.cobro_id = $1`,
+        [cobroId]
+    );
+
+    const aplicaciones = aplicacionesResultado.rows.map((a) => ({
+        ventaId: a.venta_id,
+        numeroTicket: a.numero_ticket,
+        numeroFacturaLegal: a.de_numero_formateado,
+        montoAplicado: Number(a.monto_aplicado),
+    }));
+
+    const codigoVerificacion = calcularCodigoVerificacion({
+        id: cobro.id,
+        empresaId,
+        clienteId: cobro.cliente_id,
+        monto: cobro.monto,
+        creadoEn: cobro.creado_en,
+        aplicaciones: aplicaciones.map((a) => ({ ventaId: a.ventaId, montoAplicado: a.montoAplicado })),
+    });
+
+    res.json({
+        id: cobro.id,
+        empresaId,
+        creadoEn: cobro.creado_en,
+        numeroRecibo: cobro.numero_recibo,
+        clienteId: cobro.cliente_id,
+        monto: Number(cobro.monto),
+        pagos: pagosResultado.rows.map((p) => ({ formaPago: p.forma_pago, monto: Number(p.monto) })),
+        aplicaciones,
+        codigoVerificacion,
+        emisorNombre: cobro.emisor_nombre,
+    });
+}

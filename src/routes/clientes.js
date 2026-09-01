@@ -17,7 +17,7 @@ import {
     reporteCategoriasCliente,
     productosFrecuentesDeCliente,
 } from '../controllers/clientesController.js';
-import { facturasPendientes, crearCobro, listarCobros } from '../controllers/cobrosController.js';
+import { facturasPendientes, crearCobro, listarCobros, obtenerCobro } from '../controllers/cobrosController.js';
 import { consultarRucDnit } from '../controllers/sifenConsultaController.js';
 
 const router = Router();
@@ -44,6 +44,7 @@ router.get('/', asyncHandler(listarClientes));
 router.get('/:id', asyncHandler(obtenerCliente));
 router.get('/:id/facturas-pendientes', asyncHandler(facturasPendientes));
 router.get('/:id/cobros', asyncHandler(listarCobros));
+router.get('/:id/cobros/:cobroId', asyncHandler(obtenerCobro));
 router.get('/:id/extracto', asyncHandler(extractoCliente));
 router.get('/:id/productos-frecuentes', asyncHandler(productosFrecuentesDeCliente));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(historialAjustesSaldo));

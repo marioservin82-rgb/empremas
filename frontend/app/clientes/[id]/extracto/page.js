@@ -297,7 +297,12 @@ export default function ExtractoCliente() {
                     <span className="text-slate-500">
                       Recibo N° {c.numero_recibo} · {fecha(c.creado_en)}
                     </span>
-                    <span className="font-semibold text-ink">Gs {formatoGs.format(c.monto)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-ink">Gs {formatoGs.format(c.monto)}</span>
+                      <Link href={`/clientes/${id}/cobro/${c.id}`} className="font-semibold text-navy hover:text-brand">
+                        Reimprimir
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
