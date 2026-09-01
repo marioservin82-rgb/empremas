@@ -29,6 +29,7 @@ export default function CobroCliente() {
   const [cliente, setCliente] = useState(null);
   const [facturas, setFacturas] = useState([]);
   const [empresaInfo, setEmpresaInfo] = useState(null);
+  const [yo, setYo] = useState(null);
   const [facturaIdsSeleccionadas, setFacturaIdsSeleccionadas] = useState([]);
   // Parte del saldo del cliente que no tiene ninguna venta asociada en
   // EMPREMAS (deuda migrada de otro sistema, o corregida a mano con un
@@ -79,6 +80,9 @@ export default function CobroCliente() {
       return;
     }
     cargarTodo();
+    apiFetch("/api/usuarios/yo")
+      .then(setYo)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
@@ -219,7 +223,7 @@ export default function CobroCliente() {
 
           {empresaInfo &&
             (vistaRecibo === "recibo" ? (
-              <ReciboCobro empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
+              <ReciboCobro empresa={empresaInfo} cobro={recibo} cliente={cliente} emisorNombre={yo?.nombre} onNuevoCobro={nuevoCobro} />
             ) : (
               <ComprobanteInternoCuenta empresa={empresaInfo} cobro={recibo} cliente={cliente} onNuevoCobro={nuevoCobro} />
             ))}

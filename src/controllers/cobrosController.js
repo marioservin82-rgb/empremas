@@ -1,6 +1,7 @@
 import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
+import { calcularCodigoVerificacion } from '../utils/verificacionRecibo.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -180,9 +181,24 @@ export async function crearCobro(req, res) {
             const saldoRestante = saldoAnterior - Number(monto);
             await cliente.query(`UPDATE clientes SET saldo = saldo - $2 WHERE id = $1`, [clienteId, monto]);
 
+            const creadoEn = cobroInsertado.rows[0].creado_en;
+            // Codigo de verificacion para el QR del recibo (ver
+            // utils/verificacionRecibo.js) - se calcula con los mismos datos
+            // ya guardados, nunca con nada que dependa de como se imprima
+            // despues.
+            const codigoVerificacion = calcularCodigoVerificacion({
+                id: cobroId,
+                empresaId,
+                clienteId,
+                monto,
+                creadoEn,
+                aplicaciones: aplicaciones.map((a) => ({ ventaId: a.ventaId, montoAplicado: a.montoAplicado })),
+            });
+
             return {
                 id: cobroId,
-                creadoEn: cobroInsertado.rows[0].creado_en,
+                empresaId,
+                creadoEn,
                 numeroRecibo,
                 clienteId,
                 clienteNombre: clienteFila.nombre,
@@ -192,6 +208,7 @@ export async function crearCobro(req, res) {
                 saldoAnterior,
                 saldoRestante,
                 clienteSaldoQuedaEnCero: saldoRestante <= 0.01,
+                codigoVerificacion,
             };
         });
 
@@ -202,6 +219,63 @@ export async function crearCobro(req, res) {
         }
         throw error;
     }
+}
+
+// Verificacion publica de un recibo (sin login) - a esto apunta el QR
+// impreso. Sin empresaId no hay forma de setear el contexto de RLS antes
+// de saber a que empresa pertenece el cobro (mismo problema que resuelve
+// login buscando por email en una tabla sin RLS) - por eso el propio QR
+// incluye el empresaId como parte de la URL. No es un dato secreto (nadie
+// gana nada solo con saber que empresa es), y el codigo de verificacion
+// keyed sigue siendo lo unico que de verdad protege contra inventar un
+// recibo: sin el codigo correcto para ese (id, empresaId) puntual, esta
+// funcion siempre responde "no coincide", sin importar que empresaId se
+// pruebe.
+export async function verificarRecibo(req, res) {
+    const { empresaId, id, h } = req.query;
+    if (!empresaId || !id || !h) {
+        return res.status(400).json({ valido: false, motivo: 'faltan_datos' });
+    }
+
+    const cobroResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.id, c.cliente_id, c.numero_recibo, c.monto, c.creado_en, cl.nombre AS cliente_nombre
+         FROM cobros c
+         JOIN clientes cl ON cl.id = c.cliente_id
+         WHERE c.id = $1`,
+        [id]
+    );
+    const cobro = cobroResultado.rows[0];
+    if (!cobro) {
+        return res.json({ valido: false, motivo: 'no_encontrado' });
+    }
+
+    const aplicacionesResultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT venta_id, monto_aplicado FROM cobro_aplicaciones WHERE cobro_id = $1`,
+        [id]
+    );
+
+    const codigoEsperado = calcularCodigoVerificacion({
+        id: cobro.id,
+        empresaId,
+        clienteId: cobro.cliente_id,
+        monto: cobro.monto,
+        creadoEn: cobro.creado_en,
+        aplicaciones: aplicacionesResultado.rows.map((a) => ({ ventaId: a.venta_id, montoAplicado: a.monto_aplicado })),
+    });
+
+    if (codigoEsperado !== h) {
+        return res.json({ valido: false, motivo: 'no_coincide' });
+    }
+
+    res.json({
+        valido: true,
+        numeroRecibo: cobro.numero_recibo,
+        clienteNombre: cobro.cliente_nombre,
+        monto: Number(cobro.monto),
+        fecha: cobro.creado_en,
+    });
 }
 
 export async function listarCobros(req, res) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 
@@ -15,15 +15,21 @@ const ETIQUETA_FORMA_PAGO = {
 
 const SEPARADOR = { texto: "--------------------------------" };
 
-function lineasReciboCobro(empresa, cliente, cobro, fecha) {
+function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre) {
   const lineas = [
     ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
-    SEPARADOR,
-    { texto: `Cliente: ${cliente.nombre}`, negrita: true },
   ];
+  // Sin QR grafico por este camino (impresora termica via agente, texto
+  // plano) - mismo criterio ya usado para el CDC de Factura Legal: el
+  // codigo de verificacion queda como texto, para poder chequearlo a mano
+  // si hace falta aunque no se pueda escanear desde este ticket puntual.
+  if (cobro.codigoVerificacion) {
+    lineas.push({ texto: `Cod. verificación: ${cobro.codigoVerificacion}`, alineacion: "centro" });
+  }
+  lineas.push(SEPARADOR, { texto: `Cliente: ${cliente.nombre}`, negrita: true });
   if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
   if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
   lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true }, SEPARADOR);
@@ -48,12 +54,15 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha) {
     // que el ticket de credito en Recibo.js).
     { texto: "" },
     { texto: "Sello:", alineacion: "centro" },
-    { texto: "*** PAGADO ***", negrita: true, alineacion: "centro" }
+    { texto: "*** PAGADO ***", negrita: true, alineacion: "centro" },
+    SEPARADOR,
+    { texto: `Emitido por: ${emisorNombre || ""}` },
+    { texto: "Firma: ______________________", alineacion: "centro" }
   );
   return lineas;
 }
 
-export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
+export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onNuevoCobro }) {
   const recuadroRef = useRef(null);
   // A diferencia del ticket de venta/retiro, este queda a eleccion del
   // cajero (nunca se imprime solo) - y ademas del ticket termico (via
@@ -61,6 +70,25 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
   // de impresion del navegador (no tiene sentido mandarla por el agente,
   // pensado solo para el rollo termico de 80mm).
   const [formato, setFormato] = useState("ticket");
+  const [qr, setQr] = useState(null);
+
+  // QR de verificacion (ver utils/verificacionRecibo.js en el backend) -
+  // apunta a /verificar-recibo, publica y sin login, mismo patron ya
+  // usado para el QR de la Factura Legal (import dinamico de "qrcode",
+  // se genera una sola vez del lado del cliente).
+  useEffect(() => {
+    if (!cobro.codigoVerificacion) return;
+    let cancelado = false;
+    const url = `${window.location.origin}/verificar-recibo?e=${cobro.empresaId}&id=${cobro.id}&h=${cobro.codigoVerificacion}`;
+    import("qrcode").then((QRCode) => {
+      QRCode.toDataURL(url, { margin: 1, width: 160 }).then((dataUrl) => {
+        if (!cancelado) setQr(dataUrl);
+      });
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [cobro.empresaId, cobro.id, cobro.codigoVerificacion]);
 
   async function descargarImagen() {
     const html2canvas = (await import("html2canvas-pro")).default;
@@ -75,8 +103,10 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
     if (formato === "a4") {
       window.print();
     } else {
-      imprimirTicket(empresa.impresora_agente_nombre, lineasReciboCobro(empresa, cliente, cobro, fecha), () =>
-        window.print()
+      imprimirTicket(
+        empresa.impresora_agente_nombre,
+        lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre),
+        () => window.print()
       );
     }
   }
@@ -120,6 +150,14 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
           <p className="text-center text-sm text-slate-500">
             {fecha.toLocaleDateString("es-PY")} {fecha.toLocaleTimeString("es-PY")}
           </p>
+
+          {qr && (
+            <div className="my-3 flex flex-col items-center gap-1">
+              <img src={qr} alt="Código QR de verificación" width={120} height={120} />
+              <p className="text-xs font-semibold">Recibo N° {cobro.numeroRecibo}</p>
+              <p className="text-xs text-slate-400">Escaneá para verificar</p>
+            </div>
+          )}
 
           <div className="my-4 border-t border-slate-200" />
 
@@ -165,6 +203,10 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
 
           <div className="my-4 border-t border-slate-200" />
           <p className="text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
+
+          <div className="my-4 border-t border-slate-200" />
+          <p className="text-sm">Emitido por: {emisorNombre}</p>
+          <p className="mt-6 text-sm">Firma: ______________________</p>
         </div>
       ) : (
         <div
@@ -181,6 +223,14 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
           <p className="text-center text-sm text-slate-500">
             {fecha.toLocaleDateString("es-PY")} {fecha.toLocaleTimeString("es-PY")}
           </p>
+
+          {qr && (
+            <div className="my-2 flex flex-col items-center gap-1">
+              <img src={qr} alt="Código QR de verificación" width={110} height={110} />
+              <p className="text-xs font-semibold">Recibo N° {cobro.numeroRecibo}</p>
+              <p className="text-xs text-slate-400">Escaneá para verificar</p>
+            </div>
+          )}
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
@@ -219,6 +269,10 @@ export default function ReciboCobro({ empresa, cobro, cliente, onNuevoCobro }) {
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
           <p className="mt-2 text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
+
+          <div className="my-2 border-t-2 border-dashed border-slate-300" />
+          <p className="text-sm">Emitido por: {emisorNombre}</p>
+          <p className="mt-4 text-sm">Firma: ______________________</p>
         </div>
       )}
 
