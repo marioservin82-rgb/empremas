@@ -451,10 +451,12 @@ function lineasCierre(tipoPago) {
 // Version en texto plano del ticket de Factura Legal, para el agente de
 // impresion (ver frontend/lib/agenteImpresion.js) - mismas lineas que el
 // JSX de abajo, pero como array {texto, negrita, alineacion} en vez de
-// HTML. El QR queda afuera (no todas las impresoras entienden el comando
-// ESC/POS de QR nativo) - se imprime el CDC como texto, igual que ya se
-// ve debajo del QR en la version HTML.
-function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
+// HTML. El agente ya sabe imprimir una imagen real (comando ESC/POS de
+// raster bit a bit, ver agente-impresion/src/imagenEscpos.js) - mismo QR
+// ya generado para la pantalla. Si por lo que sea todavia no esta listo
+// (se genera async) qrDataUrl llega vacio y se cae al CDC en texto solo,
+// como respaldo (mismo criterio ya usado en ReciboCobro.js).
+function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl) {
   const fecha = new Date(venta.creado_en);
   const lineas = [
     ...lineasNombreEmpresa(empresa),
@@ -490,11 +492,12 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items) {
   for (const fila of filasDesgloseIVA(venta)) {
     lineas.push({ texto: `${fila.etiqueta}: ${fila.valor}`, negrita: fila.negrita });
   }
+  lineas.push(SEPARADOR, { texto: `TOTAL: Gs ${formatoGs.format(venta.total)}`, negrita: true }, SEPARADOR);
+  if (qrDataUrl) {
+    lineas.push({ tipo: "imagen", dataUrl: qrDataUrl, alineacion: "centro" });
+  }
   lineas.push(
-    SEPARADOR,
-    { texto: `TOTAL: Gs ${formatoGs.format(venta.total)}`, negrita: true },
-    SEPARADOR,
-    { texto: `CDC: ${venta.de_cdc}` },
+    { texto: `CDC: ${venta.de_cdc}`, alineacion: qrDataUrl ? "centro" : "izquierda" },
     { texto: "Factura Electrónica — documento tributario legal", alineacion: "centro" },
     ...lineasCierre(venta.tipo_pago)
   );
@@ -614,20 +617,33 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
     };
   }, [venta.de_cdc]);
 
-  // Se imprime sola apenas se puede (no hace falta esperar el QR: sale
-  // igual de bien sin el si se imprime justo antes de que termine de
-  // generarse) - una sola vez por venta, para que un cambio de estado por
-  // el polling de mas arriba no dispare un segundo dialogo de impresion.
-  // Solo cuando autoImprimir viene en true (recien cerrada la venta en
-  // Vender) - al reabrir una venta vieja desde /ventas/:id no debe
-  // imprimir sola cada vez que alguien la mira.
+  // Se imprime sola apenas se puede - una sola vez por venta, para que un
+  // cambio de estado por el polling de mas arriba no dispare un segundo
+  // dialogo de impresion. Solo cuando autoImprimir viene en true (recien
+  // cerrada la venta en Vender) - al reabrir una venta vieja desde
+  // /ventas/:id no debe imprimir sola cada vez que alguien la mira.
+  //
+  // Espera a que el QR este listo (async, casi instantaneo) para que el
+  // agente de impresion mande la imagen real, no solo el CDC en texto -
+  // con un limite de seguridad de 3s: si por lo que sea el QR nunca
+  // llega, se imprime igual sin el, para no dejar el ticket sin imprimir.
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
+    if (!qr) {
+      const limite = setTimeout(() => {
+        if (yaImprimio.current) return;
+        yaImprimio.current = true;
+        imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
+          window.print()
+        );
+      }, 3000);
+      return () => clearTimeout(limite);
+    }
     yaImprimio.current = true;
-    imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items), () =>
+    imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
       window.print()
     );
-  }, [autoImprimir]);
+  }, [autoImprimir, qr]);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -712,7 +728,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
 
       <button
         onClick={() =>
-          imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items), () =>
+          imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
             window.print()
           )
         }
