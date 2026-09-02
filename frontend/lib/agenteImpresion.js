@@ -27,6 +27,25 @@ export async function agenteDisponible() {
   }
 }
 
+// Igual que agenteDisponible, pero devuelve tambien la version que reporta
+// - la usa Configuracion > Impresora para avisar de una version mas nueva
+// disponible aunque el agente instalado responda bien (un agente viejo que
+// sigue corriendo se ve "disponible" igual, así que sin esto la pantalla
+// nunca avisaba que había que actualizar).
+export async function consultarEstadoAgente() {
+  const { promesa, limpiar } = conTimeout((signal) => fetch(`${URL_AGENTE}/estado`, { signal }), 700);
+  try {
+    const resp = await promesa;
+    if (!resp.ok) return null;
+    const datos = await resp.json().catch(() => ({}));
+    return { version: datos.version || null };
+  } catch {
+    return null;
+  } finally {
+    limpiar();
+  }
+}
+
 export async function listarImpresorasAgente() {
   const resp = await fetch(`${URL_AGENTE}/impresoras`);
   if (!resp.ok) throw new Error("No se pudo consultar las impresoras");

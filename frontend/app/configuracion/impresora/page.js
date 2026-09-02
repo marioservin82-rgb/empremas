@@ -4,9 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
-import { agenteDisponible, listarImpresorasAgente, imprimirEnAgente } from "@/lib/agenteImpresion";
+import { consultarEstadoAgente, listarImpresorasAgente, imprimirEnAgente } from "@/lib/agenteImpresion";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
+
+// Version empaquetada en frontend/public/agente/EMPREMAS-Agente-Impresion.exe
+// (el .exe que baja el boton de abajo) - se compara contra lo que reporta
+// el agente ya instalado para avisar de una actualizacion pendiente, aunque
+// el agente viejo siga respondiendo bien (por eso "disponible" no alcanza
+// para saber si esta al dia).
+const VERSION_AGENTE_ACTUAL = "0.3.0";
 
 export default function ConfiguracionImpresora() {
   const router = useRouter();
@@ -17,6 +24,7 @@ export default function ConfiguracionImpresora() {
   const [guardando, setGuardando] = useState(false);
 
   const [agenteEstado, setAgenteEstado] = useState("verificando");
+  const [versionAgente, setVersionAgente] = useState(null);
   const [impresorasAgente, setImpresorasAgente] = useState([]);
   const [impresoraElegida, setImpresoraElegida] = useState("");
   const [guardandoImpresora, setGuardandoImpresora] = useState(false);
@@ -37,15 +45,23 @@ export default function ConfiguracionImpresora() {
       })
       .catch((err) => setError(err.message));
 
-    agenteDisponible().then((disponible) => {
-      setAgenteEstado(disponible ? "disponible" : "no_disponible");
-      if (disponible) {
+    consultarEstadoAgente().then((estado) => {
+      setAgenteEstado(estado ? "disponible" : "no_disponible");
+      setVersionAgente(estado?.version ?? null);
+      if (estado) {
         listarImpresorasAgente()
           .then(setImpresorasAgente)
           .catch((err) => setErrorAgente(err.message));
       }
     });
   }, [router]);
+
+  // Un agente viejo que sigue corriendo responde bien ("disponible") aunque
+  // no tenga las funciones nuevas (ej. imprimir el QR como imagen real) -
+  // sin esta comparación, la pantalla nunca avisaba que hacía falta
+  // actualizar.
+  const agenteDesactualizado =
+    agenteEstado === "disponible" && versionAgente && versionAgente !== VERSION_AGENTE_ACTUAL;
 
   async function guardarImpresora() {
     setErrorAgente("");
@@ -199,6 +215,32 @@ export default function ConfiguracionImpresora() {
               >
                 Descargar agente (.exe para Windows)
               </a>
+            </div>
+          )}
+
+          {agenteDesactualizado && (
+            <div className="mb-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="mb-2 font-semibold">
+                Hay una versión más nueva del agente ({VERSION_AGENTE_ACTUAL}) — la tuya sigue funcionando, pero para
+                imprimir el QR de verificación como imagen real hace falta actualizar.
+              </p>
+              <ol className="mb-3 list-decimal space-y-1 pl-5">
+                <li>
+                  <a
+                    href="/agente/EMPREMAS-Agente-Impresion.exe"
+                    className="font-semibold underline hover:text-amber-900"
+                  >
+                    Descargá la versión nueva
+                  </a>
+                  .
+                </li>
+                <li>
+                  Cerrá la que tenés corriendo: apretá <strong>Ctrl + Shift + Esc</strong> para abrir el
+                  Administrador de tareas, buscá <strong>EMPREMAS-Agente-Impresion</strong> en la lista, click
+                  derecho → <strong>Finalizar tarea</strong>.
+                </li>
+                <li>Abrí (doble click) el archivo que acabás de descargar.</li>
+              </ol>
             </div>
           )}
 
