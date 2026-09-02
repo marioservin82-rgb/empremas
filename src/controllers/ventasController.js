@@ -1062,7 +1062,7 @@ export async function resumenDia(req, res) {
 
     const ventas = await consultaDeEmpresa(
         empresaId,
-        `SELECT v.id, v.numero_ticket, v.tipo_pago, v.total, v.creado_en,
+        `SELECT v.id, v.numero_ticket, v.tipo_pago, v.total, v.vuelto, v.creado_en,
                 c.nombre AS cliente_nombre, u.nombre AS usuario_nombre
          FROM ventas v
          LEFT JOIN clientes c ON c.id = v.cliente_id
@@ -1117,11 +1117,34 @@ export async function resumenDia(req, res) {
         .reduce((acumulado, v) => acumulado + Number(v.total), 0);
     const totalContado = totalVendido - totalCredito;
 
+    // Desglose del Contado por forma de pago (Efectivo/Transferencia/T.
+    // Crédito/T. Débito) - pensado para que el dueño, sin estar en el
+    // local, entienda cuánto de lo vendido al contado le entró en cada
+    // forma. Suma exacto a totalContado: solo se cuentan pagos de ventas
+    // no-crédito (la entrega inicial de una venta a crédito es un abono a
+    // cuenta, un concepto distinto, no encaja acá), y el efectivo se
+    // descuenta el vuelto entregado - mismo criterio ya usado en
+    // efectivoEsperadoDeTurno (turnosController.js) para no contar de más
+    // lo que un cliente pagó de más en efectivo y se llevó de vuelto.
+    const ventaIdsContado = new Set(ventas.rows.filter((v) => v.tipo_pago !== 'credito').map((v) => v.id));
+    const totalPorFormaPago = { efectivo: 0, transferencia: 0, tarjeta_credito: 0, tarjeta_debito: 0 };
+    for (const p of pagos.rows) {
+        if (!ventaIdsContado.has(p.venta_id)) continue;
+        if (totalPorFormaPago[p.forma_pago] !== undefined) {
+            totalPorFormaPago[p.forma_pago] += Number(p.monto);
+        }
+    }
+    const totalVueltoContado = ventas.rows
+        .filter((v) => ventaIdsContado.has(v.id))
+        .reduce((acumulado, v) => acumulado + Number(v.vuelto || 0), 0);
+    totalPorFormaPago.efectivo -= totalVueltoContado;
+
     res.json({
         fecha,
         puedeVerTodo,
         totalVendido,
         totalContado,
+        totalPorFormaPago,
         totalCredito,
         cantidadVentas: ventas.rows.length,
         ventas: detalle,

@@ -193,6 +193,22 @@ export default function ResumenDia() {
                   <p className="font-bold text-slate-800">{resumen.cantidadVentas}</p>
                 </div>
               </div>
+
+              {resumen.totalPorFormaPago && Object.values(resumen.totalPorFormaPago).some((monto) => monto > 0) && (
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <p className="mb-2 text-xs text-slate-400">Contado, por forma de pago</p>
+                  <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+                    {Object.entries(resumen.totalPorFormaPago)
+                      .filter(([, monto]) => monto > 0)
+                      .map(([forma, monto]) => (
+                        <div key={forma}>
+                          <p className="text-xs text-slate-400">{ETIQUETA_FORMA_PAGO[forma]}</p>
+                          <p className="text-sm font-bold text-slate-800">Gs {formatoGs.format(monto)}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {resumen.ventas.length === 0 ? (
