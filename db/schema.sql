@@ -1847,3 +1847,89 @@ CREATE POLICY pedido_items_aislamiento ON pedido_items USING (empresa_id = curre
 -- completa al cerrar la cuenta (cerrarCuentaPedido), que arma la venta
 -- directo desde pedido_items sin pasar por crearVenta.
 ALTER TABLE ventas ADD COLUMN pedido_id UUID REFERENCES pedidos(id);
+
+-- Pedido de una sucursal a la central ("nos falta esto") - complementa al
+-- Traslado (mas abajo, que sigue funcionando solo sin pedido de por
+-- medio), no lo reemplaza. No es lo mismo que "pedidos" (comandas de mesa
+-- del modulo de Lomiteria) - nombre completo distinto a proposito. Queda
+-- 'atendido' recien cuando el Traslado generado a partir de el se
+-- CONFIRMA, no cuando se genera.
+CREATE TYPE estado_pedido_sucursal AS ENUM ('pendiente', 'atendido', 'cancelado');
+
+CREATE TABLE pedidos_sucursal (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    numero          INTEGER NOT NULL,
+    sucursal_id     UUID NOT NULL REFERENCES sucursales(id),
+    estado          estado_pedido_sucursal NOT NULL DEFAULT 'pendiente',
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id),
+    nota            TEXT,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    atendido_en     TIMESTAMPTZ,
+    UNIQUE (empresa_id, numero)
+);
+CREATE INDEX idx_pedidos_sucursal_empresa ON pedidos_sucursal (empresa_id);
+CREATE INDEX idx_pedidos_sucursal_pendientes ON pedidos_sucursal (empresa_id) WHERE estado = 'pendiente';
+ALTER TABLE pedidos_sucursal ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedidos_sucursal FORCE ROW LEVEL SECURITY;
+CREATE POLICY pedidos_sucursal_aislamiento ON pedidos_sucursal USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TABLE pedido_sucursal_items (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    pedido_sucursal_id  UUID NOT NULL REFERENCES pedidos_sucursal(id) ON DELETE CASCADE,
+    producto_id         UUID NOT NULL REFERENCES productos(id),
+    cantidad            NUMERIC(14,3) NOT NULL
+);
+CREATE INDEX idx_pedido_sucursal_items_empresa ON pedido_sucursal_items (empresa_id);
+CREATE INDEX idx_pedido_sucursal_items_pedido ON pedido_sucursal_items (pedido_sucursal_id);
+ALTER TABLE pedido_sucursal_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_sucursal_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY pedido_sucursal_items_aislamiento ON pedido_sucursal_items USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Traslado de stock entre sucursales - descuenta el stock de origen al
+-- CREARLO (mismo criterio que una salida real, la mercaderia sale
+-- fisicamente ni bien se prepara), lo suma a destino recien cuando esa
+-- sucursal CONFIRMA que lo recibio. Mientras esta 'pendiente' ese stock
+-- no esta en ningun lado contable - refleja que esta en camino.
+CREATE TYPE estado_traslado AS ENUM ('pendiente', 'confirmado', 'cancelado');
+
+CREATE TABLE traslados_stock (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    numero              INTEGER NOT NULL,
+    sucursal_origen_id  UUID NOT NULL REFERENCES sucursales(id),
+    sucursal_destino_id UUID NOT NULL REFERENCES sucursales(id),
+    estado              estado_traslado NOT NULL DEFAULT 'pendiente',
+    usuario_envia_id    UUID NOT NULL REFERENCES usuarios(id),
+    usuario_confirma_id UUID REFERENCES usuarios(id),
+    pedido_sucursal_id  UUID REFERENCES pedidos_sucursal(id),
+    nota                TEXT,
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    confirmado_en       TIMESTAMPTZ,
+    UNIQUE (empresa_id, numero),
+    CHECK (sucursal_origen_id <> sucursal_destino_id)
+);
+CREATE INDEX idx_traslados_stock_empresa ON traslados_stock (empresa_id);
+CREATE INDEX idx_traslados_stock_destino_pendiente ON traslados_stock (empresa_id, sucursal_destino_id) WHERE estado = 'pendiente';
+ALTER TABLE traslados_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE traslados_stock FORCE ROW LEVEL SECURITY;
+CREATE POLICY traslados_stock_aislamiento ON traslados_stock USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TABLE traslado_items (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id    UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    traslado_id   UUID NOT NULL REFERENCES traslados_stock(id) ON DELETE CASCADE,
+    producto_id   UUID NOT NULL REFERENCES productos(id),
+    cantidad      NUMERIC(14,3) NOT NULL
+);
+CREATE INDEX idx_traslado_items_empresa ON traslado_items (empresa_id);
+CREATE INDEX idx_traslado_items_traslado ON traslado_items (traslado_id);
+ALTER TABLE traslado_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE traslado_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY traslado_items_aislamiento ON traslado_items USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Numeracion correlativa por empresa, mismo patron que
+-- siguiente_numero_ticket/siguiente_numero_recibo.
+ALTER TABLE empresas ADD COLUMN siguiente_numero_traslado INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE empresas ADD COLUMN siguiente_numero_pedido_sucursal INTEGER NOT NULL DEFAULT 1;

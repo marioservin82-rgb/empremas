@@ -25,7 +25,7 @@ export async function yo(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT u.nombre, u.email, u.rol, s.nombre AS sucursal_nombre
+        `SELECT u.nombre, u.email, u.rol, u.sucursal_id, s.nombre AS sucursal_nombre
          FROM usuarios u
          LEFT JOIN sucursales s ON s.id = u.sucursal_id
          WHERE u.id = $1 AND u.empresa_id = $2`,

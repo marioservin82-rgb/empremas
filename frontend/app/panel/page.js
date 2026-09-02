@@ -42,6 +42,10 @@ export default function Panel() {
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
+  const [sucursales, setSucursales] = useState([]);
+  const [sucursalActivaId, setSucursalActivaId] = useState("");
+  const [pedidosPendientes, setPedidosPendientes] = useState(0);
+  const [trasladosPendientes, setTrasladosPendientes] = useState(0);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -70,8 +74,34 @@ export default function Panel() {
     apiFetch("/api/usuarios/mi-pin")
       .then(() => setEsSupervisor(true))
       .catch(() => {});
+    // Traslados/pedidos entre sucursales: solo tienen sentido con más de
+    // una sucursal - se filtran de nuevo abajo con multiSucursal una vez
+    // que /api/empresas/actual responde, pero conviene no ni intentar acá
+    // si de entrada no hay for qué.
+    setSucursalActivaId(localStorage.getItem("empremas_sucursal_activa") || "");
+    apiFetch("/api/sucursales")
+      .then(setSucursales)
+      .catch(() => {});
+    apiFetch("/api/pedidos-sucursal/pendientes")
+      .then((lista) => setPedidosPendientes(lista.length))
+      .catch(() => {});
+    apiFetch("/api/traslados/pendientes")
+      .then((lista) => setTrasladosPendientes(lista.length))
+      .catch(() => {});
     setListo(true);
   }, [router]);
+
+  function elegirSucursalActiva(id) {
+    if (id) {
+      localStorage.setItem("empremas_sucursal_activa", id);
+    } else {
+      localStorage.removeItem("empremas_sucursal_activa");
+    }
+    // Recarga para que todo lo que ya se pidió (badges, saludo, listas de
+    // otras pantallas) refleje la sucursal nueva sin tener que navegar a
+    // mano por cada una.
+    window.location.reload();
+  }
 
   function salir() {
     localStorage.removeItem("empremas_token");
@@ -94,10 +124,31 @@ export default function Panel() {
           <p className="text-slate-500">
             {yo
               ? `Hola, ${yo.nombre} (${ETIQUETA_ROL[yo.rol]})${
-                  multiSucursal && yo.sucursal_nombre ? ` · ${yo.sucursal_nombre}` : ""
+                  multiSucursal && !sucursalActivaId && yo.sucursal_nombre ? ` · ${yo.sucursal_nombre}` : ""
                 }`
               : "¿Qué querés hacer?"}
           </p>
+          {/* Acceso transversal: solo el dueño lo ve - encargado/cajero
+              siguen atados a su sucursal fija, como siempre. */}
+          {multiSucursal && yo?.rol === "dueno" && sucursales.length > 1 && (
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-400">Trabajando en</span>
+              <select
+                value={sucursalActivaId}
+                onChange={(e) => elegirSucursalActiva(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-semibold text-navy outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              >
+                <option value="">{yo.sucursal_nombre} (la mía)</option>
+                {sucursales
+                  .filter((s) => s.activa && s.id !== yo.sucursal_id)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           {yo?.rol === "dueno" && (
@@ -179,6 +230,33 @@ export default function Panel() {
         </div>
       )}
 
+      {(pedidosPendientes > 0 || trasladosPendientes > 0) && (
+        <div className="mb-6 flex w-full max-w-3xl flex-wrap gap-3">
+          {pedidosPendientes > 0 && (
+            <Link
+              href="/stock/pedidos"
+              className="flex flex-1 items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-800 transition hover:bg-amber-100"
+            >
+              <span className="font-semibold">📋 Pedidos de sucursales</span>
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-600 px-1.5 text-xs font-bold text-white">
+                {pedidosPendientes}
+              </span>
+            </Link>
+          )}
+          {trasladosPendientes > 0 && (
+            <Link
+              href="/stock/traslados"
+              className="flex flex-1 items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-800 transition hover:bg-amber-100"
+            >
+              <span className="font-semibold">🚚 Traslados por confirmar</span>
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-600 px-1.5 text-xs font-bold text-white">
+                {trasladosPendientes}
+              </span>
+            </Link>
+          )}
+        </div>
+      )}
+
       {(() => {
         const extra = [];
         if (yo?.rol === "dueno") {
@@ -235,6 +313,17 @@ export default function Panel() {
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
+        }
+        // Traslados/pedidos entre sucursales: sin sentido con una sola
+        // sucursal. Mismo criterio de rol que Ajuste de Inventario
+        // (dueño/encargado o cajero con el permiso, este último lo filtra
+        // el propio backend en cada endpoint - acá alcanza con no ocultarlo
+        // para dueño/encargado).
+        if (multiSucursal && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
+          secundarios.push({ nombre: "Traslado entre sucursales", icono: "🚚", href: "/stock/traslados/nuevo" });
+          secundarios.push({ nombre: "Traslados", icono: "📋", href: "/stock/traslados" });
+          secundarios.push({ nombre: "Pedir a la central", icono: "📥", href: "/stock/pedidos/nuevo" });
+          secundarios.push({ nombre: "Pedidos de sucursales", icono: "📥", href: "/stock/pedidos" });
         }
 
         return (
