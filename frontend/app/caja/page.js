@@ -35,6 +35,7 @@ export default function Caja() {
   const [empresaInfo, setEmpresaInfo] = useState(null);
   const [yo, setYo] = useState(null);
   const [retiros, setRetiros] = useState([]);
+  const [efectivoEsperado, setEfectivoEsperado] = useState(null);
   const [mostrarFormRetiro, setMostrarFormRetiro] = useState(false);
   const [montoRetiro, setMontoRetiro] = useState("");
   const [motivoRetiro, setMotivoRetiro] = useState("");
@@ -57,7 +58,10 @@ export default function Caja() {
     try {
       const actual = await apiFetch("/api/turnos/actual");
       setTurno(actual);
-      if (actual) cargarRetiros(actual.id);
+      if (actual) {
+        cargarRetiros(actual.id);
+        cargarEfectivoEsperado(actual.id);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -66,6 +70,15 @@ export default function Caja() {
   function cargarRetiros(turnoId) {
     apiFetch(`/api/turnos/${turnoId}/retiros`)
       .then(setRetiros)
+      .catch(() => {});
+  }
+
+  // Mismo numero que despues va a quedar guardado al cerrar - se pide en
+  // vivo para que el cajero lo vea ANTES de contar el cajon y declarar,
+  // no recien en la pantalla de resultado (ver feedback de Mario).
+  function cargarEfectivoEsperado(turnoId) {
+    apiFetch(`/api/turnos/${turnoId}/efectivo-esperado`)
+      .then((r) => setEfectivoEsperado(r.efectivoEsperado))
       .catch(() => {});
   }
 
@@ -123,6 +136,7 @@ export default function Caja() {
       });
       setMostrarFormEntrega(false);
       cargarRetiros(turno.id);
+      cargarEfectivoEsperado(turno.id);
     } catch (err) {
       setErrorEntrega(err.message);
     } finally {
@@ -148,6 +162,7 @@ export default function Caja() {
       setRetiroCreado(nuevo);
       setMostrarFormRetiro(false);
       cargarRetiros(turno.id);
+      cargarEfectivoEsperado(turno.id);
     } catch (err) {
       setErrorRetiro(err.message);
     } finally {
@@ -199,6 +214,7 @@ export default function Caja() {
     setResultadoCierre(null);
     setTurno(null);
     setMontoDeclarado("");
+    setEfectivoEsperado(null);
   }
 
   if (!listo || turno === undefined) return null;
@@ -494,6 +510,16 @@ export default function Caja() {
                   )}
                 </>
               )}
+            </div>
+
+            <div className="mb-4 rounded-xl border border-navy/20 bg-tint p-4 text-center">
+              <p className="text-sm font-medium text-navy/70">Efectivo esperado en caja</p>
+              <p className="text-2xl font-extrabold text-navy">
+                {efectivoEsperado === null ? "..." : `Gs ${formatoGs.format(efectivoEsperado)}`}
+              </p>
+              <p className="mt-1 text-xs text-navy/60">
+                Solo cuenta lo que entró y salió en efectivo — transferencias y tarjetas no forman parte de este monto.
+              </p>
             </div>
 
             <label className="mb-1 block text-sm font-medium text-slate-700">

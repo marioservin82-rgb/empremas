@@ -15,7 +15,7 @@ export async function turnoAbiertoDe(cliente, usuarioId) {
 // cobrado en efectivo durante el (menos vueltos y pagos a proveedor en
 // efectivo). La usan tanto el cierre de caja como el semaforo financiero
 // (para saber el efectivo disponible "ahora", sin cerrar nada).
-async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
+export async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
     // v.anulada = false: una venta anulada devolvio la plata, no cuenta
     // como efectivo real en la caja.
     const efectivoVentas = await cliente.query(
@@ -114,6 +114,36 @@ export async function obtenerTurnoActual(req, res) {
     );
 
     res.json(resultado.rows[0] || null);
+}
+
+// Efectivo esperado del turno EN VIVO, sin cerrarlo - para que el cajero
+// lo vea antes de contar el cajon y declarar, no recien despues de cerrar
+// (que es cuando este mismo numero ya queda guardado en la fila del
+// turno). Cualquier rol dueño de su propio turno lo puede pedir; dueño/
+// encargado tambien puede pedirlo de un turno ajeno (mismo criterio que
+// listarTurnos, supervision).
+export async function obtenerEfectivoEsperado(req, res) {
+    const { empresaId, usuarioId, rol } = req.usuario;
+    const { id } = req.params;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT * FROM turnos WHERE id = $1 AND estado = 'abierto'`,
+        [id]
+    );
+    const turno = resultado.rows[0];
+    if (!turno) {
+        return res.status(404).json({ error: 'Ese turno no está abierto' });
+    }
+    if (turno.usuario_id !== usuarioId && rol !== 'dueno' && rol !== 'encargado') {
+        return res.status(403).json({ error: 'No podés ver el efectivo esperado de este turno' });
+    }
+
+    const efectivoEsperado = await transaccionDeEmpresa(empresaId, (cliente) =>
+        efectivoEsperadoDeTurno(cliente, id, turno.monto_inicial)
+    );
+
+    res.json({ efectivoEsperado });
 }
 
 export async function abrirTurno(req, res) {

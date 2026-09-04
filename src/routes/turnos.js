@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { autenticar } from '../middleware/autenticar.js';
 import { permitirRoles, permitirRolesOPermiso } from '../middleware/permitirRoles.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { obtenerTurnoActual, abrirTurno, cerrarTurno, listarTurnos } from '../controllers/turnosController.js';
+import { obtenerTurnoActual, obtenerEfectivoEsperado, abrirTurno, cerrarTurno, listarTurnos } from '../controllers/turnosController.js';
 import { crearRetiro, crearEntrega, listarRetirosDeTurno } from '../controllers/retirosCajaController.js';
 
 const router = Router();
@@ -10,6 +10,10 @@ const router = Router();
 router.use(autenticar);
 
 router.get('/actual', asyncHandler(obtenerTurnoActual));
+// Antes de las rutas /:id/algo-mas abajo, mismo criterio de orden que el
+// resto de la app - aca no hace falta porque no choca con ninguna ruta
+// estatica, pero se agrupa junto al resto de lecturas de un turno puntual.
+router.get('/:id/efectivo-esperado', asyncHandler(obtenerEfectivoEsperado));
 // El historial de TODOS los turnos (con la diferencia de caja de cada
 // cajero) es informacion de supervision, no algo que un cajero deba ver
 // de sus compañeros — salvo que se le conceda ver_reportes puntualmente.
