@@ -22,6 +22,7 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
   if (presupuesto.cliente_nombre) lineas.push({ texto: `Cliente: ${presupuesto.cliente_nombre}`, negrita: true });
   if (presupuesto.cliente_documento) lineas.push({ texto: `RUC/CI: ${presupuesto.cliente_documento}` });
   if (presupuesto.cliente_celular) lineas.push({ texto: `Cel: ${presupuesto.cliente_celular}` });
+  if (presupuesto.cliente_direccion) lineas.push({ texto: `Dirección: ${presupuesto.cliente_direccion}` });
   lineas.push(SEPARADOR);
   for (const i of presupuesto.items) {
     lineas.push(
@@ -106,6 +107,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         {presupuesto.cliente_nombre && <p className="mb-1 font-semibold">Cliente: {presupuesto.cliente_nombre}</p>}
         {presupuesto.cliente_documento && <p className="text-sm">RUC/CI: {presupuesto.cliente_documento}</p>}
         {presupuesto.cliente_celular && <p className="text-sm">Cel: {presupuesto.cliente_celular}</p>}
+        {presupuesto.cliente_direccion && <p className="text-sm">Dirección: {presupuesto.cliente_direccion}</p>}
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 

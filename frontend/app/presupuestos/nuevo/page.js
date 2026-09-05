@@ -196,12 +196,29 @@ export default function NuevoPresupuesto() {
           </div>
 
           <label className="mb-1 block text-sm font-medium text-slate-500">Válido hasta</label>
+          <div className="mb-2 flex gap-2">
+            {[7, 15, 30].map((dias) => (
+              <button
+                key={dias}
+                type="button"
+                onClick={() => setVencimiento(fechaEnDias(dias))}
+                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+                  vencimiento === fechaEnDias(dias) ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {dias} días
+              </button>
+            ))}
+          </div>
           <input
             type="date"
             value={vencimiento}
             onChange={(e) => setVencimiento(e.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
+          <p className="mt-1 text-xs text-slate-400">
+            Elegí un plazo rápido o poné una fecha puntual — es la fecha límite que ve el cliente para decidir.
+          </p>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">

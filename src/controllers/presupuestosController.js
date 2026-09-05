@@ -192,6 +192,7 @@ export async function obtenerPresupuesto(req, res) {
     const presupuesto = await consultaDeEmpresa(
         empresaId,
         `SELECT p.*, c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.celular AS cliente_celular,
+                c.direccion AS cliente_direccion,
                 (p.vencimiento < CURRENT_DATE) AS vencido
          FROM presupuestos p
          LEFT JOIN clientes c ON c.id = p.cliente_id
