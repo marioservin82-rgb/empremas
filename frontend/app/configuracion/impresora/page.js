@@ -13,7 +13,7 @@ const formatoGs = new Intl.NumberFormat("es-PY");
 // el agente ya instalado para avisar de una actualizacion pendiente, aunque
 // el agente viejo siga respondiendo bien (por eso "disponible" no alcanza
 // para saber si esta al dia).
-const VERSION_AGENTE_ACTUAL = "0.3.0";
+const VERSION_AGENTE_ACTUAL = "0.3.1";
 
 export default function ConfiguracionImpresora() {
   const router = useRouter();

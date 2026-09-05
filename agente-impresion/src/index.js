@@ -17,12 +17,19 @@ const app = express();
 // frontend de EMPREMAS puede estar en localhost:3000 durante desarrollo o
 // en empremas-frontend.onrender.com en produccion, dos origenes distintos).
 app.use(cors());
-app.use(express.json());
+// Limite por defecto de express.json() es 100kb - alcanzaba de sobra para
+// texto + un QR chico, pero el logo de la empresa (base64, ver
+// lib/logoEmpresa.js en el frontend) puede superarlo facil aunque ya
+// venga redimensionado, y rompia la impresion con PayloadTooLargeError.
+// Este agente solo atiende 127.0.0.1 (nunca expuesto a internet), asi
+// que un limite generoso no es un riesgo real, solo un margen de
+// seguridad para no aceptar algo absurdamente grande por error.
+app.use(express.json({ limit: '10mb' }));
 
 // Asi el frontend detecta si el agente esta instalado y corriendo antes de
 // intentar imprimir con el (ver frontend/lib/agenteImpresion.js).
 app.get('/estado', (req, res) => {
-    res.json({ ok: true, version: '0.3.0' });
+    res.json({ ok: true, version: '0.3.1' });
 });
 
 app.get('/impresoras', async (req, res) => {
