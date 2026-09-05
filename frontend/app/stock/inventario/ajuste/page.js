@@ -31,7 +31,7 @@ export default function AjusteInventario() {
     e.preventDefault();
     if (!busqueda) return;
     try {
-      setResultados(await apiFetch(`/api/productos?excluirCompuestos=true&q=${encodeURIComponent(busqueda)}`));
+      setResultados(await apiFetch(`/api/productos?excluirCompuestos=true&excluirServicios=true&q=${encodeURIComponent(busqueda)}`));
     } catch (err) {
       setError(err.message);
     }

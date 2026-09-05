@@ -42,6 +42,7 @@ export default function Panel() {
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
+  const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
   const [pedidosPendientes, setPedidosPendientes] = useState(0);
@@ -62,6 +63,7 @@ export default function Panel() {
         setProduccionHabilitada(!!e.produccion_habilitada);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setLomiteriaHabilitada(!!e.lomiteria_habilitada);
+        setCitasHabilitada(!!e.citas_habilitadas);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -310,6 +312,11 @@ export default function Panel() {
         if (lomiteriaHabilitada) {
           secundarios.push({ nombre: "Mesas", icono: "🍽️", href: "/mesas" });
           secundarios.push({ nombre: "Cocina", icono: "🍳", href: "/cocina" });
+        }
+        // Modulo de Agenda de citas: visible a cualquier rol (el cajero
+        // tambien reserva/cobra citas), igual de abierto que Vender.
+        if (citasHabilitada) {
+          secundarios.push({ nombre: "Agenda de citas", icono: "📅", href: "/citas" });
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });

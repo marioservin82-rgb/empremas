@@ -105,7 +105,7 @@ export async function obtenerEmpresa(req, res) {
     const empresa = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
                 e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
-                e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas,
+                e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas, e.citas_habilitadas,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          LEFT JOIN contadores_aliados c ON c.id = e.contador_id
@@ -135,7 +135,7 @@ export async function actualizarEmpresa(req, res) {
     const { id } = req.params;
     const {
         plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId,
-        produccionHabilitada, lomiteriaHabilitada,
+        produccionHabilitada, lomiteriaHabilitada, citasHabilitada,
     } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
@@ -173,16 +173,18 @@ export async function actualizarEmpresa(req, res) {
             -- El módulo de Lomitería necesita Vendedores por comisión (cada
             -- mesero es un vendedor): al prenderlo se prende también.
             comisiones_habilitadas = CASE WHEN COALESCE($11, lomiteria_habilitada) THEN true
-                                          ELSE comisiones_habilitadas END
+                                          ELSE comisiones_habilitadas END,
+            citas_habilitadas = COALESCE($12, citas_habilitadas)
          WHERE id = $1
          RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en,
                    monto_plan_mensual, contador_id, produccion_habilitada, lomiteria_habilitada,
-                   comisiones_habilitadas`,
+                   comisiones_habilitadas, citas_habilitadas`,
         [
             id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
             contadorId !== undefined, contadorId,
             produccionHabilitada === undefined ? null : produccionHabilitada,
             lomiteriaHabilitada === undefined ? null : lomiteriaHabilitada,
+            citasHabilitada === undefined ? null : citasHabilitada,
         ]
     );
     if (!resultado.rows[0]) {

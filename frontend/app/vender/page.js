@@ -76,6 +76,7 @@ export default function Vender() {
   const [tipoPago, setTipoPago] = useState("contado");
   const [tipoComprobante, setTipoComprobante] = useState("ticket_comun");
   const [presupuestoId, setPresupuestoId] = useState(null);
+  const [citaId, setCitaId] = useState(null);
   const [remisionId, setRemisionId] = useState(null);
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
@@ -209,10 +210,12 @@ export default function Vender() {
         setTipoPago(datos.tipoPago ?? "contado");
         setTipoComprobante(datos.tipoComprobante ?? "ticket_comun");
         setPresupuestoId(datos.presupuestoId ?? null);
+        setCitaId(datos.citaId ?? null);
         setRemisionId(datos.remisionId ?? null);
         setCliente(datos.cliente ?? null);
         setCarrito(datos.carrito ?? []);
         setPagos(datos.pagos ?? []);
+        setVendedorId(datos.vendedorId ?? "");
         // El precio de cada item se guardó como foto del momento en que se
         // agregó al carrito. Si el carrito viene de "Ir a Stock a corregir
         // un precio", ese precio puede estar desactualizado — se refresca
@@ -279,9 +282,9 @@ export default function Vender() {
     }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
-      JSON.stringify({ tipoPago, tipoComprobante, presupuestoId, remisionId, cliente, carrito, pagos })
+      JSON.stringify({ tipoPago, tipoComprobante, presupuestoId, citaId, remisionId, cliente, carrito, pagos, vendedorId })
     );
-  }, [restaurado, tipoPago, tipoComprobante, presupuestoId, remisionId, cliente, carrito, pagos]);
+  }, [restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, remisionId, cliente, carrito, pagos, vendedorId]);
 
   function cambiarTipoPago(valor) {
     setTipoPago(valor);
@@ -555,6 +558,7 @@ export default function Vender() {
           tipoPago,
           tipoComprobante,
           presupuestoId,
+          citaId,
           remisionId,
           clienteId: cliente?.id,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,

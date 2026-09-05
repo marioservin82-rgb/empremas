@@ -26,6 +26,7 @@ export default function EditarProducto() {
   const [busquedaAsociado, setBusquedaAsociado] = useState("");
   const [resultadosAsociado, setResultadosAsociado] = useState([]);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+  const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [busquedaIngrediente, setBusquedaIngrediente] = useState("");
   const [resultadosIngrediente, setResultadosIngrediente] = useState([]);
 
@@ -52,6 +53,8 @@ export default function EditarProducto() {
           unidadCompra: p.unidad_compra || "",
           equivalenciaUnidadCompra: p.equivalencia_unidad_compra ?? "",
           esCompuesto: p.es_compuesto,
+          esServicio: p.es_servicio,
+          duracionMinutos: p.duracion_minutos ?? "",
           receta: (p.receta || []).map((r) => ({
             insumoId: r.insumo_id,
             nombre: r.nombre,
@@ -68,7 +71,10 @@ export default function EditarProducto() {
       .then(setAsociados)
       .catch(() => {});
     apiFetch("/api/empresas/actual")
-      .then((e) => setProduccionHabilitada(!!e.produccion_habilitada))
+      .then((e) => {
+        setProduccionHabilitada(!!e.produccion_habilitada);
+        setCitasHabilitada(!!e.citas_habilitadas);
+      })
       .catch(() => {});
   }, [id, router]);
 
@@ -174,6 +180,10 @@ export default function EditarProducto() {
         return;
       }
     }
+    if (form.esServicio && !(Number(form.duracionMinutos) > 0)) {
+      setError("Un servicio necesita una duración en minutos mayor a 0");
+      return;
+    }
     setGuardando(true);
     try {
       await apiFetch(`/api/productos/${id}`, {
@@ -190,6 +200,7 @@ export default function EditarProducto() {
           receta: form.esCompuesto
             ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
             : undefined,
+          duracionMinutos: form.esServicio ? Number(form.duracionMinutos) || undefined : undefined,
         }),
       });
       router.push("/stock");
@@ -328,6 +339,28 @@ export default function EditarProducto() {
             </>
           )}
 
+          {citasHabilitada && (
+            <>
+              <label className="mb-4 flex items-center gap-2">
+                <input type="checkbox" checked={form.esServicio} onChange={actualizar("esServicio")} className="h-5 w-5" />
+                <span className="text-sm font-medium text-slate-700">
+                  Es un servicio (sin stock, se agenda con una duración — ej. corte de cabello)
+                </span>
+              </label>
+              {form.esServicio && (
+                <div className="mb-4 rounded-xl border border-slate-200 p-3">
+                  <label className={etiqueta}>Duración (minutos)</label>
+                  <CampoCantidad
+                    value={form.duracionMinutos}
+                    onChange={(valor) => setForm({ ...form, duracionMinutos: valor })}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    placeholder="Ej: 30"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           <label className="mb-4 flex items-center gap-2">
             <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} className="h-5 w-5" />
             <span className="text-sm font-medium text-slate-700">
@@ -459,9 +492,11 @@ export default function EditarProducto() {
             <option value={0}>Exento (0%)</option>
           </select>
 
-          {form.esCompuesto ? (
+          {form.esCompuesto || form.esServicio ? (
             <p className="mb-4 text-sm text-slate-400">
-              Este producto no tiene stock propio — se arma con la receta de arriba en cada venta.
+              {form.esServicio
+                ? "Este producto es un servicio — no tiene stock propio."
+                : "Este producto no tiene stock propio — se arma con la receta de arriba en cada venta."}
             </p>
           ) : (
             <>

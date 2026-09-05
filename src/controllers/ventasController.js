@@ -195,7 +195,7 @@ function validarYSumarPagos(pagos) {
 
 export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId } = req.usuario;
-    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId } = req.body;
+    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
     if (!COLUMNA_PRECIO[tipoPago]) {
@@ -254,6 +254,25 @@ export async function crearVenta(req, res) {
                 if (remision.facturada) throw new ErrorNegocio('Esta remisión ya fue facturada');
             }
             const saltarStock = !!(remision && remision.descuenta_stock);
+
+            // Cobro de una cita reservada (Agenda de citas, modulo opcional):
+            // se valida que exista y no este ya cobrada/cancelada/marcada
+            // como no-asistio - a diferencia de presupuestoId (reutilizable
+            // a proposito), una cita cobrada una vez no se puede volver a
+            // cobrar. FOR UPDATE evita que dos cobros simultaneos de la
+            // misma cita pasen los dos la validacion.
+            let cita = null;
+            if (citaId) {
+                const cr = await cliente.query(
+                    `SELECT id, precio_unitario, producto_id, estado FROM citas WHERE id = $1 FOR UPDATE`,
+                    [citaId]
+                );
+                cita = cr.rows[0];
+                if (!cita) throw new ErrorNegocio('La cita no existe');
+                if (cita.estado !== 'pendiente') {
+                    throw new ErrorNegocio('Esta cita ya fue cobrada, cancelada o marcada como no asistió');
+                }
+            }
 
             const columnaPrecio = COLUMNA_PRECIO[tipoPago];
             let total = 0;
@@ -333,7 +352,7 @@ export async function crearVenta(req, res) {
                     throw new ErrorNegocio('La cantidad debe ser mayor a cero');
                 }
                 const productoResultado = await cliente.query(
-                    `SELECT nombre, tasa_iva, precio_costo, es_compuesto, ${columnaPrecio} AS precio, precio_mayorista FROM productos WHERE id = $1`,
+                    `SELECT nombre, tasa_iva, precio_costo, es_compuesto, es_servicio, ${columnaPrecio} AS precio, precio_mayorista FROM productos WHERE id = $1`,
                     [productoId]
                 );
                 const producto = productoResultado.rows[0];
@@ -374,6 +393,10 @@ export async function crearVenta(req, res) {
                         }
                         consumosInsumo.push({ insumoId: recetaItem.insumo_id, cantidad: cantidadNecesaria });
                     }
+                } else if (producto.es_servicio) {
+                    // Un servicio (Agenda de citas) no tiene stock propio -
+                    // ni se chequea ni se descuenta nada, igual de simple
+                    // que un compuesto pero sin ingredientes que consumir.
                 } else {
                     // Si esta sucursal todavia no tiene fila de stock para
                     // este producto (ej. nunca se vendio ahi), la crea en 0
@@ -402,10 +425,14 @@ export async function crearVenta(req, res) {
                 // el beneficio automatico de categoria) solo tiene efecto en
                 // una venta al contado (no en credito) y nunca pisa el precio
                 // ya congelado de un presupuesto.
-                const vienDePresupuesto = presupuestoId && precioDelPresupuesto != null;
+                // El precio de un item de presupuesto O de una cita ya
+                // reservada viene congelado de antes - nunca se recalcula
+                // con el precio de catalogo actual (que puede haber
+                // cambiado desde entonces).
+                const precioYaCongelado = (presupuestoId || citaId) && precioDelPresupuesto != null;
                 const usaMayoristaPorItem =
-                    tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !vienDePresupuesto;
-                let precioUnitario = vienDePresupuesto
+                    tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !precioYaCongelado;
+                let precioUnitario = precioYaCongelado
                     ? Number(precioDelPresupuesto)
                     : usaMayoristaPorItem
                     ? Number(producto.precio_mayorista)
@@ -414,7 +441,7 @@ export async function crearVenta(req, res) {
                 // congelado de presupuesto, redondeado a guarani entero
                 // (moneda sin decimales en la practica, igual que el resto
                 // de los precios de la app).
-                if (!vienDePresupuesto && beneficios.descuentoPct > 0) {
+                if (!precioYaCongelado && beneficios.descuentoPct > 0) {
                     precioUnitario = Math.round(precioUnitario * (1 - beneficios.descuentoPct / 100));
                 }
                 const subtotal = precioUnitario * cantidad;
@@ -449,6 +476,7 @@ export async function crearVenta(req, res) {
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
                     consumosInsumo,
+                    esServicio: producto.es_servicio,
                 });
             }
 
@@ -527,8 +555,8 @@ export async function crearVenta(req, res) {
             const numeroTicket = numeroResultado.rows[0].numero;
 
             const ventaInsertada = await cliente.query(
-                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                  RETURNING id, creado_en`,
                 [
                     empresaId,
@@ -545,6 +573,7 @@ export async function crearVenta(req, res) {
                     comprobante,
                     presupuestoId || null,
                     vendedorIdFinal,
+                    citaId || null,
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;
@@ -579,7 +608,9 @@ export async function crearVenta(req, res) {
                 // tiene) - se descuenta cada ingrediente de su receta en su
                 // lugar, ya multiplicado por la cantidad vendida (ver
                 // consumosInsumo, calculado en el primer loop).
-                if (saltarStock) {
+                if (item.esServicio) {
+                    // Un servicio no tiene stock que descontar.
+                } else if (saltarStock) {
                     // La remisión ya descontó el stock al salir del depósito.
                 } else if (item.consumosInsumo) {
                     for (const consumo of item.consumosInsumo) {
@@ -601,6 +632,10 @@ export async function crearVenta(req, res) {
                     `UPDATE remisiones SET venta_id = $2, facturada = true, actualizado_en = now() WHERE id = $1`,
                     [remision.id, ventaId]
                 );
+            }
+
+            if (cita) {
+                await cliente.query(`UPDATE citas SET estado = 'atendida' WHERE id = $1`, [cita.id]);
             }
 
             if (comprobante === 'factura_legal') {

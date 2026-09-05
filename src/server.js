@@ -27,6 +27,7 @@ import autofacturasRoutes from './routes/autofacturas.js';
 import flotaRoutes from './routes/flota.js';
 import trasladosRoutes from './routes/traslados.js';
 import pedidosSucursalRoutes from './routes/pedidosSucursal.js';
+import citasRoutes from './routes/citas.js';
 import { iniciarBarredorDocumentosElectronicos } from './jobs/barrerDocumentosElectronicos.js';
 
 const app = express();
@@ -66,6 +67,7 @@ app.use('/api/autofacturas', autofacturasRoutes);
 app.use('/api/flota', flotaRoutes);
 app.use('/api/traslados', trasladosRoutes);
 app.use('/api/pedidos-sucursal', pedidosSucursalRoutes);
+app.use('/api/citas', citasRoutes);
 
 app.use((error, req, res, next) => {
     console.error(error);

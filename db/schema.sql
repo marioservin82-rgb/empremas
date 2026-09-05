@@ -244,7 +244,8 @@ CREATE TYPE permiso_extra AS ENUM (
     'gestionar_clientes',
     'anular_sin_pin',
     'gestionar_produccion',
-    'gestionar_comisiones'
+    'gestionar_comisiones',
+    'gestionar_citas'
 );
 
 CREATE TABLE usuario_permisos (
@@ -1933,3 +1934,69 @@ CREATE POLICY traslado_items_aislamiento ON traslado_items USING (empresa_id = c
 -- siguiente_numero_ticket/siguiente_numero_recibo.
 ALTER TABLE empresas ADD COLUMN siguiente_numero_traslado INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE empresas ADD COLUMN siguiente_numero_pedido_sucursal INTEGER NOT NULL DEFAULT 1;
+
+-- Modulo de Agenda de citas (peluquerias/salones) - apagado por defecto,
+-- lo habilita EMPREMAS por empresa desde el panel admin (actualizarEmpresa),
+-- NO el dueño - mismo criterio que produccion_habilitada/lomiteria_habilitada.
+ALTER TABLE empresas ADD COLUMN citas_habilitadas BOOLEAN NOT NULL DEFAULT false;
+
+-- Servicio agendable (corte, manicura...): se vende como cualquier producto
+-- pero SIN stock (crearVenta lo salta, igual que a un es_compuesto pero sin
+-- redirigir a insumos) y con una duracion fija que se congela en cada cita.
+ALTER TABLE productos ADD COLUMN es_servicio BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE productos ADD COLUMN duracion_minutos INTEGER;
+
+-- Quien atiende una cita. Distinta de vendedores (modulo de Comisiones) para
+-- no forzar a cada salon a configurar comision solo para poder agendar -
+-- vendedor_id es un puente opcional hacia ese modulo, no una dependencia.
+CREATE TABLE profesionales (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    -- A diferencia de usuarios.sucursal_id (nullable, el dueño no tiene una
+    -- fija), un profesional siempre atiende en un lugar fisico concreto.
+    sucursal_id     UUID NOT NULL REFERENCES sucursales(id),
+    nombre          TEXT NOT NULL,
+    telefono        TEXT,
+    usuario_id      UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    vendedor_id     UUID REFERENCES vendedores(id) ON DELETE SET NULL,
+    activo          BOOLEAN NOT NULL DEFAULT true,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_profesionales_empresa ON profesionales (empresa_id);
+ALTER TABLE profesionales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profesionales FORCE ROW LEVEL SECURITY;
+CREATE POLICY profesionales_aislamiento ON profesionales
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+CREATE TYPE estado_cita AS ENUM ('pendiente', 'atendida', 'cancelada', 'no_asistio');
+
+-- precio_unitario y duracion_minutos quedan congelados al reservar (mismo
+-- criterio que presupuesto_items.precio_unitario).
+CREATE TABLE citas (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id          UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    sucursal_id         UUID NOT NULL REFERENCES sucursales(id),
+    profesional_id      UUID NOT NULL REFERENCES profesionales(id),
+    -- Siempre una persona identificada (nunca "Consumidor Final") - mismo
+    -- criterio que pedidos.cliente_id (Lomiteria).
+    cliente_id          UUID NOT NULL REFERENCES clientes(id),
+    producto_id         UUID NOT NULL REFERENCES productos(id),
+    precio_unitario     NUMERIC(14,2) NOT NULL,
+    fecha_hora_inicio   TIMESTAMPTZ NOT NULL,
+    duracion_minutos    INTEGER NOT NULL,
+    estado              estado_cita NOT NULL DEFAULT 'pendiente',
+    nota                TEXT,
+    usuario_id          UUID NOT NULL REFERENCES usuarios(id),
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_citas_empresa ON citas (empresa_id);
+CREATE INDEX idx_citas_profesional_fecha ON citas (profesional_id, fecha_hora_inicio)
+    WHERE estado <> 'cancelada';
+ALTER TABLE citas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE citas FORCE ROW LEVEL SECURITY;
+CREATE POLICY citas_aislamiento ON citas
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Link venta <- cita, mismo patron que ventas.presupuesto_id/pedido_id.
+ALTER TABLE ventas ADD COLUMN cita_id UUID REFERENCES citas(id);
+CREATE INDEX idx_ventas_cita ON ventas (cita_id) WHERE cita_id IS NOT NULL;

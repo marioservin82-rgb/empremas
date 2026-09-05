@@ -303,13 +303,14 @@ export default function PerfilEmpresa() {
             />
           </div>
 
-          {(empresa.produccion_habilitada || empresa.lomiteria_habilitada) && (
+          {(empresa.produccion_habilitada || empresa.lomiteria_habilitada || empresa.citas_habilitadas) && (
             <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
               <p className="font-semibold text-slate-800">Módulos activos</p>
               <p className="mt-1 text-sm text-slate-400">
                 {[
                   empresa.produccion_habilitada && "Producción",
                   empresa.lomiteria_habilitada && "Lomitería / Restaurante",
+                  empresa.citas_habilitadas && "Agenda de citas",
                 ]
                   .filter(Boolean)
                   .join(" · ")}{" "}

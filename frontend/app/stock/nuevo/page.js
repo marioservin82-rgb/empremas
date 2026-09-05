@@ -23,6 +23,8 @@ const vacio = {
   equivalenciaUnidadCompra: "",
   esCompuesto: false,
   receta: [],
+  esServicio: false,
+  duracionMinutos: "",
 };
 
 export default function NuevoProducto() {
@@ -31,12 +33,16 @@ export default function NuevoProducto() {
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
+  const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [busquedaIngrediente, setBusquedaIngrediente] = useState("");
   const [resultadosIngrediente, setResultadosIngrediente] = useState([]);
 
   useEffect(() => {
     apiFetch("/api/empresas/actual")
-      .then((e) => setProduccionHabilitada(!!e.produccion_habilitada))
+      .then((e) => {
+        setProduccionHabilitada(!!e.produccion_habilitada);
+        setCitasHabilitada(!!e.citas_habilitadas);
+      })
       .catch(() => {});
   }, []);
 
@@ -105,6 +111,10 @@ export default function NuevoProducto() {
         return;
       }
     }
+    if (form.esServicio && !(Number(form.duracionMinutos) > 0)) {
+      setError("Un servicio necesita una duración en minutos mayor a 0");
+      return;
+    }
     setGuardando(true);
     try {
       await apiFetch("/api/productos", {
@@ -122,6 +132,7 @@ export default function NuevoProducto() {
           receta: form.esCompuesto
             ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
             : undefined,
+          duracionMinutos: form.esServicio ? Number(form.duracionMinutos) || undefined : undefined,
         }),
       });
       router.push("/stock");
@@ -202,6 +213,28 @@ export default function NuevoProducto() {
                   <p className="col-span-2 text-xs text-slate-400">
                     Opcional — solo si se compra en una unidad distinta a la que se consume (ej. 1 bolsa = 50 kg).
                   </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {citasHabilitada && (
+            <>
+              <label className="mb-4 flex items-center gap-2">
+                <input type="checkbox" checked={form.esServicio} onChange={actualizar("esServicio")} className="h-5 w-5" />
+                <span className="text-sm font-medium text-slate-700">
+                  Es un servicio (sin stock, se agenda con una duración — ej. corte de cabello)
+                </span>
+              </label>
+              {form.esServicio && (
+                <div className="mb-4 rounded-xl border border-slate-200 p-3">
+                  <label className={etiqueta}>Duración (minutos)</label>
+                  <CampoCantidad
+                    value={form.duracionMinutos}
+                    onChange={(valor) => setForm({ ...form, duracionMinutos: valor })}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    placeholder="Ej: 30"
+                  />
                 </div>
               )}
             </>
@@ -322,7 +355,7 @@ export default function NuevoProducto() {
             <option value={0}>Exento (0%)</option>
           </select>
 
-          {!form.esCompuesto && (
+          {!form.esCompuesto && !form.esServicio && (
             <>
               <label className={etiqueta}>Stock inicial</label>
               <CampoCantidad value={form.stock} onChange={(valor) => setForm({ ...form, stock: valor })} className={campo} placeholder="0" />

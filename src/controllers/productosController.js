@@ -13,7 +13,7 @@ async function ocultarCostoSiCorresponde(productos, rol, empresaId, usuarioId) {
 }
 
 export async function listarProductos(req, res) {
-    const { q, limit, offset, excluirInsumos, excluirCompuestos, incluirInactivos } = req.query;
+    const { q, limit, offset, excluirInsumos, excluirCompuestos, excluirServicios, soloServicios, incluirInactivos } = req.query;
     const { empresaId, usuarioId, rol, sucursalId } = req.usuario;
     // Vender manda excluirInsumos=true (un insumo de produccion nunca se
     // vende directo al publico) - Stock y el resto de las pantallas de
@@ -23,6 +23,10 @@ export async function listarProductos(req, res) {
     // Ajuste de inventario manda excluirCompuestos=true: un producto
     // compuesto nunca tiene stock propio para ajustar (ver ajustarInventario).
     const condicionCompuesto = excluirCompuestos === 'true' ? 'AND p.es_compuesto = false' : '';
+    // Idem para un servicio (Agenda de citas): tampoco tiene stock propio.
+    const condicionServicio = excluirServicios === 'true' ? 'AND p.es_servicio = false' : '';
+    // Nueva cita: solo interesan los productos marcados como servicio.
+    const condicionSoloServicios = soloServicios === 'true' ? 'AND p.es_servicio = true' : '';
     // Por defecto solo activos (ningun otro lugar de la app - Vender,
     // Compras, etc. - manda incluirInactivos, asi que ahi no cambia nada).
     // Solo la pantalla de Stock lo manda, con el toggle "Ver desactivados",
@@ -37,7 +41,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $3
-               WHERE (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionActivo} ${condicionInsumo} ${condicionCompuesto}
+               WHERE (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios}
                ORDER BY p.nombre LIMIT 50`,
               [q, `%${q}%`, sucursalId]
           )
@@ -54,7 +58,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE true ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+               WHERE true ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
               [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 
@@ -292,6 +296,8 @@ export async function crearProducto(req, res) {
         equivalenciaUnidadCompra,
         esCompuesto,
         receta,
+        esServicio,
+        duracionMinutos,
     } = req.body;
 
     if (!nombre) {
@@ -308,6 +314,14 @@ export async function crearProducto(req, res) {
     if (esCompuesto && esInsumo) {
         return res.status(400).json({ error: 'Un producto compuesto no puede ser a la vez un insumo de Producción' });
     }
+    // Un servicio (Agenda de citas) no tiene stock propio ni receta - no
+    // tiene sentido combinarlo con compuesto/insumo.
+    if (esServicio && (esCompuesto || esInsumo)) {
+        return res.status(400).json({ error: 'Un servicio no puede ser a la vez compuesto o insumo' });
+    }
+    if (esServicio && !(Number(duracionMinutos) > 0)) {
+        return res.status(400).json({ error: 'Un servicio necesita una duración en minutos mayor a 0' });
+    }
 
     try {
         const producto = await transaccionDeEmpresa(empresaId, async (cliente) => {
@@ -315,9 +329,10 @@ export async function crearProducto(req, res) {
                 `INSERT INTO productos (
                     empresa_id, codigo_barras, nombre, unidad_medida,
                     precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
-                    es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto
+                    es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto,
+                    es_servicio, duracion_minutos
                  )
-                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false))
+                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16)
                  RETURNING *`,
                 [
                     empresaId,
@@ -334,6 +349,8 @@ export async function crearProducto(req, res) {
                     unidadCompra || null,
                     equivalenciaUnidadCompra || null,
                     esCompuesto,
+                    esServicio,
+                    duracionMinutos || null,
                 ]
             );
             let nuevoProducto = productoInsertado.rows[0];
@@ -387,6 +404,8 @@ export async function actualizarProducto(req, res) {
         equivalenciaUnidadCompra,
         esCompuesto,
         receta,
+        esServicio,
+        duracionMinutos,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
@@ -394,6 +413,12 @@ export async function actualizarProducto(req, res) {
     }
     if (esCompuesto && esInsumo) {
         return res.status(400).json({ error: 'Un producto compuesto no puede ser a la vez un insumo de Producción' });
+    }
+    if (esServicio && (esCompuesto || esInsumo)) {
+        return res.status(400).json({ error: 'Un servicio no puede ser a la vez compuesto o insumo' });
+    }
+    if (esServicio && duracionMinutos !== undefined && !(Number(duracionMinutos) > 0)) {
+        return res.status(400).json({ error: 'Un servicio necesita una duración en minutos mayor a 0' });
     }
 
     try {
@@ -419,7 +444,9 @@ export async function actualizarProducto(req, res) {
                     es_insumo = COALESCE($12, es_insumo),
                     unidad_compra = COALESCE($13, unidad_compra),
                     equivalencia_unidad_compra = COALESCE($14, equivalencia_unidad_compra),
-                    es_compuesto = COALESCE($15, es_compuesto)
+                    es_compuesto = COALESCE($15, es_compuesto),
+                    es_servicio = COALESCE($16, es_servicio),
+                    duracion_minutos = COALESCE($17, duracion_minutos)
                  WHERE id = $1 AND empresa_id = $2
                  RETURNING *`,
                 [
@@ -438,6 +465,8 @@ export async function actualizarProducto(req, res) {
                     unidadCompra || null,
                     equivalenciaUnidadCompra || null,
                     esCompuesto,
+                    esServicio,
+                    duracionMinutos,
                 ]
             );
 

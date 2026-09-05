@@ -10,7 +10,7 @@ export async function obtenerEmpresaActual(req, res) {
                 sifen_timbrado_fin, sifen_cert_desde, sifen_cert_vence, sifen_cert_vencimiento,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
-                lomiteria_habilitada,
+                lomiteria_habilitada, citas_habilitadas,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -198,11 +198,12 @@ export async function actualizarConfiguracion(req, res) {
         sugerenciasVentaHabilitadas,
         comisionesHabilitadas, politicaClientesVendedorInactivo,
     } = req.body;
-    // Producción y Lomitería/Restaurante ya NO se activan desde la app del
-    // cliente — los habilita EMPREMAS por empresa (panel admin). Se ignora
-    // cualquier valor que llegue en el body.
+    // Producción, Lomitería/Restaurante y Agenda de citas ya NO se activan
+    // desde la app del cliente — los habilita EMPREMAS por empresa (panel
+    // admin). Se ignora cualquier valor que llegue en el body.
     const produccionHabilitada = null;
     const lomiteriaHabilitada = null;
+    const citasHabilitada = null;
 
     if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
         return res.status(400).json({ error: 'Política inválida' });
@@ -270,6 +271,7 @@ export async function actualizarConfiguracion(req, res) {
                                           ELSE COALESCE($24, comisiones_habilitadas) END,
             politica_clientes_vendedor_inactivo = COALESCE($25, politica_clientes_vendedor_inactivo),
             lomiteria_habilitada = COALESCE($26, lomiteria_habilitada),
+            citas_habilitadas = COALESCE($28, citas_habilitadas),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -280,6 +282,7 @@ export async function actualizarConfiguracion(req, res) {
          RETURNING razon_social, nombre_fantasia, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                    comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
+                   citas_habilitadas,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -293,7 +296,8 @@ export async function actualizarConfiguracion(req, res) {
             recordatorioMensajeHoy, recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
             produccionHabilitada, sugerenciasVentaHabilitadas,
             comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada,
-            nombreFantasia === undefined ? null : String(nombreFantasia).trim()]
+            nombreFantasia === undefined ? null : String(nombreFantasia).trim(),
+            citasHabilitada]
     );
 
     res.json(resultado.rows[0]);

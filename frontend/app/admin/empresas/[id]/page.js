@@ -312,6 +312,12 @@ export default function AdminEmpresaDetalle() {
               Vendedores por comisión: activo (lo exige Lomitería).
             </p>
           )}
+          <ModuloToggle
+            titulo="Módulo de Agenda de citas"
+            descripcion="Peluquerías/salones: reservar cliente + profesional + servicio + duración, con cobro directo desde la agenda."
+            activo={!!empresa.citas_habilitadas}
+            onCambiar={(v) => guardarModulo("citasHabilitada", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
