@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
+import { logoParaTicket } from "@/lib/logoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -15,13 +17,15 @@ const ETIQUETA_FORMA_PAGO = {
 
 const SEPARADOR = { texto: "--------------------------------" };
 
-function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qrDataUrl) {
-  const lineas = [
+function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qrDataUrl, logoTicket) {
+  const lineas = [];
+  if (logoTicket) lineas.push({ tipo: "imagen", dataUrl: logoTicket, alineacion: "centro" });
+  lineas.push(
     ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: `Recibo de cobro N° ${cobro.numeroRecibo}`, alineacion: "centro" },
-    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
-  ];
+    { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" }
+  );
   if (cobro.codigoVerificacion) {
     if (qrDataUrl) {
       // El agente ya sabe imprimir una imagen real (comando ESC/POS de
@@ -88,6 +92,20 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
   const [formato, setFormato] = useState("ticket");
   const [qr, setQr] = useState(null);
 
+  // Logo de la empresa (opcional) - mismo mecanismo que en el ticket de
+  // venta (ver lib/logoEmpresa.js).
+  const [logo, setLogo] = useState(null);
+  const [logoTicket, setLogoTicket] = useState(null);
+  useEffect(() => {
+    apiFetch("/api/empresas/logo")
+      .then((d) => {
+        setLogo(d.logo);
+        return logoParaTicket(d.logo);
+      })
+      .then(setLogoTicket)
+      .catch(() => {});
+  }, []);
+
   // QR de verificacion (ver utils/verificacionRecibo.js en el backend) -
   // apunta a /verificar-recibo, publica y sin login, mismo patron ya
   // usado para el QR de la Factura Legal (import dinamico de "qrcode",
@@ -121,7 +139,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
     } else {
       imprimirTicket(
         empresa.impresora_agente_nombre,
-        lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qr),
+        lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qr, logoTicket),
         () => window.print()
       );
     }
@@ -157,6 +175,11 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           ref={recuadroRef}
           className="reporte-imprimible w-full max-w-2xl rounded-xl bg-white p-6 text-base text-slate-800 shadow"
         >
+          {logo && (
+            <div className="mb-2 flex justify-center">
+              <img src={logo} alt="Logo" className="max-h-20 max-w-[70%] object-contain" />
+            </div>
+          )}
           <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
           {nombresEmpresa(empresa).secundario && (
             <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
@@ -231,6 +254,11 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           className="recibo-imprimible w-[80mm] rounded-xl bg-white p-[3mm] text-base text-slate-800 shadow"
           style={{ zoom: (empresa.ticket_escala ?? 100) / 100 }}
         >
+          {logo && (
+            <div className="mb-2 flex justify-center">
+              <img src={logo} alt="Logo" className="max-h-20 max-w-[70%] object-contain" />
+            </div>
+          )}
           <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
           {nombresEmpresa(empresa).secundario && (
             <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>

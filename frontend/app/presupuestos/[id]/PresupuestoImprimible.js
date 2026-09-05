@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
 import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
 import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
+import { logoParaTicket } from "@/lib/logoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Ver mismo comentario en Recibo.js: sin esto, una cantidad entera sale
@@ -14,14 +16,16 @@ const formatoCantidad = new Intl.NumberFormat("es-PY", { minimumFractionDigits: 
 const SEPARADOR = { texto: "--------------------------------" };
 const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
-function lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma) {
-  const lineas = [
+function lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma, logoTicket) {
+  const lineas = [];
+  if (logoTicket) lineas.push({ tipo: "imagen", dataUrl: logoTicket, alineacion: "centro" });
+  lineas.push(
     ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
     { texto: `PRESUPUESTO N° ${presupuesto.numero ?? "—"}`, alineacion: "centro" },
     { texto: `${fecha.toLocaleDateString("es-PY")} ${fecha.toLocaleTimeString("es-PY")}`, alineacion: "centro" },
-    SEPARADOR,
-  ];
+    SEPARADOR
+  );
   if (presupuesto.cliente_nombre) lineas.push({ texto: `Cliente: ${presupuesto.cliente_nombre}`, negrita: true });
   if (presupuesto.cliente_documento) lineas.push({ texto: `RUC/CI: ${presupuesto.cliente_documento}` });
   if (presupuesto.cliente_celular) lineas.push({ texto: `Cel: ${presupuesto.cliente_celular}` });
@@ -59,6 +63,20 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
   const [numeroSoportePlataforma, setNumeroSoportePlataforma] = useState(null);
   useEffect(() => {
     obtenerNumeroSoportePlataforma().then(setNumeroSoportePlataforma);
+  }, []);
+
+  // Logo de la empresa (opcional) - mismo mecanismo que en el ticket de
+  // venta (ver lib/logoEmpresa.js).
+  const [logo, setLogo] = useState(null);
+  const [logoTicket, setLogoTicket] = useState(null);
+  useEffect(() => {
+    apiFetch("/api/empresas/logo")
+      .then((d) => {
+        setLogo(d.logo);
+        return logoParaTicket(d.logo);
+      })
+      .then(setLogoTicket)
+      .catch(() => {});
   }, []);
 
   async function descargarImagen() {
@@ -104,6 +122,11 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         }
         style={esA4 ? undefined : { zoom: (empresa.ticket_escala ?? 100) / 100 }}
       >
+        {logo && (
+          <div className="mb-2 flex justify-center">
+            <img src={logo} alt="Logo" className="max-h-20 max-w-[70%] object-contain" />
+          </div>
+        )}
         <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
         {nombresEmpresa(empresa).secundario && (
           <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
@@ -159,7 +182,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
               ? window.print()
               : imprimirTicket(
                   empresa.impresora_agente_nombre,
-                  lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma),
+                  lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma, logoTicket),
                   () => window.print()
                 )
           }

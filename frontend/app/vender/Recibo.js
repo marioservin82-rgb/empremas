@@ -7,6 +7,7 @@ import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
 import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
 import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
+import { logoParaTicket } from "@/lib/logoEmpresa";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -459,12 +460,14 @@ function lineasCierre(tipoPago) {
 // ya generado para la pantalla. Si por lo que sea todavia no esta listo
 // (se genera async) qrDataUrl llega vacio y se cae al CDC en texto solo,
 // como respaldo (mismo criterio ya usado en ReciboCobro.js).
-function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl) {
+function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl, logoTicket) {
   const fecha = new Date(venta.creado_en);
-  const lineas = [
+  const lineas = [];
+  if (logoTicket) lineas.push({ tipo: "imagen", dataUrl: logoTicket, alineacion: "centro" });
+  lineas.push(
     ...lineasNombreEmpresa(empresa),
-    { texto: `RUC ${empresa?.ruc}`, alineacion: "centro" },
-  ];
+    { texto: `RUC ${empresa?.ruc}`, alineacion: "centro" }
+  );
   if (empresa?.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
   if (empresa?.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
   for (const l of lineasEmisorLegal(empresa)) lineas.push({ ...l, alineacion: "centro" });
@@ -510,12 +513,14 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl) {
 // Version en texto plano del ticket comun (ticket_comun) - mismo criterio
 // que lineasTicketFacturaLegal, calcado del JSX del componente Recibo de
 // mas abajo.
-function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma) {
+function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket) {
   const fecha = new Date(venta.creadoEn);
-  const lineas = [
+  const lineas = [];
+  if (logoTicket) lineas.push({ tipo: "imagen", dataUrl: logoTicket, alineacion: "centro" });
+  lineas.push(
     ...lineasNombreEmpresa(empresa),
-    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
-  ];
+    { texto: `RUC ${empresa.ruc}`, alineacion: "centro" }
+  );
   if (empresa.direccion) lineas.push({ texto: empresa.direccion, alineacion: "centro" });
   if (empresa.telefono) lineas.push({ texto: `Tel: ${empresa.telefono}`, alineacion: "centro" });
   lineas.push({
@@ -607,6 +612,22 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
   const [qr, setQr] = useState(null);
   const yaImprimio = useRef(false);
 
+  // Logo de la empresa (opcional) - mismo mecanismo que en el ticket
+  // comun (ver componente Recibo mas abajo / lib/logoEmpresa.js). El
+  // SIFEN nunca ve este ticket impreso (solo el XML), asi que el logo
+  // aca no tiene ningun efecto sobre la aprobacion de la factura.
+  const [logo, setLogo] = useState(null);
+  const [logoTicket, setLogoTicket] = useState(null);
+  useEffect(() => {
+    apiFetch("/api/empresas/logo")
+      .then((d) => {
+        setLogo(d.logo);
+        return logoParaTicket(d.logo);
+      })
+      .then(setLogoTicket)
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!venta.de_cdc) return;
     let cancelado = false;
@@ -637,14 +658,14 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
       const limite = setTimeout(() => {
         if (yaImprimio.current) return;
         yaImprimio.current = true;
-        imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
+        imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
           window.print()
         );
       }, 3000);
       return () => clearTimeout(limite);
     }
     yaImprimio.current = true;
-    imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
+    imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
       window.print()
     );
   }, [autoImprimir, qr]);
@@ -656,6 +677,11 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         className="recibo-imprimible w-[80mm] rounded-xl bg-white p-[3mm] font-bold text-base text-slate-800 shadow"
         style={{ zoom: (empresa?.ticket_escala ?? 100) / 100 }}
       >
+        {logo && (
+          <div className="mb-2 flex justify-center">
+            <img src={logo} alt="Logo" className="max-h-20 max-w-[70%] object-contain" />
+          </div>
+        )}
         <p className="text-center text-xl">{nombresEmpresa(empresa).principal}</p>
         {nombresEmpresa(empresa).secundario && (
           <p className="text-center text-sm">{nombresEmpresa(empresa).secundario}</p>
@@ -732,7 +758,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
 
       <button
         onClick={() =>
-          imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr), () =>
+          imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
             window.print()
           )
         }
@@ -763,6 +789,21 @@ export default function Recibo({
   const [numeroSoportePlataforma, setNumeroSoportePlataforma] = useState(null);
   useEffect(() => {
     obtenerNumeroSoportePlataforma().then(setNumeroSoportePlataforma);
+  }, []);
+
+  // Logo de la empresa (opcional, "Mi Empresa"): la version cruda para
+  // pantalla/A4/imagen descargada, y una version aparte redimensionada a
+  // PNG chico para el ticket termico (ver lib/logoEmpresa.js).
+  const [logo, setLogo] = useState(null);
+  const [logoTicket, setLogoTicket] = useState(null);
+  useEffect(() => {
+    apiFetch("/api/empresas/logo")
+      .then((d) => {
+        setLogo(d.logo);
+        return logoParaTicket(d.logo);
+      })
+      .then(setLogoTicket)
+      .catch(() => {});
   }, []);
 
   async function descargarImagen() {
@@ -821,7 +862,7 @@ export default function Recibo({
     } else {
       imprimirTicket(
         empresa.impresora_agente_nombre,
-        lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma),
+        lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket),
         () => window.print()
       );
     }
@@ -839,6 +880,11 @@ export default function Recibo({
         }
         style={esA4 ? undefined : { zoom: (empresa.ticket_escala ?? 100) / 100 }}
       >
+        {logo && (
+          <div className="mb-2 flex justify-center">
+            <img src={logo} alt="Logo" className="max-h-20 max-w-[70%] object-contain" />
+          </div>
+        )}
         <p className="text-center text-2xl font-bold">{nombresEmpresa(empresa).principal}</p>
         {nombresEmpresa(empresa).secundario && (
           <p className="text-center text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
@@ -938,7 +984,7 @@ export default function Recibo({
               ? window.print()
               : imprimirTicket(
                   empresa.impresora_agente_nombre,
-                  lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma),
+                  lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket),
                   () => window.print()
                 )
           }
