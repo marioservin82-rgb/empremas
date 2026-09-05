@@ -96,6 +96,14 @@ export default function Clientes() {
                 Categorías de clientes
               </Link>
             )}
+            {puedeRecordar && (
+              <Link
+                href="/clientes/cumpleanos"
+                className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+              >
+                🎂 Cumpleaños
+              </Link>
+            )}
             <Link
               href="/clientes/importar"
               className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"

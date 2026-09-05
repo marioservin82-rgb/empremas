@@ -29,6 +29,7 @@ export default function EditarCliente() {
           celular: c.celular || "",
           email: c.email || "",
           direccion: c.direccion || "",
+          fechaNacimiento: c.fecha_nacimiento ? c.fecha_nacimiento.slice(0, 10) : "",
           lineaCredito: c.linea_credito ?? "",
           vendedorId: c.vendedorAsignado?.id || "",
         })
@@ -116,6 +117,9 @@ export default function EditarCliente() {
 
             <label className={etiqueta}>Dirección</label>
             <input value={form.direccion} onChange={actualizar("direccion")} className={campo} placeholder="Opcional" />
+
+            <label className={etiqueta}>Fecha de nacimiento</label>
+            <input type="date" value={form.fechaNacimiento} onChange={actualizar("fechaNacimiento")} className={campo} />
 
             <label className={etiqueta}>Línea de crédito (Gs)</label>
             <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />

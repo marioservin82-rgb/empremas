@@ -18,6 +18,7 @@ const vacio = {
   lineaCredito: "",
   saldoInicial: "",
   vendedorId: "",
+  fechaNacimiento: "",
 };
 
 export default function NuevoCliente() {
@@ -167,6 +168,10 @@ export default function NuevoCliente() {
 
           <label className={etiqueta}>Dirección</label>
           <input value={form.direccion} onChange={actualizar("direccion")} className={campo} placeholder="Opcional" />
+
+          <label className={etiqueta}>Fecha de nacimiento</label>
+          <input type="date" value={form.fechaNacimiento} onChange={actualizar("fechaNacimiento")} className={campo} />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">Opcional — para saber cuándo ofrecerle algo especial por su cumpleaños.</p>
 
           <label className={etiqueta}>Línea de crédito (Gs)</label>
           <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />

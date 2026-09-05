@@ -237,7 +237,7 @@ const CLASIFICACIONES_SIFEN = ['auto', 'b2b', 'b2c', 'b2g', 'b2f'];
 
 export async function crearCliente(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial, vendedorId } = req.body;
+    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, saldoInicial, vendedorId, fechaNacimiento } = req.body;
     const clasificacionSifen = CLASIFICACIONES_SIFEN.includes(req.body.clasificacionSifen)
         ? req.body.clasificacionSifen
         : 'auto';
@@ -255,8 +255,8 @@ export async function crearCliente(req, res) {
     // igual de auditado que cualquier otro ajuste posterior.
     const cliente = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
-            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, vendedor_id, clasificacion_sifen)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric), $10, $11)
+            `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, vendedor_id, clasificacion_sifen, fecha_nacimiento)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), COALESCE($9, 0::numeric), $10, $11, $12)
              RETURNING *`,
             [
                 empresaId,
@@ -270,6 +270,7 @@ export async function crearCliente(req, res) {
                 saldoInicial,
                 vendedorId || null,
                 clasificacionSifen,
+                fechaNacimiento || null,
             ]
         );
         const nuevoCliente = insertado.rows[0];
@@ -460,7 +461,7 @@ export async function historialAjustesSaldo(req, res) {
 export async function actualizarCliente(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
-    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, activo, vendedorId } = req.body;
+    const { nombre, documento, telefono, celular, email, direccion, lineaCredito, activo, vendedorId, fechaNacimiento } = req.body;
     const clasificacionSifen = CLASIFICACIONES_SIFEN.includes(req.body.clasificacionSifen)
         ? req.body.clasificacionSifen
         : undefined;
@@ -484,7 +485,8 @@ export async function actualizarCliente(req, res) {
             linea_credito = COALESCE($9, linea_credito),
             activo = COALESCE($10, activo),
             vendedor_id = CASE WHEN $11::boolean THEN $12 ELSE vendedor_id END,
-            clasificacion_sifen = COALESCE($13, clasificacion_sifen)
+            clasificacion_sifen = COALESCE($13, clasificacion_sifen),
+            fecha_nacimiento = COALESCE($14, fecha_nacimiento)
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
         [
@@ -501,6 +503,7 @@ export async function actualizarCliente(req, res) {
             vendedorId !== undefined,
             vendedorId || null,
             clasificacionSifen ?? null,
+            fechaNacimiento || null,
         ]
     );
 
@@ -696,4 +699,52 @@ export async function productosFrecuentesDeCliente(req, res) {
     );
 
     res.json(resultado.rows);
+}
+
+// Clientes que cumplen años en el rango elegido - para que el negocio les
+// ofrezca algo especial ese día (mismo espiritu que Recordar pago: solo
+// arma la lista y el mensaje, nunca envia nada solo). Se resuelve en JS
+// (no en SQL) para evitar el problema de mes/dia "dando la vuelta" al año
+// (ej. hoy 28/dic, "esta semana" incluye 2/ene) y el mismo desfasaje de
+// zona horaria ya documentado en otras partes de la app (extractoCliente) -
+// se trabaja todo en UTC, igual que fecha_nacimiento quedo guardado.
+export async function clientesCumpleanos(req, res) {
+    const { empresaId } = req.usuario;
+    const rango = ['hoy', 'mes'].includes(req.query.rango) ? req.query.rango : 'semana';
+    const limiteDias = rango === 'hoy' ? 0 : rango === 'mes' ? 31 : 7;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, nombre, celular, fecha_nacimiento FROM clientes
+         WHERE activo = true AND fecha_nacimiento IS NOT NULL`,
+        []
+    );
+
+    // "Hoy" mismo criterio que resumenDia/listarCitas (default en UTC) -
+    // ?fecha= opcional para poder probar/consultar otro dia puntual.
+    const fechaBase = req.query.fecha ? new Date(`${req.query.fecha}T00:00:00Z`) : new Date();
+    const hoyUTC = new Date(Date.UTC(fechaBase.getUTCFullYear(), fechaBase.getUTCMonth(), fechaBase.getUTCDate()));
+
+    const conProximoCumple = resultado.rows
+        .map((c) => {
+            const nacimiento = new Date(c.fecha_nacimiento);
+            const mes = nacimiento.getUTCMonth();
+            const dia = nacimiento.getUTCDate();
+            let proximo = new Date(Date.UTC(hoyUTC.getUTCFullYear(), mes, dia));
+            if (proximo < hoyUTC) proximo = new Date(Date.UTC(hoyUTC.getUTCFullYear() + 1, mes, dia));
+            const diasFaltan = Math.round((proximo - hoyUTC) / 86400000);
+            return {
+                id: c.id,
+                nombre: c.nombre,
+                celular: c.celular,
+                fechaNacimiento: c.fecha_nacimiento,
+                diasFaltan,
+                cumpleHoy: diasFaltan === 0,
+                edadCumple: proximo.getUTCFullYear() - nacimiento.getUTCFullYear(),
+            };
+        })
+        .filter((c) => c.diasFaltan <= limiteDias)
+        .sort((a, b) => a.diasFaltan - b.diasFaltan);
+
+    res.json(conProximoCumple);
 }

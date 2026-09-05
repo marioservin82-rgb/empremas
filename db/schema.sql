@@ -2000,3 +2000,8 @@ CREATE POLICY citas_aislamiento ON citas
 -- Link venta <- cita, mismo patron que ventas.presupuesto_id/pedido_id.
 ALTER TABLE ventas ADD COLUMN cita_id UUID REFERENCES citas(id);
 CREATE INDEX idx_ventas_cita ON ventas (cita_id) WHERE cita_id IS NOT NULL;
+
+-- Fecha de nacimiento del cliente (opcional) - para que el negocio pueda
+-- ofrecerle algo especial el dia de su cumpleanos (restaurantes, salones
+-- de belleza, etc.) y como dato general de la ficha.
+ALTER TABLE clientes ADD COLUMN fecha_nacimiento DATE;

@@ -16,6 +16,7 @@ import {
     actualizarCategoria,
     reporteCategoriasCliente,
     productosFrecuentesDeCliente,
+    clientesCumpleanos,
 } from '../controllers/clientesController.js';
 import { facturasPendientes, crearCobro, listarCobros, obtenerCobro } from '../controllers/cobrosController.js';
 import { consultarRucDnit } from '../controllers/sifenConsultaController.js';
@@ -33,6 +34,7 @@ router.get('/categorias', permitirRoles('dueno'), asyncHandler(listarCategorias)
 router.post('/categorias', permitirRoles('dueno'), asyncHandler(crearCategoria));
 router.patch('/categorias/:id', permitirRoles('dueno'), asyncHandler(actualizarCategoria));
 router.get('/reporte-categorias', permitirRoles('dueno'), asyncHandler(reporteCategoriasCliente));
+router.get('/cumpleanos', asyncHandler(clientesCumpleanos));
 
 // Autocompletar el alta desde el padrón de la DNIT — antes de /:id.
 router.get('/consultar-ruc', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(consultarRucDnit));
