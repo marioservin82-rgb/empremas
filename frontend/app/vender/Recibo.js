@@ -618,6 +618,10 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
   // aca no tiene ningun efecto sobre la aprobacion de la factura.
   const [logo, setLogo] = useState(null);
   const [logoTicket, setLogoTicket] = useState(null);
+  // Aparte del valor en si (puede ser null si la empresa no tiene logo,
+  // lo cual es valido) - para saber si ya se termino de intentar buscarlo,
+  // y que la impresion automatica no dispare antes de que este listo.
+  const [logoListo, setLogoListo] = useState(false);
   useEffect(() => {
     apiFetch("/api/empresas/logo")
       .then((d) => {
@@ -625,7 +629,8 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         return logoParaTicket(d.logo);
       })
       .then(setLogoTicket)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLogoListo(true));
   }, []);
 
   useEffect(() => {
@@ -648,13 +653,14 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
   // cerrada la venta en Vender) - al reabrir una venta vieja desde
   // /ventas/:id no debe imprimir sola cada vez que alguien la mira.
   //
-  // Espera a que el QR este listo (async, casi instantaneo) para que el
-  // agente de impresion mande la imagen real, no solo el CDC en texto -
-  // con un limite de seguridad de 3s: si por lo que sea el QR nunca
-  // llega, se imprime igual sin el, para no dejar el ticket sin imprimir.
+  // Espera a que el QR Y el logo esten listos (ambos async, casi
+  // instantaneos) para que el agente de impresion mande la imagen real en
+  // vez de texto/nada - con un limite de seguridad de 3s: si por lo que
+  // sea alguno de los dos nunca llega, se imprime igual sin el, para no
+  // dejar el ticket sin imprimir.
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
-    if (!qr) {
+    if (!qr || !logoListo) {
       const limite = setTimeout(() => {
         if (yaImprimio.current) return;
         yaImprimio.current = true;
@@ -668,7 +674,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
     imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
       window.print()
     );
-  }, [autoImprimir, qr]);
+  }, [autoImprimir, qr, logoListo]);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -793,9 +799,12 @@ export default function Recibo({
 
   // Logo de la empresa (opcional, "Mi Empresa"): la version cruda para
   // pantalla/A4/imagen descargada, y una version aparte redimensionada a
-  // PNG chico para el ticket termico (ver lib/logoEmpresa.js).
+  // PNG chico para el ticket termico (ver lib/logoEmpresa.js). logoListo
+  // marca que ya se termino de intentar buscarlo (con o sin resultado),
+  // para que la impresion automatica de abajo no dispare antes de tiempo.
   const [logo, setLogo] = useState(null);
   const [logoTicket, setLogoTicket] = useState(null);
+  const [logoListo, setLogoListo] = useState(false);
   useEffect(() => {
     apiFetch("/api/empresas/logo")
       .then((d) => {
@@ -803,7 +812,8 @@ export default function Recibo({
         return logoParaTicket(d.logo);
       })
       .then(setLogoTicket)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLogoListo(true));
   }, []);
 
   async function descargarImagen() {
