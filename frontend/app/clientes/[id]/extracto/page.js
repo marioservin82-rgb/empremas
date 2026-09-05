@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { nombresEmpresa } from "@/lib/encabezadoEmpresa";
+import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -225,7 +226,7 @@ export default function ExtractoCliente() {
 
         <div ref={recuadroRef} className="reporte-imprimible rounded-xl bg-white p-6 shadow">
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
-          <div className="mb-4 hidden print:block">
+          <div className="mb-4">
             {empresa && (
               <>
                 <p className="text-lg font-bold">{nombresEmpresa(empresa).principal}</p>
@@ -236,11 +237,10 @@ export default function ExtractoCliente() {
               </>
             )}
             <p className="mt-2 text-xl font-bold">Extracto de {cliente.nombre}</p>
-            <p className="text-sm text-slate-500">
+            <p className="mb-4 text-sm text-slate-500">
               {textoPeriodo} · Emitido el {fecha(new Date())}
             </p>
           </div>
-          <p className="mb-4 text-sm font-medium text-slate-500 print:hidden">{textoPeriodo}</p>
 
           <div className="mb-4 grid grid-cols-3 gap-3">
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
@@ -349,6 +349,8 @@ export default function ExtractoCliente() {
               </div>
             </div>
           )}
+
+          <PiePublicidadEmpremas />
         </div>
       </div>
     </main>

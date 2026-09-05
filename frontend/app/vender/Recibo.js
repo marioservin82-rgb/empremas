@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
+import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
+import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
+import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -507,7 +510,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl) {
 // Version en texto plano del ticket comun (ticket_comun) - mismo criterio
 // que lineasTicketFacturaLegal, calcado del JSX del componente Recibo de
 // mas abajo.
-function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
+function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma) {
   const fecha = new Date(venta.creadoEn);
   const lineas = [
     ...lineasNombreEmpresa(empresa),
@@ -563,6 +566,7 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial) {
   }
   lineas.push(SEPARADOR, { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" });
   lineas.push(...lineasCierre(venta.tipoPago));
+  lineas.push(SEPARADOR, ...lineasPiePublicidadEmpremas(numeroSoportePlataforma));
   return lineas;
 }
 
@@ -753,6 +757,13 @@ export default function Recibo({
 }) {
   const recuadroRef = useRef(null);
   const yaImprimio = useRef(false);
+  // Se busca una sola vez y se reusa tanto para armar la version ESC/POS
+  // (ticket termico) como la visual - asi nunca puede salir un numero
+  // distinto entre el papel y la pantalla de la misma venta.
+  const [numeroSoportePlataforma, setNumeroSoportePlataforma] = useState(null);
+  useEffect(() => {
+    obtenerNumeroSoportePlataforma().then(setNumeroSoportePlataforma);
+  }, []);
 
   async function descargarImagen() {
     const html2canvas = (await import("html2canvas-pro")).default;
@@ -810,7 +821,7 @@ export default function Recibo({
     } else {
       imprimirTicket(
         empresa.impresora_agente_nombre,
-        lineasTicketComun(empresa, cliente, venta, items, entregaInicial),
+        lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma),
         () => window.print()
       );
     }
@@ -916,6 +927,8 @@ export default function Recibo({
 
         <p className="mt-2 text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
         <CierreTicket tipoPago={venta.tipoPago} />
+
+        <PiePublicidadEmpremas numero={numeroSoportePlataforma} />
       </div>
 
       <div className="flex gap-2">
@@ -925,7 +938,7 @@ export default function Recibo({
               ? window.print()
               : imprimirTicket(
                   empresa.impresora_agente_nombre,
-                  lineasTicketComun(empresa, cliente, venta, items, entregaInicial),
+                  lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma),
                   () => window.print()
                 )
           }

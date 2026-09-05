@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { nombresEmpresa } from "@/lib/encabezadoEmpresa";
+import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -45,6 +47,7 @@ export default function ExtractoProveedor() {
   const recuadroRef = useRef(null);
 
   const [datos, setDatos] = useState(null);
+  const [empresa, setEmpresa] = useState(null);
   const [error, setError] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -72,6 +75,7 @@ export default function ExtractoProveedor() {
       return;
     }
     cargar({});
+    apiFetch("/api/empresas/actual").then(setEmpresa).catch(() => {});
   }, [cargar, router]);
 
   function elegirPeriodo(nombre) {
@@ -227,13 +231,21 @@ export default function ExtractoProveedor() {
 
         <div ref={recuadroRef} className="reporte-imprimible rounded-xl bg-white p-6 shadow">
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
-          <div className="mb-4 hidden print:block">
-            <p className="text-xl font-bold">Extracto de {proveedor.nombre}</p>
-            <p className="text-sm text-slate-500">
+          <div className="mb-4">
+            {empresa && (
+              <>
+                <p className="text-lg font-bold">{nombresEmpresa(empresa).principal}</p>
+                {nombresEmpresa(empresa).secundario && (
+                  <p className="text-sm text-slate-500">{nombresEmpresa(empresa).secundario}</p>
+                )}
+                <p className="text-sm text-slate-500">RUC {empresa.ruc}</p>
+              </>
+            )}
+            <p className="mt-2 text-xl font-bold">Extracto de {proveedor.nombre}</p>
+            <p className="mb-4 text-sm text-slate-500">
               {textoPeriodo} · Emitido el {fecha(new Date())}
             </p>
           </div>
-          <p className="mb-4 text-sm font-medium text-slate-500 print:hidden">{textoPeriodo}</p>
 
           <div className="mb-4 rounded-2xl bg-slate-50 p-5 text-center">
             <p className="text-sm text-slate-400">Le debemos</p>
@@ -304,6 +316,8 @@ export default function ExtractoProveedor() {
               </div>
             </div>
           )}
+
+          <PiePublicidadEmpremas />
         </div>
       </div>
     </main>

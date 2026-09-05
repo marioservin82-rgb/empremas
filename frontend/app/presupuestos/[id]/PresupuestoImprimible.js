@@ -1,8 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
+import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
+import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
+import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Ver mismo comentario en Recibo.js: sin esto, una cantidad entera sale
@@ -11,7 +14,7 @@ const formatoCantidad = new Intl.NumberFormat("es-PY", { minimumFractionDigits: 
 const SEPARADOR = { texto: "--------------------------------" };
 const FIRMA = { texto: "Firma: ______________________", alineacion: "centro" };
 
-function lineasPresupuesto(empresa, presupuesto, fecha) {
+function lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma) {
   const lineas = [
     ...lineasNombreEmpresa(empresa),
     { texto: `RUC ${empresa.ruc}`, alineacion: "centro" },
@@ -40,7 +43,9 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
     },
     { texto: "Precios sujetos a stock disponible", alineacion: "centro" },
     SEPARADOR,
-    FIRMA
+    FIRMA,
+    SEPARADOR,
+    ...lineasPiePublicidadEmpremas(numeroSoportePlataforma)
   );
   return lineas;
 }
@@ -48,6 +53,13 @@ function lineasPresupuesto(empresa, presupuesto, fecha) {
 export default function PresupuestoImprimible({ empresa, presupuesto, accionesExtra }) {
   const recuadroRef = useRef(null);
   const [formato, setFormato] = useState("ticket_comun");
+  // Se busca una sola vez y se reusa tanto para armar la version ESC/POS
+  // (ticket termico) como la visual - asi nunca puede salir un numero
+  // distinto entre el papel y la pantalla del mismo presupuesto.
+  const [numeroSoportePlataforma, setNumeroSoportePlataforma] = useState(null);
+  useEffect(() => {
+    obtenerNumeroSoportePlataforma().then(setNumeroSoportePlataforma);
+  }, []);
 
   async function descargarImagen() {
     const html2canvas = (await import("html2canvas-pro")).default;
@@ -136,6 +148,8 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
           Presupuesto válido hasta el {new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}
         </p>
         <p className="mt-1 text-center text-xs text-slate-400">Precios sujetos a stock disponible</p>
+
+        <PiePublicidadEmpremas numero={numeroSoportePlataforma} />
       </div>
 
       <div className="flex flex-wrap justify-center gap-2">
@@ -143,8 +157,10 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
           onClick={() =>
             esA4
               ? window.print()
-              : imprimirTicket(empresa.impresora_agente_nombre, lineasPresupuesto(empresa, presupuesto, fecha), () =>
-                  window.print()
+              : imprimirTicket(
+                  empresa.impresora_agente_nombre,
+                  lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma),
+                  () => window.print()
                 )
           }
           className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
