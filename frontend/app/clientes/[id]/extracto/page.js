@@ -117,7 +117,7 @@ export default function ExtractoCliente() {
     );
   }
 
-  const { cliente, ventas, cobros, ajustesSaldo } = datos;
+  const { cliente, ventas, cobros, ajustesSaldo, productos } = datos;
   const textoPeriodo = hayFiltros
     ? `Período: ${desde ? fecha(desde) : "…"} – ${hasta ? fecha(hasta) : "…"}`
     : "Historial completo";
@@ -280,6 +280,28 @@ export default function ExtractoCliente() {
                         <p className="text-xs font-semibold text-ink-muted">pendiente Gs {formatoGs.format(v.saldo_pendiente)}</p>
                       )}
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <h2 className="mb-3 font-semibold text-slate-700">Productos comprados en este período</h2>
+            {!productos || productos.length === 0 ? (
+              <p className="text-sm text-slate-400">Sin compras en este período.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-slate-100">
+                {productos.map((p) => (
+                  <div key={p.producto_id} className="flex items-center justify-between py-2 text-sm">
+                    <div>
+                      <span className="font-medium text-slate-700">{p.producto_nombre}</span>{" "}
+                      <span className="text-slate-400">
+                        · {formatoGs.format(p.cantidad_total)} {p.unidad_medida} · {p.veces_comprado}{" "}
+                        {Number(p.veces_comprado) === 1 ? "compra" : "compras"}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-slate-800">Gs {formatoGs.format(p.total_gastado)}</p>
                   </div>
                 ))}
               </div>

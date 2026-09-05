@@ -200,6 +200,24 @@ export async function extractoCliente(req, res) {
         [id, ...valoresFecha]
     );
 
+    // Agregado por producto (no por venta): responde directo "que compro
+    // este cliente en tal periodo" - anulada=false porque una venta
+    // anulada se devolvio, no cuenta como compra real.
+    const productos = await consultaDeEmpresa(
+        empresaId,
+        `SELECT vi.producto_id, p.nombre AS producto_nombre, p.unidad_medida,
+                SUM(vi.cantidad) AS cantidad_total,
+                SUM(vi.subtotal) AS total_gastado,
+                COUNT(DISTINCT vi.venta_id) AS veces_comprado
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id AND v.cliente_id = $1 AND v.anulada = false ${whereFechaVenta}
+         JOIN productos p ON p.id = vi.producto_id
+         GROUP BY vi.producto_id, p.nombre, p.unidad_medida
+         ORDER BY total_gastado DESC
+         LIMIT 500`,
+        [id, ...valoresFecha]
+    );
+
     const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
         (sql, params) => consultaDeEmpresa(empresaId, sql, params),
         empresaId,
@@ -211,6 +229,7 @@ export async function extractoCliente(req, res) {
         ventas: ventas.rows,
         cobros: cobros.rows,
         ajustesSaldo: ajustesSaldo.rows,
+        productos: productos.rows,
     });
 }
 
