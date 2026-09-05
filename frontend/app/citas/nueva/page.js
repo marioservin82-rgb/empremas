@@ -35,6 +35,7 @@ function NuevaCitaContenido() {
   const [busquedaServicio, setBusquedaServicio] = useState("");
   const [resultadosServicio, setResultadosServicio] = useState([]);
   const [servicio, setServicio] = useState(null);
+  const [duracionMinutos, setDuracionMinutos] = useState("");
 
   const [profesionales, setProfesionales] = useState([]);
   const [profesionalId, setProfesionalId] = useState("");
@@ -88,16 +89,15 @@ function NuevaCitaContenido() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busquedaServicioDebounced]);
 
-  const duracionMinutos = servicio ? Number(servicio.duracion_minutos) : 0;
   const horaFin =
-    servicio && fechaHoraInicio
-      ? new Date(new Date(fechaHoraInicio).getTime() + duracionMinutos * 60000).toLocaleTimeString("es-PY", {
+    servicio && fechaHoraInicio && Number(duracionMinutos) > 0
+      ? new Date(new Date(fechaHoraInicio).getTime() + Number(duracionMinutos) * 60000).toLocaleTimeString("es-PY", {
           hour: "2-digit",
           minute: "2-digit",
         })
       : null;
 
-  const puedeConfirmar = cliente && servicio && profesionalId && fechaHoraInicio;
+  const puedeConfirmar = cliente && servicio && profesionalId && fechaHoraInicio && Number(duracionMinutos) > 0;
 
   async function confirmar() {
     setError("");
@@ -110,6 +110,7 @@ function NuevaCitaContenido() {
           productoId: servicio.id,
           profesionalId,
           fechaHoraInicio: new Date(fechaHoraInicio).toISOString(),
+          duracionMinutos: Number(duracionMinutos),
           nota: nota || undefined,
         }),
       });
@@ -181,13 +182,26 @@ function NuevaCitaContenido() {
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
           <p className="mb-3 font-semibold text-slate-700">Servicio</p>
           {servicio ? (
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-slate-800">
-                {servicio.nombre} · {servicio.duracion_minutos} min · Gs {formatoGs.format(servicio.precio_contado)}
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-slate-800">
+                  {servicio.nombre} · Gs {formatoGs.format(servicio.precio_contado)}
+                </p>
+                <button onClick={() => setServicio(null)} className="text-sm font-medium text-red-500 hover:text-red-700">
+                  Quitar
+                </button>
+              </div>
+              <label className="mb-1 mt-3 block text-sm font-medium text-slate-700">Duración aproximada (minutos)</label>
+              <input
+                type="number"
+                min="1"
+                value={duracionMinutos}
+                onChange={(e) => setDuracionMinutos(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Precargada del servicio — ajustala si esta atención en particular va a llevar más o menos tiempo.
               </p>
-              <button onClick={() => setServicio(null)} className="text-sm font-medium text-red-500 hover:text-red-700">
-                Quitar
-              </button>
             </div>
           ) : (
             <div>
@@ -204,6 +218,7 @@ function NuevaCitaContenido() {
                       key={p.id}
                       onClick={() => {
                         setServicio(p);
+                        setDuracionMinutos(String(p.duracion_minutos));
                         setResultadosServicio([]);
                         setBusquedaServicio("");
                       }}

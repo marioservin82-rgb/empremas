@@ -70,13 +70,16 @@ export async function obtenerCita(req, res) {
 
 export async function crearCita(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { clienteId, productoId, profesionalId, fechaHoraInicio, nota } = req.body;
+    const { clienteId, productoId, profesionalId, fechaHoraInicio, nota, duracionMinutos: duracionPedida } = req.body;
 
     if (!clienteId) {
         return res.status(400).json({ error: 'La cita necesita un cliente' });
     }
     if (!fechaHoraInicio) {
         return res.status(400).json({ error: 'La cita necesita fecha y hora' });
+    }
+    if (duracionPedida !== undefined && !(Number(duracionPedida) > 0)) {
+        return res.status(400).json({ error: 'La duración debe ser mayor a 0' });
     }
 
     try {
@@ -104,7 +107,12 @@ export async function crearCita(req, res) {
                 throw new ErrorNegocio('El profesional elegido ya no existe o no está activo');
             }
 
-            const duracionMinutos = producto.duracion_minutos;
+            // Duracion aproximada: por defecto la del catalogo del servicio,
+            // pero editable al reservar - el profesional a veces sabe que
+            // ESTA atencion puntual va a llevar mas o menos tiempo (ej. pelo
+            // muy largo), y la agenda tiene que reflejar el tiempo real para
+            // no solapar la siguiente cita.
+            const duracionMinutos = duracionPedida != null ? Number(duracionPedida) : producto.duracion_minutos;
 
             // Solapamiento: el profesional no puede tener otra cita (no
             // cancelada) que se cruce con el horario pedido. FOR UPDATE no

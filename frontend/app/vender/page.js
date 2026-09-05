@@ -736,6 +736,13 @@ export default function Vender() {
           </div>
         )}
 
+        {citaId && (
+          <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
+            Cobrando la cita de {cliente?.nombre || "el cliente"} — si pidió algún servicio más, buscalo abajo y
+            agregalo antes de confirmar la venta.
+          </div>
+        )}
+
         {carrito.length > 0 && (
           <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur lg:hidden">
             <p className="text-sm font-semibold text-slate-500">Total</p>
