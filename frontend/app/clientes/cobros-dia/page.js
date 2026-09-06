@@ -99,7 +99,7 @@ export default function CobrosDia() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-navy">Cobros a crédito de hoy</h1>
+            <h1 className="text-2xl font-bold text-navy">Cobros de crédito</h1>
           </div>
           {resumen && (
             <button
@@ -164,7 +164,7 @@ export default function CobrosDia() {
           <div className="reporte-imprimible rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <style>{"@page { size: A4; margin: 15mm; }"}</style>
             <div className="mb-4 hidden print:block">
-              <p className="text-xl font-bold">Cobros a crédito del día</p>
+              <p className="text-xl font-bold">Cobros de crédito</p>
               <p className="text-sm text-slate-500">{fechaLegible(resumen.fecha)}</p>
             </div>
 
