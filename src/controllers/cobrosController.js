@@ -2,6 +2,7 @@ import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { calcularCodigoVerificacion } from '../utils/verificacionRecibo.js';
+import { tienePermiso } from '../utils/permisos.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -276,6 +277,64 @@ export async function verificarRecibo(req, res) {
         monto: Number(cobro.monto),
         fecha: cobro.creado_en,
     });
+}
+
+// Todos los cobros a crédito del día, de todos los clientes - mismo
+// espíritu que resumenDia (ventasController.js) pero para cobros en vez de
+// ventas nuevas: el dueño/encargado ve todo (con filtro opcional de
+// sucursal, resuelta vía el turno en el que se registró cada cobro - un
+// cobro no tiene sucursal propia, hereda la del turno abierto de quien lo
+// hizo), un cajero solo ve los suyos.
+export async function cobrosDelDia(req, res) {
+    const { empresaId, usuarioId, rol } = req.usuario;
+    const fecha = req.query.fecha || new Date().toISOString().slice(0, 10);
+    const sucursalIdPedido = req.query.sucursalId || null;
+
+    const puedeVerTodo = rol === 'dueno' || rol === 'encargado' || (await tienePermiso(empresaId, usuarioId, 'ver_reportes'));
+
+    const condiciones = [`c.creado_en >= $1::date`, `c.creado_en < ($1::date + INTERVAL '1 day')`];
+    const valores = [fecha];
+
+    if (!puedeVerTodo) {
+        valores.push(usuarioId);
+        condiciones.push(`c.usuario_id = $${valores.length}`);
+    } else if (sucursalIdPedido) {
+        valores.push(sucursalIdPedido);
+        condiciones.push(`t.sucursal_id = $${valores.length}`);
+    }
+
+    const cobros = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.id, c.numero_recibo, c.monto, c.creado_en, t.sucursal_id,
+                cl.nombre AS cliente_nombre, u.nombre AS usuario_nombre
+         FROM cobros c
+         JOIN clientes cl ON cl.id = c.cliente_id
+         JOIN usuarios u ON u.id = c.usuario_id
+         LEFT JOIN turnos t ON t.id = c.turno_id
+         WHERE ${condiciones.join(' AND ')}
+         ORDER BY c.creado_en ASC`,
+        valores
+    );
+
+    const cobroIds = cobros.rows.map((c) => c.id);
+    let pagos = { rows: [] };
+    if (cobroIds.length > 0) {
+        pagos = await consultaDeEmpresa(
+            empresaId,
+            `SELECT cobro_id, forma_pago, monto FROM cobro_pagos WHERE cobro_id = ANY($1::uuid[])`,
+            [cobroIds]
+        );
+    }
+    const pagosPorCobro = new Map();
+    for (const p of pagos.rows) {
+        if (!pagosPorCobro.has(p.cobro_id)) pagosPorCobro.set(p.cobro_id, []);
+        pagosPorCobro.get(p.cobro_id).push(p);
+    }
+
+    const detalle = cobros.rows.map((c) => ({ ...c, pagos: pagosPorCobro.get(c.id) || [] }));
+    const totalCobrado = cobros.rows.reduce((acumulado, c) => acumulado + Number(c.monto), 0);
+
+    res.json({ fecha, cobros: detalle, totalCobrado, cantidadCobros: cobros.rows.length });
 }
 
 export async function listarCobros(req, res) {
