@@ -461,7 +461,13 @@ function lineasCierre(tipoPago) {
 // (se genera async) qrDataUrl llega vacio y se cae al CDC en texto solo,
 // como respaldo (mismo criterio ya usado en ReciboCobro.js).
 function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl, logoTicket) {
-  const fecha = new Date(venta.creado_en);
+  // venta.creado_en es la fecha de la VENTA original - para una Factura
+  // Legal que salió de convertir un ticket viejo (convertirAFacturaLegal),
+  // eso puede ser de días atrás, aunque SIFEN la haya emitido con fecha de
+  // HOY (el conector siempre manda "ahora" si no se le pasa nada). Se usa
+  // de_creado_en (cuándo se creó ESE documento electrónico) cuando existe,
+  // que sí coincide con lo que SIFEN realmente registró.
+  const fecha = new Date(venta.de_creado_en || venta.creado_en);
   const lineas = [];
   if (logoTicket) lineas.push({ tipo: "imagen", dataUrl: logoTicket, alineacion: "centro" });
   lineas.push(
@@ -608,7 +614,11 @@ function CierreTicket({ tipoPago }) {
 // pública del CDC en e-Kuatia, sirve para verificar que el documento
 // existe, pero no reemplaza al QR oficial del PDF.
 function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
-  const fecha = new Date(venta.creado_en);
+  // Mismo criterio que lineasTicketFacturaLegal: usar la fecha real de
+  // emisión del documento electrónico (de_creado_en) en vez de la fecha de
+  // la venta, para que una conversión de un ticket viejo a Factura Legal
+  // no muestre una fecha vieja en un documento que SIFEN emitió hoy.
+  const fecha = new Date(venta.de_creado_en || venta.creado_en);
   const [qr, setQr] = useState(null);
   const yaImprimio = useRef(false);
 

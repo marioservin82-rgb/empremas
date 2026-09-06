@@ -98,7 +98,11 @@ export default function DetalleVenta() {
 
   const ventaParaRecibo = {
     id: venta.id,
-    creadoEn: venta.creado_en,
+    // de_creado_en (cuándo se creó el documento electrónico) es más preciso
+    // que la fecha de la venta cuando existe - una Factura Legal que salió
+    // de convertir un ticket viejo se emite HOY aunque la venta sea de días
+    // atrás (ver comentario igual en Recibo.js, TicketFacturaLegal).
+    creadoEn: venta.de_creado_en || venta.creado_en,
     numeroTicket: venta.numero_ticket,
     total: Number(venta.total),
     vuelto: Number(venta.vuelto || 0),

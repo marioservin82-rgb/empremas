@@ -1237,7 +1237,7 @@ export async function obtenerVenta(req, res) {
                 c.direccion AS cliente_direccion, c.es_generico AS cliente_es_generico,
                 u.nombre AS anulada_por_nombre,
                 de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.numero_formateado AS de_numero_formateado,
-                de.mensaje_error AS de_mensaje_error, de.intento AS de_intento,
+                de.mensaje_error AS de_mensaje_error, de.intento AS de_intento, de.creado_en AS de_creado_en,
                 de.cancelado_en_sifen AS de_cancelado_en_sifen, de.cancelacion_mensaje AS de_cancelacion_mensaje,
                 de.gravado_5, de.gravado_10, de.exentas AS de_exentas,
                 de.iva_5, de.iva_10, de.total_iva
