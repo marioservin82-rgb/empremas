@@ -864,19 +864,34 @@ export default function Recibo({
   // que el cajero tenga que tocar el botón - una sola vez por venta, para
   // que reabrir esta misma pantalla despues (reimpresión, /ventas/:id)
   // nunca dispare un dialogo de impresion sin que lo pidan.
+  //
+  // Espera a que el logo este listo (async, casi instantaneo) para que el
+  // agente de impresion mande la imagen real en vez de imprimir sin ella -
+  // con un limite de seguridad de 3s: si por lo que sea nunca llega, se
+  // imprime igual sin el, para no dejar el ticket sin imprimir. Mismo
+  // criterio ya usado en TicketFacturaLegal (arriba) para el QR+logo.
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
-    yaImprimio.current = true;
-    if (esA4) {
-      window.print();
-    } else {
-      imprimirTicket(
-        empresa.impresora_agente_nombre,
-        lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket),
-        () => window.print()
-      );
+    const imprimir = () => {
+      yaImprimio.current = true;
+      if (esA4) {
+        window.print();
+      } else {
+        imprimirTicket(
+          empresa.impresora_agente_nombre,
+          lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket),
+          () => window.print()
+        );
+      }
+    };
+    if (!logoListo) {
+      const limite = setTimeout(() => {
+        if (!yaImprimio.current) imprimir();
+      }, 3000);
+      return () => clearTimeout(limite);
     }
-  }, [autoImprimir]);
+    imprimir();
+  }, [autoImprimir, logoListo]);
 
   return (
     <div className="flex flex-col items-center gap-4 py-6">
