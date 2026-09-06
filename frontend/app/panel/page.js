@@ -320,7 +320,7 @@ export default function Panel() {
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
-          secundarios.push({ nombre: "Cobros de crédito", icono: "💵", href: "/clientes/cobros-dia" });
+          secundarios.push({ nombre: "Crédito cobrado", icono: "💵", href: "/clientes/cobros-dia" });
         }
         // Traslados/pedidos entre sucursales: sin sentido con una sola
         // sucursal. Mismo criterio de rol que Ajuste de Inventario
