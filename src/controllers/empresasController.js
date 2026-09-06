@@ -1,5 +1,6 @@
 import pool, { transaccionDeEmpresa } from '../config/db.js';
 import { efectivoDisponibleActual } from './turnosController.js';
+import { actualizarTenant as actualizarTenantConector } from '../services/conectorSifen.js';
 
 export async function obtenerEmpresaActual(req, res) {
     const { empresaId } = req.usuario;
@@ -114,8 +115,25 @@ export async function actualizarLogo(req, res) {
         return res.status(400).json({ error: 'El logo es demasiado pesado (máximo ~2MB)' });
     }
 
-    await pool.query(`UPDATE empresas SET logo = $2 WHERE id = $1`, [empresaId, logo]);
+    const resultado = await pool.query(
+        `UPDATE empresas SET logo = $2 WHERE id = $1 RETURNING sifen_conector_tenant_id`,
+        [empresaId, logo]
+    );
     res.json({ logo: logo ?? null });
+
+    // Sincroniza el logo al conector para que aparezca también en la Hoja A4
+    // de la Factura Electrónica (parámetro LOGO_URL del KuDE) - best-effort:
+    // si el conector no responde, no debe romper el guardado del logo acá
+    // (que ya se confirmó arriba), solo queda desincronizado hasta el próximo
+    // cambio de logo.
+    const tenantId = resultado.rows[0]?.sifen_conector_tenant_id;
+    if (tenantId) {
+        try {
+            await actualizarTenantConector(tenantId, { logo: logo ?? '' });
+        } catch (error) {
+            console.error('[SIFEN] no se pudo sincronizar el logo al conector', error);
+        }
+    }
 }
 
 // Config de facturacion electronica (SIFEN via Sifende). La API key
