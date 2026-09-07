@@ -245,7 +245,8 @@ CREATE TYPE permiso_extra AS ENUM (
     'anular_sin_pin',
     'gestionar_produccion',
     'gestionar_comisiones',
-    'gestionar_citas'
+    'gestionar_citas',
+    'aplicar_descuentos'
 );
 
 CREATE TABLE usuario_permisos (
@@ -881,6 +882,11 @@ CREATE TABLE ventas (
     -- si no el que eligio el cajero al vender. NULL = sin comision para
     -- nadie.
     vendedor_id     UUID REFERENCES vendedores(id),
+    -- Quien autorizo el/los descuento(s) manuales de esta venta (si tiene
+    -- alguno - ver venta_items.descuento_monto), mismo criterio que
+    -- anulada_por: el propio usuario si es dueno/encargado/cajero con el
+    -- permiso 'aplicar_descuentos', o el supervisor que dio el PIN.
+    descuento_autorizado_por UUID REFERENCES usuarios(id),
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -920,7 +926,13 @@ CREATE TABLE venta_items (
     -- - si despues cambia el % del vendedor o la lista de comision fija,
     -- las ventas ya hechas no se recalculan solas. 0 si la venta no
     -- tiene vendedor atribuido.
-    comision_monto  NUMERIC(14,2) NOT NULL DEFAULT 0
+    comision_monto  NUMERIC(14,2) NOT NULL DEFAULT 0,
+    -- Descuento manual aplicado a esta linea (ej. "regalo" de cumpleanos en
+    -- un salon de belleza) - se resta del subtotal, precio_unitario queda
+    -- intacto (para reportes/estadisticas de precio real de catalogo). Nunca
+    -- puede superar precio_unitario * cantidad (se capea en crearVenta).
+    descuento_monto  NUMERIC(14,2) NOT NULL DEFAULT 0,
+    descuento_motivo TEXT
 );
 
 CREATE INDEX idx_ventas_empresa ON ventas (empresa_id);

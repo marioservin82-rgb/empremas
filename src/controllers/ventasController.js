@@ -147,6 +147,11 @@ async function emitirYActualizarDe({
 // efectivo puede generar vuelto, porque no tiene sentido "dar vuelto" en
 // tarjeta o transferencia.
 export function calcularVuelto(pagos, total) {
+    // Venta totalmente descontada (ej. regalo de cumpleaños en un salón de
+    // belleza): no hay nada que cobrar, no hace falta elegir forma de pago.
+    if (total === 0 && (!Array.isArray(pagos) || pagos.length === 0)) {
+        return 0;
+    }
     if (!Array.isArray(pagos) || pagos.length === 0) {
         throw new ErrorNegocio('Elegí la forma de cobro: efectivo, transferencia, tarjeta de crédito o débito');
     }
@@ -194,8 +199,9 @@ function validarYSumarPagos(pagos) {
 }
 
 export async function crearVenta(req, res) {
-    const { empresaId, usuarioId, sucursalId } = req.usuario;
-    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId } = req.body;
+    const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
+    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId, pin } =
+        req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
     if (!COLUMNA_PRECIO[tipoPago]) {
@@ -209,6 +215,11 @@ export async function crearVenta(req, res) {
     }
     if (!TIPOS_COMPROBANTE_DISPONIBLES.includes(comprobante) && comprobante !== 'factura_legal') {
         return res.status(400).json({ error: 'tipoComprobante debe ser ticket_comun, a4, sin_comprobante o factura_legal' });
+    }
+    for (const it of items || []) {
+        if (Number(it.descuentoMonto) > 0 && !String(it.descuentoMotivo || '').trim()) {
+            return res.status(400).json({ error: 'Un descuento necesita un motivo' });
+        }
     }
 
     let deParaEmitir = null;
@@ -344,10 +355,51 @@ export async function crearVenta(req, res) {
                 }
             }
 
+            // Descuento manual por linea (ej. "regalo" de cumpleanos en un
+            // salon de belleza: la cita ocupa el horario pero no entra
+            // efectivo en caja - ver venta_items.descuento_monto). Si algun
+            // item trae descuentoMonto > 0, se autoriza UNA sola vez para
+            // toda la venta, mismo criterio que anularVenta: dueno/encargado
+            // o cajero con el permiso 'aplicar_descuentos' lo hacen directo,
+            // el resto necesita el PIN de un dueno/encargado activo.
+            const tieneDescuento = items.some((it) => Number(it.descuentoMonto) > 0);
+            let descuentoAutorizadoPor = null;
+            if (tieneDescuento) {
+                descuentoAutorizadoPor = usuarioId;
+                if (rol === 'cajero' && !(await tienePermiso(empresaId, usuarioId, 'aplicar_descuentos'))) {
+                    if (!pin) {
+                        throw new ErrorNegocio('Necesitás el PIN de un dueño o encargado para aplicar un descuento');
+                    }
+                    const supervisores = await cliente.query(
+                        `SELECT id, pin_hash FROM usuarios
+                         WHERE empresa_id = $1 AND rol IN ('dueno', 'encargado') AND activo = true AND pin_hash IS NOT NULL`,
+                        [empresaId]
+                    );
+                    let coincidencia = null;
+                    for (const s of supervisores.rows) {
+                        if (await bcrypt.compare(pin, s.pin_hash)) {
+                            coincidencia = s.id;
+                            break;
+                        }
+                    }
+                    if (!coincidencia) {
+                        throw new ErrorNegocio('PIN de autorización incorrecto');
+                    }
+                    descuentoAutorizadoPor = coincidencia;
+                }
+            }
+
             // FOR UPDATE: bloquea la fila de stock (de esta sucursal) hasta
             // que termine la transaccion, asi dos ventas al mismo tiempo no
             // descuentan el mismo stock dos veces sin verlo.
-            for (const { productoId, cantidad, precioUnitario: precioDelPresupuesto, esMayorista } of items) {
+            for (const {
+                productoId,
+                cantidad,
+                precioUnitario: precioDelPresupuesto,
+                esMayorista,
+                descuentoMonto,
+                descuentoMotivo,
+            } of items) {
                 if (!(cantidad > 0)) {
                     throw new ErrorNegocio('La cantidad debe ser mayor a cero');
                 }
@@ -444,7 +496,15 @@ export async function crearVenta(req, res) {
                 if (!precioYaCongelado && beneficios.descuentoPct > 0) {
                     precioUnitario = Math.round(precioUnitario * (1 - beneficios.descuentoPct / 100));
                 }
-                const subtotal = precioUnitario * cantidad;
+                const subtotalBruto = precioUnitario * cantidad;
+                // Descuento manual (ver arriba, tieneDescuento/descuentoAutorizadoPor)
+                // - a diferencia del descuento automatico de categoria, este
+                // SI puede aplicarse sobre un precio ya congelado de
+                // presupuesto/cita: es una decision puntual del cajero/dueno
+                // en el momento, no un beneficio que corre solo. Nunca puede
+                // superar el valor de la linea (evita un subtotal negativo).
+                const descuentoAplicado = Math.min(Number(descuentoMonto) || 0, subtotalBruto);
+                const subtotal = subtotalBruto - descuentoAplicado;
                 total += subtotal;
 
                 // Comision congelada de esta linea (ver venta_items.comision_monto):
@@ -472,6 +532,8 @@ export async function crearVenta(req, res) {
                     costoUnitario: Number(producto.precio_costo),
                     esMayorista: usaMayoristaPorItem,
                     comisionMonto,
+                    descuentoMonto: descuentoAplicado,
+                    descuentoMotivo: descuentoAplicado > 0 ? String(descuentoMotivo).trim() : null,
                     subtotal,
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,
@@ -555,8 +617,8 @@ export async function crearVenta(req, res) {
             const numeroTicket = numeroResultado.rows[0].numero;
 
             const ventaInsertada = await cliente.query(
-                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id, descuento_autorizado_por)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                  RETURNING id, creado_en`,
                 [
                     empresaId,
@@ -574,6 +636,7 @@ export async function crearVenta(req, res) {
                     presupuestoId || null,
                     vendedorIdFinal,
                     citaId || null,
+                    descuentoAutorizadoPor,
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;
@@ -590,8 +653,8 @@ export async function crearVenta(req, res) {
 
             for (const item of itemsCalculados) {
                 await cliente.query(
-                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal, costo_unitario, es_mayorista, comision_monto)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                    `INSERT INTO venta_items (empresa_id, venta_id, producto_id, cantidad, precio_unitario, subtotal, costo_unitario, es_mayorista, comision_monto, descuento_monto, descuento_motivo)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
                     [
                         empresaId,
                         ventaId,
@@ -602,6 +665,8 @@ export async function crearVenta(req, res) {
                         item.costoUnitario,
                         item.esMayorista,
                         item.comisionMonto,
+                        item.descuentoMonto,
+                        item.descuentoMotivo,
                     ]
                 );
                 // Producto compuesto: nunca se toca su propio stock (no
@@ -943,7 +1008,7 @@ export async function convertirAFacturaLegal(req, res) {
             );
 
             const itemsResultado = await cliente.query(
-                `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", p.nombre, p.tasa_iva
+                `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", vi.subtotal, p.nombre, p.tasa_iva
                  FROM venta_items vi JOIN productos p ON p.id = vi.producto_id WHERE vi.venta_id = $1`,
                 [ventaId]
             );

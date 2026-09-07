@@ -69,6 +69,16 @@ function precioDe(item, tipoPago, beneficios) {
   return precio;
 }
 
+// Subtotal de una línea, restando el descuento manual (ver botón
+// "Descuento" en el carrito) - a diferencia del descuento automático de
+// categoría, este SÍ se le puede aplicar a un item con precioFijo (una
+// cita/presupuesto), es una decisión puntual del cajero/dueño, no un
+// beneficio que corre solo. Nunca queda negativo.
+function subtotalDe(item, tipoPago, beneficios) {
+  const bruto = precioDe(item, tipoPago, beneficios) * item.cantidad;
+  return Math.max(bruto - (Number(item.descuentoMonto) || 0), 0);
+}
+
 export default function Vender() {
   const router = useRouter();
   const [listo, setListo] = useState(false);
@@ -506,8 +516,48 @@ export default function Vender() {
     setCarrito((actual) => actual.filter((i) => i.productoId !== productoId));
   }
 
+  // Descuento manual por línea (ej. "regalo" de cumpleaños en un salón de
+  // belleza: la cita ocupa el horario pero no entra efectivo en caja) - un
+  // solo editor abierto a la vez, identificado por productoId. Se guarda
+  // recién al tocar "Aplicar", no en cada tecla, para no mandar un
+  // descuento a medio escribir si el cajero cambia de idea.
+  const [descuentoAbierto, setDescuentoAbierto] = useState(null);
+  const [descuentoMontoTexto, setDescuentoMontoTexto] = useState("");
+  const [descuentoMotivoTexto, setDescuentoMotivoTexto] = useState("");
+  const [pinDescuento, setPinDescuento] = useState("");
+
+  function abrirDescuento(item) {
+    setDescuentoAbierto(item.productoId);
+    setDescuentoMontoTexto(item.descuentoMonto ? String(item.descuentoMonto) : "");
+    setDescuentoMotivoTexto(item.descuentoMotivo || "");
+  }
+
+  function marcarComoRegalo(item) {
+    setDescuentoMontoTexto(String(Math.round(precioDe(item, tipoPago, cliente?.categoriaCliente) * item.cantidad)));
+    setDescuentoMotivoTexto((actual) => actual || "Regalo");
+  }
+
+  function aplicarDescuento(productoId) {
+    const monto = Number(descuentoMontoTexto) || 0;
+    setCarrito((actual) =>
+      actual.map((i) =>
+        i.productoId === productoId
+          ? { ...i, descuentoMonto: monto, descuentoMotivo: monto > 0 ? descuentoMotivoTexto.trim() : null }
+          : i
+      )
+    );
+    setDescuentoAbierto(null);
+  }
+
+  function quitarDescuento(productoId) {
+    setCarrito((actual) =>
+      actual.map((i) => (i.productoId === productoId ? { ...i, descuentoMonto: 0, descuentoMotivo: null } : i))
+    );
+    setDescuentoAbierto(null);
+  }
+
   const total = carrito.reduce(
-    (acumulado, i) => acumulado + precioDe(i, tipoPago, cliente?.categoriaCliente) * i.cantidad,
+    (acumulado, i) => acumulado + subtotalDe(i, tipoPago, cliente?.categoriaCliente),
     0
   );
 
@@ -534,7 +584,10 @@ export default function Vender() {
   }
 
   const puedeAgregarProductos = tipoPago !== "credito" || cliente;
-  const puedeConfirmar = carrito.length > 0 && (tipoPago === "credito" || (pagos.length > 0 && restante <= 0));
+  // total === 0 (venta totalmente descontada, ej. regalo de cumpleaños): no
+  // hay nada que cobrar, se puede confirmar directo sin elegir forma de pago.
+  const puedeConfirmar =
+    carrito.length > 0 && (tipoPago === "credito" || total === 0 || (pagos.length > 0 && restante <= 0));
 
   // pagosParaEnviar por parametro (en vez de leer el estado "pagos"
   // directo) porque el cierre rapido (Ctrl+Enter) agrega el pago en
@@ -563,11 +616,14 @@ export default function Vender() {
           clienteId: cliente?.id,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
           pagos: pagosParaEnviar,
+          pin: pinDescuento || undefined,
           items: carrito.map((i) => ({
             productoId: i.productoId,
             cantidad: i.cantidad,
             precioUnitario: i.precioFijo,
             esMayorista: i.esMayorista,
+            descuentoMonto: i.descuentoMonto || 0,
+            descuentoMotivo: i.descuentoMotivo || undefined,
           })),
         }),
       });
@@ -585,6 +641,8 @@ export default function Vender() {
           precioUnitario: precioDe(i, tipoPago, cliente?.categoriaCliente),
           unidadMedida: i.unidadMedida,
           esMayorista: tipoPago === "contado" && !!i.esMayorista,
+          descuentoMonto: i.descuentoMonto || 0,
+          descuentoMotivo: i.descuentoMotivo || null,
         })),
       });
     } catch (err) {
@@ -1006,38 +1064,107 @@ export default function Vender() {
             ) : (
               <div className="flex flex-col divide-y divide-slate-100">
                 {carrito.map((i) => (
-                  <div key={i.productoId} className="flex items-center gap-3 py-3">
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-800">{i.nombre}</p>
-                      <p className="text-sm text-slate-400">
-                        Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente))} / {i.unidadMedida}
-                        {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
+                  <div key={i.productoId} className="py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-800">{i.nombre}</p>
+                        <p className="text-sm text-slate-400">
+                          Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente))} / {i.unidadMedida}
+                          {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {tipoPago === "contado" && i.precioFijo == null && (
+                            <button
+                              onClick={() => alternarMayorista(i.productoId)}
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold transition ${
+                                i.esMayorista ? "bg-navy text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {i.esMayorista ? "✓ A precio mayorista" : "Vender a precio mayorista"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => abrirDescuento(i)}
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold transition ${
+                              i.descuentoMonto > 0
+                                ? "bg-brand text-white"
+                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                            }`}
+                          >
+                            {i.descuentoMonto > 0 ? `🏷️ -Gs ${formatoGs.format(i.descuentoMonto)}` : "🏷️ Descuento"}
+                          </button>
+                        </div>
+                        {i.descuentoMonto > 0 && i.descuentoMotivo && (
+                          <p className="mt-0.5 text-xs text-slate-400">Motivo: {i.descuentoMotivo}</p>
+                        )}
+                      </div>
+                      <CampoCantidad
+                        value={i.cantidad}
+                        onChange={(valor) => cambiarCantidad(i.productoId, valor)}
+                        className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
+                      />
+                      <p className="w-28 text-right font-bold text-slate-800">
+                        Gs {formatoGs.format(subtotalDe(i, tipoPago, cliente?.categoriaCliente))}
                       </p>
-                      {tipoPago === "contado" && i.precioFijo == null && (
-                        <button
-                          onClick={() => alternarMayorista(i.productoId)}
-                          className={`mt-1 rounded-full px-2 py-0.5 text-xs font-semibold transition ${
-                            i.esMayorista ? "bg-navy text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                          }`}
-                        >
-                          {i.esMayorista ? "✓ A precio mayorista" : "Vender a precio mayorista"}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => quitarDelCarrito(i.productoId)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <CampoCantidad
-                      value={i.cantidad}
-                      onChange={(valor) => cambiarCantidad(i.productoId, valor)}
-                      className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
-                    />
-                    <p className="w-28 text-right font-bold text-slate-800">
-                      Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente) * i.cantidad)}
-                    </p>
-                    <button
-                      onClick={() => quitarDelCarrito(i.productoId)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      ✕
-                    </button>
+
+                    {descuentoAbierto === i.productoId && (
+                      <div className="mt-2 rounded-xl bg-slate-50 p-3">
+                        <label className="mb-1 block text-xs font-medium text-slate-500">Descuento (Gs)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={descuentoMontoTexto}
+                          onChange={(e) => setDescuentoMontoTexto(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                          placeholder="0"
+                        />
+                        <button
+                          onClick={() => marcarComoRegalo(i)}
+                          className="mt-2 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand hover:bg-brand/20"
+                        >
+                          🎁 Regalo — sin cargo
+                        </button>
+                        <label className="mb-1 mt-2 block text-xs font-medium text-slate-500">
+                          Motivo del descuento
+                        </label>
+                        <input
+                          value={descuentoMotivoTexto}
+                          onChange={(e) => setDescuentoMotivoTexto(e.target.value)}
+                          placeholder="Ej: Regalo de cumpleaños"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                        />
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => aplicarDescuento(i.productoId)}
+                            disabled={Number(descuentoMontoTexto) > 0 && !descuentoMotivoTexto.trim()}
+                            className="flex-1 rounded-xl bg-navy py-2 font-semibold text-white hover:bg-navy-2 disabled:opacity-50"
+                          >
+                            Aplicar
+                          </button>
+                          {i.descuentoMonto > 0 && (
+                            <button
+                              onClick={() => quitarDescuento(i.productoId)}
+                              className="rounded-xl bg-slate-200 px-3 py-2 font-semibold text-slate-600 hover:bg-slate-300"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setDescuentoAbierto(null)}
+                            className="rounded-xl px-3 py-2 font-semibold text-slate-500 hover:text-slate-700"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1320,6 +1447,10 @@ export default function Vender() {
                           ? "Se cobra todo ahora — no queda saldo fiado"
                           : "Total cubierto"}
                       </p>
+                    ) : total === 0 && carrito.length > 0 ? (
+                      <p className="text-sm font-semibold text-brand">
+                        🎁 Venta totalmente descontada — no hay nada para cobrar
+                      </p>
                     ) : null}
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
@@ -1363,6 +1494,24 @@ export default function Vender() {
                   <p className="text-lg font-semibold text-slate-600">Total</p>
                   <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                 </div>
+
+                {carrito.some((i) => i.descuentoMonto > 0) && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-500">
+                      PIN de autorización del descuento (dueño/encargado)
+                    </label>
+                    <input
+                      value={pinDescuento}
+                      onChange={(e) => setPinDescuento(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="Dejalo vacío si sos dueño/encargado"
+                      inputMode="numeric"
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">
+                      Si sos cajero, pedile el PIN a un dueño o encargado para aplicar el descuento.
+                    </p>
+                  </div>
+                )}
 
                 {error && (
                   <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

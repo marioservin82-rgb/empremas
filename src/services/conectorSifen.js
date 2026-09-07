@@ -325,7 +325,7 @@ export async function resolverReceptor({ cliente, tenantId }) {
 }
 
 // Traduce una venta de EMPREMAS a la forma que espera POST /v1/documentos/factura.
-// `cliente`: { nombre, documento, es_generico }.  `items`: [{ nombre, cantidad, precioUnitario, tasa_iva }].
+// `cliente`: { nombre, documento, es_generico }.  `items`: [{ nombre, cantidad, precioUnitario, tasa_iva, subtotal? }].
 // `venta`: { tipoPago, pagos, plazoCreditoDias, vencimiento }.
 // `receptor` (opcional): ya resuelto por resolverReceptor(); si no viene se usa la heurística.
 export function mapearVentaAConector({ venta, items, cliente, receptor }) {
@@ -335,7 +335,16 @@ export function mapearVentaAConector({ venta, items, cliente, receptor }) {
         descripcion: it.nombre || 'Producto',
         cantidad: Number(it.cantidad),
         unidadMedida: 77, // Unidad
-        precioUnitario: Math.round(Number(it.precioUnitario)),
+        // Si el item tiene un descuento manual aplicado (ver
+        // ventasController.js, venta_items.descuento_monto), subtotal ya
+        // viene neto de ese descuento - se manda el precio unitario
+        // EFECTIVO (subtotal / cantidad) en vez del de catalogo, para que
+        // la Factura Electrónica refleje lo que realmente se cobró sin
+        // depender de un campo "descuento" aparte en el conector.
+        precioUnitario:
+            it.subtotal != null && Number(it.cantidad) > 0
+                ? Math.round(Number(it.subtotal) / Number(it.cantidad))
+                : Math.round(Number(it.precioUnitario)),
         ivaTasa: [0, 5, 10].includes(Number(it.tasa_iva)) ? Number(it.tasa_iva) : 10,
     }));
 

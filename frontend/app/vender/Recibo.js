@@ -495,10 +495,18 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl, log
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
     const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
+    const bruto = i.precioUnitario * i.cantidad;
+    const descuento = Number(i.descuentoMonto) || 0;
     lineas.push(
       { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
-      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(bruto)}` }
     );
+    if (descuento > 0) {
+      lineas.push(
+        { texto: `  Descuento${i.descuentoMotivo ? ` (${i.descuentoMotivo})` : ""}: -Gs ${formatoGs.format(descuento)}` },
+        { texto: `  Neto: Gs ${formatoGs.format(bruto - descuento)}`, negrita: true }
+      );
+    }
   }
   lineas.push(SEPARADOR);
   for (const fila of filasDesgloseIVA(venta)) {
@@ -545,10 +553,18 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numer
   lineas.push(SEPARADOR);
   for (const i of items) {
     const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
+    const bruto = i.precioUnitario * i.cantidad;
+    const descuento = Number(i.descuentoMonto) || 0;
     lineas.push(
       { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
-      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(i.precioUnitario * i.cantidad)}` }
+      { texto: `Gs ${formatoGs.format(i.precioUnitario)} c/u   Gs ${formatoGs.format(bruto)}` }
     );
+    if (descuento > 0) {
+      lineas.push(
+        { texto: `  Descuento${i.descuentoMotivo ? ` (${i.descuentoMotivo})` : ""}: -Gs ${formatoGs.format(descuento)}` },
+        { texto: `  Neto: Gs ${formatoGs.format(bruto - descuento)}`, negrita: true }
+      );
+    }
   }
   lineas.push(SEPARADOR, { texto: `Total: Gs ${formatoGs.format(venta.total)}`, negrita: true });
   for (const p of venta.pagos ?? []) {
@@ -741,6 +757,12 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
               <span>Gs {formatoGs.format(i.precioUnitario * i.cantidad)}</span>
             </div>
+            {Number(i.descuentoMonto) > 0 && (
+              <div className="flex justify-between text-sm text-brand">
+                <span>Descuento{i.descuentoMotivo ? ` (${i.descuentoMotivo})` : ""}</span>
+                <span>-Gs {formatoGs.format(i.descuentoMonto)}</span>
+              </div>
+            )}
           </div>
         ))}
 
@@ -959,6 +981,12 @@ export default function Recibo({
                 Gs {formatoGs.format(i.precioUnitario * i.cantidad)}
               </span>
             </div>
+            {Number(i.descuentoMonto) > 0 && (
+              <div className="flex justify-between text-sm text-brand">
+                <span>Descuento{i.descuentoMotivo ? ` (${i.descuentoMotivo})` : ""}</span>
+                <span>-Gs {formatoGs.format(i.descuentoMonto)}</span>
+              </div>
+            )}
           </div>
         ))}
 

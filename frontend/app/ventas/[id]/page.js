@@ -119,6 +119,8 @@ export default function DetalleVenta() {
     precioUnitario: Number(i.precio_unitario),
     unidadMedida: i.unidad_medida,
     esMayorista: i.es_mayorista,
+    descuentoMonto: Number(i.descuento_monto || 0),
+    descuentoMotivo: i.descuento_motivo,
   }));
 
   const mensajeWhatsapp = `Hola ${cliente.nombre}, te paso el comprobante de tu compra en ${empresaInfo.razon_social} por Gs ${formatoGs.format(venta.total)}. (Adjunto la imagen del comprobante)`;
