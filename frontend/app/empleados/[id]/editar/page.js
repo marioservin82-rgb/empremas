@@ -12,6 +12,7 @@ const PERMISOS_DISPONIBLES = [
   { valor: "gestionar_compras", etiqueta: "Gestionar compras", descripcion: "Registrar compras, crear/editar proveedores, pagarles." },
   { valor: "gestionar_clientes", etiqueta: "Gestionar clientes", descripcion: "Crear y editar clientes." },
   { valor: "anular_sin_pin", etiqueta: "Anular ventas sin PIN", descripcion: "No necesita el PIN de un dueño/encargado para anular una venta." },
+  { valor: "aplicar_descuentos", etiqueta: "Aplicar descuentos sin PIN", descripcion: "No necesita el PIN de un dueño/encargado para aplicar un descuento (o regalar) en una venta." },
 ];
 
 export default function EditarEmpleado() {
