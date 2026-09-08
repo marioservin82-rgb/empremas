@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { TEXTO_LEGAL_POR_DEFECTO } from "@/lib/reparaciones";
 
 const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
@@ -47,6 +48,7 @@ export default function PerfilEmpresa() {
   const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
+  const [reparacionesNotaLegal, setReparacionesNotaLegal] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -74,6 +76,7 @@ export default function PerfilEmpresa() {
         setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
+        setReparacionesNotaLegal(e.reparaciones_nota_legal || "");
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -191,6 +194,7 @@ export default function PerfilEmpresa() {
           email: email || null,
           sifenCertVencimiento: certVencimiento || null,
           sifenCertNota: certNota || null,
+          reparacionesNotaLegal,
         }),
       });
       setEmpresa((actual) => ({ ...actual, ...actualizado }));
@@ -303,7 +307,10 @@ export default function PerfilEmpresa() {
             />
           </div>
 
-          {(empresa.produccion_habilitada || empresa.lomiteria_habilitada || empresa.citas_habilitadas) && (
+          {(empresa.produccion_habilitada ||
+            empresa.lomiteria_habilitada ||
+            empresa.citas_habilitadas ||
+            empresa.reparaciones_habilitadas) && (
             <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
               <p className="font-semibold text-slate-800">Módulos activos</p>
               <p className="mt-1 text-sm text-slate-400">
@@ -311,11 +318,29 @@ export default function PerfilEmpresa() {
                   empresa.produccion_habilitada && "Producción",
                   empresa.lomiteria_habilitada && "Lomitería / Restaurante",
                   empresa.citas_habilitadas && "Agenda de citas",
+                  empresa.reparaciones_habilitadas && "Nota de Recepción",
                 ]
                   .filter(Boolean)
                   .join(" · ")}{" "}
                 — los gestiona EMPREMAS. Escribinos si querés activar o desactivar alguno.
               </p>
+
+              {empresa.reparaciones_habilitadas && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <label className={etiqueta}>Texto legal de la Nota de Recepción</label>
+                  <textarea
+                    value={reparacionesNotaLegal}
+                    onChange={(e) => setReparacionesNotaLegal(e.target.value)}
+                    className={campo}
+                    rows={4}
+                    placeholder={TEXTO_LEGAL_POR_DEFECTO}
+                  />
+                  <p className="mb-0 -mt-2 text-xs text-slate-400">
+                    Se imprime al pie de cada Nota de Recepción. Dejalo vacío para usar el texto por defecto —
+                    revisalo con un abogado si te importa el detalle legal, esto no es asesoría legal de EMPREMAS.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

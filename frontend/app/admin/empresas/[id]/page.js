@@ -318,6 +318,12 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.citas_habilitadas}
             onCambiar={(v) => guardarModulo("citasHabilitada", v)}
           />
+          <ModuloToggle
+            titulo="Módulo de Nota de Recepción"
+            descripcion="Locales de reparación de celulares/electrodomésticos: recibir un equipo con el estado y el comentario del cliente, e imprimir la nota firmada."
+            activo={!!empresa.reparaciones_habilitadas}
+            onCambiar={(v) => guardarModulo("reparacionesHabilitada", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

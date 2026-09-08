@@ -43,6 +43,7 @@ export default function Panel() {
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
   const [citasHabilitada, setCitasHabilitada] = useState(false);
+  const [reparacionesHabilitada, setReparacionesHabilitada] = useState(false);
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
   const [pedidosPendientes, setPedidosPendientes] = useState(0);
@@ -64,6 +65,7 @@ export default function Panel() {
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setLomiteriaHabilitada(!!e.lomiteria_habilitada);
         setCitasHabilitada(!!e.citas_habilitadas);
+        setReparacionesHabilitada(!!e.reparaciones_habilitadas);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -317,6 +319,11 @@ export default function Panel() {
         // tambien reserva/cobra citas), igual de abierto que Vender.
         if (citasHabilitada) {
           secundarios.push({ nombre: "Agenda de citas", icono: "📅", href: "/citas" });
+        }
+        // Modulo de Nota de Recepcion: visible a cualquier rol (cualquier
+        // cajero puede recibir un equipo), igual de abierto que Vender/Citas.
+        if (reparacionesHabilitada) {
+          secundarios.push({ nombre: "Nota de Recepción", icono: "🔧", href: "/reparaciones" });
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });

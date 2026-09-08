@@ -200,8 +200,10 @@ function validarYSumarPagos(pagos) {
 
 export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
-    const { clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId, pin } =
-        req.body;
+    const {
+        clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
+        reparacionId, pin,
+    } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
     if (!COLUMNA_PRECIO[tipoPago]) {
@@ -624,8 +626,8 @@ export async function crearVenta(req, res) {
             const numeroTicket = numeroResultado.rows[0].numero;
 
             const ventaInsertada = await cliente.query(
-                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id, descuento_autorizado_por)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id, descuento_autorizado_por, reparacion_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                  RETURNING id, creado_en`,
                 [
                     empresaId,
@@ -644,6 +646,13 @@ export async function crearVenta(req, res) {
                     vendedorIdFinal,
                     citaId || null,
                     descuentoAutorizadoPor,
+                    // A diferencia de citaId, reparacionId NO se valida (sin
+                    // SELECT...FOR UPDATE, sin chequeo de estado, sin marcar
+                    // "ya usado") ni pisa precioYaCongelado - una reparacion
+                    // nunca congela precio (recien se sabe al diagnosticar) y
+                    // se puede cobrar mas de una vez (anticipo + saldo, etc.).
+                    // Es solo trazabilidad: se confia el valor tal cual llega.
+                    reparacionId || null,
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;

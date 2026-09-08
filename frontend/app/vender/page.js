@@ -87,6 +87,7 @@ export default function Vender() {
   const [tipoComprobante, setTipoComprobante] = useState("ticket_comun");
   const [presupuestoId, setPresupuestoId] = useState(null);
   const [citaId, setCitaId] = useState(null);
+  const [reparacionId, setReparacionId] = useState(null);
   const [remisionId, setRemisionId] = useState(null);
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
@@ -221,6 +222,7 @@ export default function Vender() {
         setTipoComprobante(datos.tipoComprobante ?? "ticket_comun");
         setPresupuestoId(datos.presupuestoId ?? null);
         setCitaId(datos.citaId ?? null);
+        setReparacionId(datos.reparacionId ?? null);
         setRemisionId(datos.remisionId ?? null);
         setCliente(datos.cliente ?? null);
         setCarrito(datos.carrito ?? []);
@@ -286,15 +288,26 @@ export default function Vender() {
   // (ej. Stock, a corregir un precio) y volver sin perder el carrito.
   useEffect(() => {
     if (!restaurado) return;
-    if (carrito.length === 0) {
+    // A diferencia de una cita/presupuesto (que siempre llegan con al
+    // menos un item precargado), cobrar una reparacion arranca con el
+    // carrito vacio a proposito (el precio recien se sabe acá) - no hay
+    // que perder el cliente/reparacionId solo porque el carrito este
+    // vacio, o se pierde la referencia antes de que el cajero cargue el
+    // primer producto.
+    if (carrito.length === 0 && !reparacionId) {
       localStorage.removeItem(CLAVE_VENTA_EN_CURSO);
       return;
     }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
-      JSON.stringify({ tipoPago, tipoComprobante, presupuestoId, citaId, remisionId, cliente, carrito, pagos, vendedorId })
+      JSON.stringify({
+        tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, remisionId, cliente, carrito, pagos, vendedorId,
+      })
     );
-  }, [restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, remisionId, cliente, carrito, pagos, vendedorId]);
+  }, [
+    restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, remisionId, cliente, carrito, pagos,
+    vendedorId,
+  ]);
 
   function cambiarTipoPago(valor) {
     setTipoPago(valor);
@@ -612,6 +625,7 @@ export default function Vender() {
           tipoComprobante,
           presupuestoId,
           citaId,
+          reparacionId,
           remisionId,
           clienteId: cliente?.id,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
@@ -702,6 +716,11 @@ export default function Vender() {
     setTipoPago("contado");
     setTipoComprobante("ticket_comun");
     setPresupuestoId(null);
+    // citaId no se limpiaba acá (quedaba en memoria hasta el proximo reload
+    // completo, aunque localStorage ya estuviera limpio) - se corrige de
+    // paso, mismo criterio que presupuestoId/remisionId.
+    setCitaId(null);
+    setReparacionId(null);
     setRemisionId(null);
     setError("");
   }
@@ -798,6 +817,13 @@ export default function Vender() {
           <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
             Cobrando la cita de {cliente?.nombre || "el cliente"} — si pidió algún servicio más, buscalo abajo y
             agregalo antes de confirmar la venta.
+          </div>
+        )}
+
+        {reparacionId && (
+          <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
+            Cobrando la reparación de {cliente?.nombre || "el cliente"} — buscá abajo lo que corresponda cobrar
+            (servicio, repuestos) y agregalo antes de confirmar la venta.
           </div>
         )}
 
