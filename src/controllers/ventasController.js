@@ -509,7 +509,14 @@ export async function crearVenta(req, res) {
 
                 // Comision congelada de esta linea (ver venta_items.comision_monto):
                 // producto con comision fija a nivel empresa pisa el tipo de
-                // comision del vendedor, sin importar cual sea.
+                // comision del vendedor, sin importar cual sea. El porcentaje
+                // se calcula sobre subtotalBruto (precio de lista, ANTES del
+                // descuento manual) a proposito: si el salon le regala el
+                // servicio a su cliente, es una decision del negocio, no del
+                // profesional - su trabajo fue el mismo, cobra su comision
+                // igual. El descuento SI sigue reduciendo lo que paga el
+                // cliente (subtotal/total de la venta), solo no afecta la
+                // comision.
                 let comisionMonto = 0;
                 if (vendedorIdFinal) {
                     const fija = mapaComisionFija.get(productoId);
@@ -517,7 +524,7 @@ export async function crearVenta(req, res) {
                         fija != null
                             ? fija * cantidad
                             : datosVendedor.tipo_comision === 'porcentaje'
-                            ? subtotal * (Number(datosVendedor.valor_comision) / 100)
+                            ? subtotalBruto * (Number(datosVendedor.valor_comision) / 100)
                             : Number(datosVendedor.valor_comision) * cantidad;
                 }
 
