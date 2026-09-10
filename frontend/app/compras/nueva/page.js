@@ -28,6 +28,21 @@ function margen(costo, precioVenta) {
   return Math.round(((precioVenta - costo) / costo) * 100);
 }
 
+// Un precio de venta cargado (> 0) que quede por debajo del costo de esta
+// compra casi siempre es un error de tipeo. Un precio en 0 = "sin configurar",
+// no cuenta. El mayorista no se controla acá a proposito (vender al costo al
+// por mayor puede ser deliberado).
+function precioBajoCosto(costo, precioVenta) {
+  return costo > 0 && precioVenta > 0 && precioVenta < costo;
+}
+
+function itemTienePrecioBajoCosto(i) {
+  return (
+    precioBajoCosto(i.precioUnitario, i.precioContado) ||
+    precioBajoCosto(i.precioUnitario, i.precioCredito)
+  );
+}
+
 export default function NuevaCompra() {
   const router = useRouter();
   const [listo, setListo] = useState(false);
@@ -296,7 +311,10 @@ export default function NuevaCompra() {
   }
 
   const carritoValido = carrito.every((i) => i.cantidad > 0 && i.precioUnitario >= 0);
-  const puedeConfirmarCredito = proveedor && carrito.length > 0 && carritoValido;
+  const itemsBajoCosto = carrito.filter(itemTienePrecioBajoCosto);
+  const hayPreciosBajoCosto = itemsBajoCosto.length > 0;
+  const puedeConfirmarCredito =
+    proveedor && carrito.length > 0 && carritoValido && !hayPreciosBajoCosto;
   const puedeConfirmarContado = puedeConfirmarCredito && pagos.length > 0 && restante === 0;
 
   async function confirmarCompra(tipoPago) {
@@ -685,6 +703,8 @@ export default function NuevaCompra() {
                             ["precioMayorista", "Mayorista"],
                           ].map(([campo, etiqueta]) => {
                             const m = margen(i.precioUnitario, i[campo]);
+                            const bloquea =
+                              campo !== "precioMayorista" && precioBajoCosto(i.precioUnitario, i[campo]);
                             return (
                               <div key={campo}>
                                 <label className="mb-1 block text-xs text-slate-400">{etiqueta}</label>
@@ -693,13 +713,21 @@ export default function NuevaCompra() {
                                   min="0"
                                   value={i[campo]}
                                   onChange={(e) => actualizarItem(i.productoId, campo, Number(e.target.value) || 0)}
-                                  className={campoPrecio}
+                                  className={
+                                    bloquea
+                                      ? "w-24 rounded-lg border border-red-400 bg-red-50 px-2 py-2 text-right text-sm outline-none focus:border-red-500"
+                                      : campoPrecio
+                                  }
                                 />
-                                {m !== null && (
-                                  <p className={`mt-1 text-xs ${m >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                                    {m >= 0 ? "+" : ""}
-                                    {m}%
-                                  </p>
+                                {bloquea ? (
+                                  <p className="mt-1 text-xs font-semibold text-red-600">Bajo el costo</p>
+                                ) : (
+                                  m !== null && (
+                                    <p className={`mt-1 text-xs ${m >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                      {m >= 0 ? "+" : ""}
+                                      {m}%
+                                    </p>
+                                  )
                                 )}
                               </div>
                             );
@@ -837,6 +865,14 @@ export default function NuevaCompra() {
                   {!carritoValido && (
                     <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                       Falta la cantidad de algún producto (marcado en rojo arriba) — completala para poder confirmar.
+                    </p>
+                  )}
+
+                  {hayPreciosBajoCosto && (
+                    <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                      El precio de venta quedó más bajo que el costo de compra en{" "}
+                      <span className="font-semibold">{itemsBajoCosto.map((i) => i.nombre).join(", ")}</span> (marcado en
+                      rojo arriba). Corregilo para poder confirmar la compra.
                     </p>
                   )}
 

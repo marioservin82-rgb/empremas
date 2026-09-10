@@ -102,6 +102,21 @@ export async function crearCompra(req, res) {
                 if (!resultado.rows[0]) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
                 }
+                // Un precio de venta cargado (> 0) por debajo del costo de esta
+                // compra casi siempre es un error de tipeo - se bloquea el guardado
+                // hasta corregirlo. El 0 = "sin configurar" no cuenta, y el
+                // mayorista se deja pasar (vender al costo al por mayor puede ser
+                // deliberado); mismo criterio que el aviso del frontend.
+                const preciosBajoCosto = [
+                    ['contado', precioContado],
+                    ['crédito', precioCredito],
+                ].filter(([, p]) => Number(p) > 0 && Number(p) < precioUnitario);
+                if (preciosBajoCosto.length > 0) {
+                    const cuales = preciosBajoCosto.map(([n]) => n).join(' y ');
+                    throw new ErrorNegocio(
+                        `El precio de ${cuales} de "${resultado.rows[0].nombre}" quedó por debajo del costo de compra (Gs ${Number(precioUnitario).toLocaleString('es-PY')}). Corregilo antes de guardar.`
+                    );
+                }
                 // Costo promedio ponderado por cantidad, no por cantidad de
                 // compras: (stock actual * costo promedio actual + cantidad
                 // comprada * costo de esta compra) / (stock actual + cantidad
