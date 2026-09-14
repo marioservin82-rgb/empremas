@@ -29,12 +29,19 @@ function convertirCentenas(n) {
 
 // "uno"/"veintiuno" pierden la "o" final delante de un sustantivo (mil,
 // millon/millones, o el propio "guaranies" al final) - "veintiun mil", no
-// "veintiuno mil".
+// "veintiuno mil". Por como se arma la cadena, "uno"/"veintiuno" siempre
+// termina siendo la ULTIMA palabra del segmento (aunque tenga centena
+// adelante: "ciento veintiuno") - por eso se mira solo esa ultima palabra,
+// en vez de un endsWith(" uno") que se rompia con compuestos sin espacio
+// como "veintiuno" pegado a la centena ("ciento veintiuno" -> quedaba sin
+// convertir en vez de "ciento veintiún").
 function apocope(texto) {
-  if (texto === "uno") return "un";
-  if (texto === "veintiuno") return "veintiún";
-  if (texto.endsWith(" uno")) return `${texto.slice(0, -4)} un`;
-  return texto;
+  const palabras = texto.split(" ");
+  const ultima = palabras[palabras.length - 1];
+  if (ultima === "uno") palabras[palabras.length - 1] = "un";
+  else if (ultima === "veintiuno") palabras[palabras.length - 1] = "veintiún";
+  else return texto;
+  return palabras.join(" ");
 }
 
 export function montoEnLetras(numero) {
@@ -58,6 +65,10 @@ export function montoEnLetras(numero) {
 
   let texto = partes.join(" ").trim();
   texto = texto.charAt(0).toUpperCase() + texto.slice(1);
+
+  // Singular solo para exactamente 1 ("un guaraní"), igual que "un dólar"/
+  // "un peso" - "cero guaraníes" sigue en plural.
+  if (entero === 1) return `${texto} guaraní`;
 
   // "un millon DE guaranies" cuando no sigue nada mas despues del millon,
   // pero "un millon doscientos mil guaranies" (sin "de") si sigue algo.
