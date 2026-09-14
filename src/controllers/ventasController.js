@@ -725,7 +725,7 @@ export async function crearVenta(req, res) {
                     [empresaId, ventaId]
                 );
                 const clienteResultado = await cliente.query(
-                    `SELECT nombre, documento, es_generico, clasificacion_sifen FROM clientes WHERE id = $1`,
+                    `SELECT nombre, documento, direccion, es_generico, clasificacion_sifen FROM clientes WHERE id = $1`,
                     [clienteIdFinal]
                 );
                 const sucursalResultado = await cliente.query(
@@ -821,7 +821,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
                     e.plazo_credito_dias,
                     s.punto_expedicion,
                     c.nombre AS cliente_nombre, c.documento AS cliente_documento, c.es_generico AS cliente_es_generico,
-                    c.clasificacion_sifen AS cliente_clasificacion_sifen
+                    c.clasificacion_sifen AS cliente_clasificacion_sifen, c.direccion AS cliente_direccion
              FROM documentos_electronicos de
              JOIN ventas v ON v.id = de.venta_id
              JOIN empresas e ON e.id = v.empresa_id
@@ -927,6 +927,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
             documento: fila.cliente_documento,
             es_generico: fila.cliente_es_generico,
             clasificacion_sifen: fila.cliente_clasificacion_sifen,
+            direccion: fila.cliente_direccion,
         },
     });
 
@@ -1033,7 +1034,7 @@ export async function convertirAFacturaLegal(req, res) {
                 [ventaId]
             );
             const clienteResultado = await cliente.query(
-                `SELECT nombre, documento, es_generico, clasificacion_sifen FROM clientes WHERE id =
+                `SELECT nombre, documento, direccion, es_generico, clasificacion_sifen FROM clientes WHERE id =
                     (SELECT cliente_id FROM ventas WHERE id = $1)`,
                 [ventaId]
             );

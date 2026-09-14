@@ -288,14 +288,18 @@ const ITIOPE_POR_CLASIFICACION = { b2b: 1, b2c: 2, b2g: 3, b2f: 4 };
 export async function resolverReceptor({ cliente, tenantId }) {
     const nombre = (cliente?.nombre || '').trim();
     const doc = (cliente?.documento || '').trim();
+    const direccion = (cliente?.direccion || '').trim() || undefined;
     const tipoOperacion = ITIOPE_POR_CLASIFICACION[cliente?.clasificacion_sifen] || undefined;
-    const conITiOpe = (r) => (tipoOperacion ? { ...r, tipoOperacion } : r);
+    // La dirección del cliente no la pide SIFEN para aceptar el DE, pero si no
+    // se manda, el PDF oficial (KuDE) la deja en blanco aunque el ticket propio
+    // sí la muestre (esa la saca directo de la ficha del cliente, no del DE).
+    const conExtras = (r) => ({ ...r, ...(tipoOperacion ? { tipoOperacion } : {}), ...(direccion ? { direccion } : {}) });
 
     if (cliente?.es_generico || !doc) {
-        return conITiOpe({ contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' });
+        return conExtras({ contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' });
     }
     if (!doc.includes('-')) {
-        return conITiOpe({ contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' });
+        return conExtras({ contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' });
     }
 
     // Tiene "-": puede ser un RUC real o una cédula escrita con verificador.
@@ -303,7 +307,7 @@ export async function resolverReceptor({ cliente, tenantId }) {
         try {
             const r = await consultarRuc(tenantId, doc);
             if (r?.encontrado) {
-                return conITiOpe({
+                return conExtras({
                     contribuyente: true,
                     ruc: doc,
                     tipoContribuyente: 1,
@@ -311,7 +315,7 @@ export async function resolverReceptor({ cliente, tenantId }) {
                 });
             }
             // Consultado y NO existe -> es una cédula con dígito. Se manda sin el DV.
-            return conITiOpe({
+            return conExtras({
                 contribuyente: false,
                 documentoTipo: 1,
                 documentoNumero: doc.split('-')[0],
@@ -321,7 +325,7 @@ export async function resolverReceptor({ cliente, tenantId }) {
             // El conector/SIFEN no respondió: se sigue con la heurística vieja.
         }
     }
-    return conITiOpe(mapearReceptor(cliente));
+    return conExtras(mapearReceptor(cliente));
 }
 
 // Traduce una venta de EMPREMAS a la forma que espera POST /v1/documentos/factura.
@@ -371,17 +375,19 @@ export function mapearVentaAConector({ venta, items, cliente, receptor }) {
 function mapearReceptor(cliente) {
     const nombre = (cliente?.nombre || '').trim();
     const doc = (cliente?.documento || '').trim();
+    const direccion = (cliente?.direccion || '').trim() || undefined;
+    const conDireccion = (r) => (direccion ? { ...r, direccion } : r);
 
     // Consumidor Final / sin documento -> innominado.
     if (cliente?.es_generico || !doc) {
-        return { contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' };
+        return conDireccion({ contribuyente: false, documentoTipo: 5, documentoNumero: '0', razonSocial: 'SIN NOMBRE' });
     }
 
     // RUC ("numero-DV") -> contribuyente.
     if (doc.includes('-')) {
-        return { contribuyente: true, ruc: doc, tipoContribuyente: 1, razonSocial: nombre || 'SIN NOMBRE' };
+        return conDireccion({ contribuyente: true, ruc: doc, tipoContribuyente: 1, razonSocial: nombre || 'SIN NOMBRE' });
     }
 
     // Cédula paraguaya.
-    return { contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' };
+    return conDireccion({ contribuyente: false, documentoTipo: 1, documentoNumero: doc, razonSocial: nombre || 'SIN NOMBRE' });
 }
