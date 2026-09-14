@@ -205,12 +205,11 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
 
   const estado = venta.de_estado;
   const aprobada = estado === "aprobado";
-  // Sifende asigna el CDC/numero apenas ACEPTA el envio, mucho antes de la
+  // SIFEN asigna el CDC/numero apenas ACEPTA el envio, mucho antes de la
   // confirmacion final de aprobado - no tiene sentido hacer esperar al
   // cajero esa confirmacion solo para poder entregarle un comprobante.
-  // El KuDE (PDF oficial) si depende de "aprobado" (Sifende todavia no lo
-  // genera antes de eso), pero el Ticket propio no - se puede imprimir en
-  // cuanto haya CDC.
+  // El KuDE (PDF oficial) si depende de "aprobado" (no se genera antes de
+  // eso), pero el Ticket propio no - se puede imprimir en cuanto haya CDC.
   const tieneCdc = !!venta.de_cdc && estado !== "rechazado";
 
   if (tieneCdc) {
@@ -285,7 +284,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
               </>
             ) : (
               <p className="mt-3 text-xs text-slate-400">
-                El PDF oficial (KuDE) todavía no está listo — Sifende lo genera recién con la aprobación final.
+                El PDF oficial (KuDE) todavía no está listo — se genera recién con la aprobación final.
                 Mientras tanto, imprimí el Ticket.
               </p>
             )}
