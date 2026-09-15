@@ -2035,6 +2035,13 @@ ALTER TABLE empresas ADD COLUMN siguiente_numero_reparacion INTEGER NOT NULL DEF
 -- NULL o "" = usar el texto por defecto (constante en el frontend).
 ALTER TABLE empresas ADD COLUMN reparaciones_nota_legal TEXT;
 
+-- Generador de codigo de barras interno (ej. locales de ropa usada, donde
+-- la prenda no viene con ningun codigo de fabrica) - ver
+-- generarCodigoInterno en productosController.js. El codigo final se arma
+-- como '20' + este numero con ceros a la izquierda: el prefijo "20" es el
+-- rango que el estandar EAN/UPC reserva para uso interno de un comercio.
+ALTER TABLE empresas ADD COLUMN siguiente_numero_codigo_interno INTEGER NOT NULL DEFAULT 1;
+
 CREATE TYPE estado_reparacion AS ENUM
     ('recibido', 'en_reparacion', 'listo_para_entrega', 'entregado', 'cancelado');
 

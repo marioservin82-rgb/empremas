@@ -504,6 +504,68 @@ export async function actualizarProducto(req, res) {
     }
 }
 
+// Genera un codigo de barras interno para productos que no tienen uno -
+// pensado para rubros donde la mercaderia no viene con codigo de fabrica
+// (ej. ropa usada). El codigo se arma como '20' + un correlativo propio de
+// la empresa con ceros a la izquierda (mismo patron que
+// siguiente_numero_ticket): '20' es el rango que el estandar EAN/UPC
+// reserva para uso interno de un comercio, asi nunca choca con un codigo
+// real de fabrica si el mismo local tambien vende productos que sí traen
+// codigo de origen. Un producto que ya tenia codigo se devuelve tal cual,
+// sin pisarlo - asi el mismo endpoint sirve tanto para "generar" (Editar
+// producto) como para juntar los datos para imprimir una etiqueta (algunos
+// de los productos elegidos pueden ya tener codigo y otros no).
+export async function generarCodigoInterno(req, res) {
+    const { empresaId } = req.usuario;
+    const { productoIds } = req.body;
+
+    if (!Array.isArray(productoIds) || productoIds.length === 0) {
+        return res.status(400).json({ error: 'Indicá al menos un producto' });
+    }
+
+    try {
+        const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const idsUnicos = [...new Set(productoIds)];
+            const items = [];
+            for (const productoId of idsUnicos) {
+                const productoRes = await cliente.query(
+                    `SELECT id, nombre, codigo_barras, precio_contado, unidad_medida
+                     FROM productos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+                    [productoId, empresaId]
+                );
+                const producto = productoRes.rows[0];
+                if (!producto) throw new ErrorNegocio('Uno de los productos ya no existe');
+
+                let codigoBarras = producto.codigo_barras;
+                if (!codigoBarras) {
+                    const numeroRes = await cliente.query(
+                        `UPDATE empresas SET siguiente_numero_codigo_interno = siguiente_numero_codigo_interno + 1
+                         WHERE id = $1 RETURNING siguiente_numero_codigo_interno - 1 AS numero`,
+                        [empresaId]
+                    );
+                    const numero = numeroRes.rows[0].numero;
+                    codigoBarras = `20${String(numero).padStart(6, '0')}`;
+                    await cliente.query(`UPDATE productos SET codigo_barras = $2 WHERE id = $1`, [productoId, codigoBarras]);
+                }
+
+                items.push({
+                    productoId: producto.id,
+                    nombre: producto.nombre,
+                    codigoBarras,
+                    precioContado: Number(producto.precio_contado),
+                    unidadMedida: producto.unidad_medida,
+                });
+            }
+            return items;
+        });
+
+        res.json(resultado);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) return res.status(400).json({ error: error.message });
+        throw error;
+    }
+}
+
 // Borrado real (no es lo mismo que desactivar): solo tiene sentido para
 // un producto cargado por error y que nunca se uso de verdad - en cuanto
 // tiene cualquier historial real (una venta, una compra, un ajuste, una

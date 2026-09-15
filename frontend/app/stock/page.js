@@ -22,6 +22,11 @@ export default function Stock() {
   const [sucursalActual, setSucursalActual] = useState(null);
   const [valorStock, setValorStock] = useState(null);
   const [verDesactivados, setVerDesactivados] = useState(false);
+  const [seleccionados, setSeleccionados] = useState([]);
+
+  function alternarSeleccion(id) {
+    setSeleccionados((actual) => (actual.includes(id) ? actual.filter((x) => x !== id) : [...actual, id]));
+  }
 
   async function cambiarPermitirVentaSinStock(valor) {
     setPermitirVentaSinStock(valor);
@@ -220,6 +225,29 @@ export default function Stock() {
           <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         )}
 
+        {seleccionados.length > 0 && (
+          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-md backdrop-blur">
+            <p className="text-sm font-semibold text-slate-600">
+              {seleccionados.length} producto{seleccionados.length === 1 ? "" : "s"} seleccionado
+              {seleccionados.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSeleccionados([])}
+                className="text-sm font-medium text-slate-500 hover:text-slate-700"
+              >
+                Cancelar
+              </button>
+              <Link
+                href={`/stock/etiquetas?ids=${seleccionados.join(",")}`}
+                className="rounded-xl bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-light"
+              >
+                🏷️ Imprimir etiquetas →
+              </Link>
+            </div>
+          </div>
+        )}
+
         {cargando ? (
           <p className="text-slate-500">Cargando...</p>
         ) : productos.length === 0 ? (
@@ -232,7 +260,15 @@ export default function Stock() {
                 className={`rounded-2xl bg-white p-5 shadow shadow-slate-200 ${!p.activo ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={seleccionados.includes(p.id)}
+                      onChange={() => alternarSeleccion(p.id)}
+                      className="mt-1.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                      title="Seleccionar para imprimir etiquetas"
+                    />
+                    <div>
                     <p className="flex items-center gap-2 text-lg font-bold text-slate-800">
                       {p.nombre}
                       {!p.activo && (
@@ -244,6 +280,7 @@ export default function Stock() {
                     <p className="text-sm text-slate-400">
                       {p.codigo_barras || "sin código"} · IVA {p.tasa_iva}%
                     </p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-extrabold text-navy">
@@ -279,7 +316,13 @@ export default function Stock() {
                     <span className="font-semibold">Gs {formatoGs.format(p.precio_mayorista)}</span>
                   </span>
                 </div>
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-end gap-4">
+                  <Link
+                    href={`/stock/etiquetas?ids=${p.id}`}
+                    className="text-sm font-semibold text-navy hover:text-brand"
+                  >
+                    🏷️ Etiqueta
+                  </Link>
                   <Link
                     href={`/stock/${p.id}/editar`}
                     className="text-sm font-semibold text-navy hover:text-brand"

@@ -29,6 +29,7 @@ export default function EditarProducto() {
   const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [busquedaIngrediente, setBusquedaIngrediente] = useState("");
   const [resultadosIngrediente, setResultadosIngrediente] = useState([]);
+  const [generandoCodigo, setGenerandoCodigo] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -157,6 +158,26 @@ export default function EditarProducto() {
       setAsociados((actual) => actual.filter((a) => a.id !== asociadoId));
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  // Genera el codigo internamente (sin pasar por "Guardar cambios") y lo
+  // persiste al toque - asi queda visible en el campo de una para copiarlo
+  // a mano si hace falta, aunque despues se cancele el resto de la edicion.
+  async function generarCodigo() {
+    setGenerandoCodigo(true);
+    setError("");
+    try {
+      const items = await apiFetch("/api/productos/generar-codigo", {
+        method: "POST",
+        body: JSON.stringify({ productoIds: [id] }),
+      });
+      const generado = items.find((i) => i.productoId === id);
+      if (generado) setForm((actual) => ({ ...actual, codigoBarras: generado.codigoBarras }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGenerandoCodigo(false);
     }
   }
 
@@ -301,7 +322,37 @@ export default function EditarProducto() {
           <input required value={form.nombre} onChange={actualizar("nombre")} className={campo} />
 
           <label className={etiqueta}>Código de barras</label>
-          <input value={form.codigoBarras} onChange={actualizar("codigoBarras")} className={campo} placeholder="Opcional" />
+          <div className="mb-1 flex gap-2">
+            <input
+              value={form.codigoBarras}
+              onChange={actualizar("codigoBarras")}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              placeholder="Opcional — o generá uno interno"
+            />
+            {!form.codigoBarras && (
+              <button
+                type="button"
+                onClick={generarCodigo}
+                disabled={generandoCodigo}
+                className="shrink-0 rounded-xl bg-navy px-4 py-3 text-sm font-semibold text-white hover:bg-navy-2 disabled:opacity-50"
+              >
+                {generandoCodigo ? "Generando..." : "Generar"}
+              </button>
+            )}
+          </div>
+          {form.codigoBarras ? (
+            <Link
+              href={`/stock/etiquetas?ids=${id}`}
+              className="mb-4 inline-block text-sm font-semibold text-navy hover:text-brand"
+            >
+              🏷️ Imprimir etiqueta con este código →
+            </Link>
+          ) : (
+            <p className="mb-4 text-xs text-slate-400">
+              "Generar" te da un código interno propio (sirve para anotarlo a mano en la prenda, o para imprimir la
+              etiqueta con su código de barras).
+            </p>
+          )}
 
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} />

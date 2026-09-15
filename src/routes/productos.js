@@ -17,6 +17,7 @@ import {
     quitarAsociacion,
     sugerenciasAsociaciones,
     resolverSugerencia,
+    generarCodigoInterno,
 } from '../controllers/productosController.js';
 
 const router = Router();
@@ -29,6 +30,7 @@ router.get('/inventario-valorizado', permitirRolesOPermiso(['dueno', 'encargado'
 router.post('/importar', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(importarProductos));
 router.get('/sugerencias-asociaciones', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(sugerenciasAsociaciones));
 router.post('/sugerencias-asociaciones/resolver', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(resolverSugerencia));
+router.post('/generar-codigo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(generarCodigoInterno));
 
 router.get('/', asyncHandler(listarProductos));
 router.post('/', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(crearProducto));

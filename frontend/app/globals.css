@@ -107,4 +107,21 @@ h1, h2, h3 {
     left: 0;
     width: 100%;
   }
+
+  /* Etiquetas de codigo de barras (Stock > Imprimir etiqueta): mismo
+     mecanismo. El corte entre una etiqueta y la siguiente (break-after-page)
+     lo pone cada .etiqueta-individual con una utilidad de Tailwind, no aca -
+     pensado para una impresora de rollo de etiquetas o la termica de tickets
+     via su driver de Windows; en una impresora comun cada una sale en su
+     propia hoja A4. */
+  .etiquetas-imprimibles,
+  .etiquetas-imprimibles * {
+    visibility: visible;
+  }
+  .etiquetas-imprimibles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
 }

@@ -1,0 +1,11 @@
+-- Generador de codigo de barras interno (ej. locales de ropa usada, donde
+-- la prenda no viene con ningun codigo de fabrica) - ver generarCodigoInterno
+-- en productosController.js.
+--
+-- Numeracion correlativa propia por empresa, mismo patron que
+-- siguiente_numero_ticket/siguiente_numero_presupuesto. El codigo final se
+-- arma como '20' + este numero con ceros a la izquierda: el prefijo "20" es
+-- justamente el rango que el estandar EAN/UPC reserva para uso interno de
+-- un comercio, asi un codigo generado nunca choca con un codigo real de
+-- fabrica si el mismo local vende tambien productos con codigo de origen.
+ALTER TABLE empresas ADD COLUMN IF NOT EXISTS siguiente_numero_codigo_interno INTEGER NOT NULL DEFAULT 1;
