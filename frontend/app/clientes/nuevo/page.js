@@ -19,6 +19,7 @@ const vacio = {
   saldoInicial: "",
   vendedorId: "",
   fechaNacimiento: "",
+  cicloFacturacion: "mensual",
 };
 
 export default function NuevoCliente() {
@@ -175,6 +176,12 @@ export default function NuevoCliente() {
 
           <label className={etiqueta}>Línea de crédito (Gs)</label>
           <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />
+
+          <label className={etiqueta}>Ciclo de facturación (vencimiento a crédito)</label>
+          <select value={form.cicloFacturacion} onChange={actualizar("cicloFacturacion")} className={campo}>
+            <option value="mensual">Mensual (usa el plazo de la empresa)</option>
+            <option value="semanal">Semanal (7 días)</option>
+          </select>
 
           <label className={etiqueta}>Saldo inicial (Gs)</label>
           <input type="number" min="0" value={form.saldoInicial} onChange={actualizar("saldoInicial")} className={campo} placeholder="0" />

@@ -31,6 +31,7 @@ export default function EditarCliente() {
           direccion: c.direccion || "",
           fechaNacimiento: c.fecha_nacimiento ? c.fecha_nacimiento.slice(0, 10) : "",
           lineaCredito: c.linea_credito ?? "",
+          cicloFacturacion: c.ciclo_facturacion || "mensual",
           vendedorId: c.vendedorAsignado?.id || "",
         })
       )
@@ -123,6 +124,12 @@ export default function EditarCliente() {
 
             <label className={etiqueta}>Línea de crédito (Gs)</label>
             <input type="number" min="0" value={form.lineaCredito} onChange={actualizar("lineaCredito")} className={campo} placeholder="0" />
+
+            <label className={etiqueta}>Ciclo de facturación (vencimiento a crédito)</label>
+            <select value={form.cicloFacturacion} onChange={actualizar("cicloFacturacion")} className={campo}>
+              <option value="mensual">Mensual (usa el plazo de la empresa)</option>
+              <option value="semanal">Semanal (7 días)</option>
+            </select>
 
             {vendedores.length > 0 && (
               <>

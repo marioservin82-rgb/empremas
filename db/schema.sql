@@ -2092,3 +2092,10 @@ CREATE POLICY reparaciones_aislamiento ON reparaciones
 -- cambiar el estado de la reparacion - es solo trazabilidad.
 ALTER TABLE ventas ADD COLUMN reparacion_id UUID REFERENCES reparaciones(id);
 CREATE INDEX idx_ventas_reparacion ON ventas (reparacion_id) WHERE reparacion_id IS NOT NULL;
+
+-- Ciclo de facturacion del cliente: define cada cuanto vence una venta a
+-- credito hecha a este cliente puntual (semanal = 7 dias, mensual = el
+-- plazo de dias de la empresa, como ya funcionaba). Default 'mensual' para
+-- que los clientes existentes no cambien de comportamiento.
+ALTER TABLE clientes ADD COLUMN ciclo_facturacion TEXT NOT NULL DEFAULT 'mensual'
+    CHECK (ciclo_facturacion IN ('semanal', 'mensual'));

@@ -28,6 +28,18 @@ const COLUMNA_PRECIO = {
     mayorista: 'precio_mayorista',
 };
 
+// El plazo real usado por una venta a credito puntual puede terminar siendo
+// distinto al de la empresa (override manual en la venta, o ciclo_facturacion
+// semanal del cliente - ver crearVenta). En vez de guardar ese numero aparte,
+// se lo vuelve a derivar de vencimiento-creado_en cuando haga falta reportarlo
+// (SIFEN, reintentos, conversion a Factura Legal) - asi nunca puede quedar
+// desincronizado de la fecha real que ya quedo grabada.
+function diasCreditoDesde(vencimiento, creadoEn, plazoPorDefecto) {
+    if (!vencimiento || !creadoEn) return plazoPorDefecto;
+    const dias = Math.round((new Date(vencimiento) - new Date(creadoEn)) / 86400000);
+    return dias > 0 ? dias : plazoPorDefecto;
+}
+
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
 // 'factura_legal' solo se puede elegir si la empresa tiene SIFEN
@@ -202,7 +214,7 @@ export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
-        reparacionId, pin,
+        reparacionId, pin, diasCredito,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -214,6 +226,9 @@ export async function crearVenta(req, res) {
     }
     if (tipoPago === 'credito' && !clienteId) {
         return res.status(400).json({ error: 'Un fiado necesita un cliente' });
+    }
+    if (diasCredito !== undefined && diasCredito !== null && diasCredito !== '' && !(Number(diasCredito) > 0)) {
+        return res.status(400).json({ error: 'El plazo de crédito debe ser mayor a 0 días' });
     }
     if (!TIPOS_COMPROBANTE_DISPONIBLES.includes(comprobante) && comprobante !== 'factura_legal') {
         return res.status(400).json({ error: 'tipoComprobante debe ser ticket_comun, a4, sin_comprobante o factura_legal' });
@@ -561,15 +576,25 @@ export async function crearVenta(req, res) {
             // credito arranca en "todo el total" y baja si hay entrega
             // inicial (pago parcial al momento, ver abajo).
             let montoFiado = 0;
+            // Dias de plazo con los que se calcula el vencimiento de ESTA
+            // venta puntual: si el cajero lo escribio a mano (diasCredito)
+            // se usa ese; si no, y el cliente tiene ciclo_facturacion
+            // 'semanal', 7 dias; si no, el plazo default de la empresa.
+            let diasParaVencimiento = plazoCreditoDias;
             if (tipoPago === 'credito') {
                 const resultado = await cliente.query(
-                    `SELECT linea_credito, saldo FROM clientes WHERE id = $1 FOR UPDATE`,
+                    `SELECT linea_credito, saldo, ciclo_facturacion FROM clientes WHERE id = $1 FOR UPDATE`,
                     [clienteIdFinal]
                 );
                 const c = resultado.rows[0];
                 if (!c) {
                     throw new ErrorNegocio('El cliente ya no existe');
                 }
+                diasParaVencimiento = Number(diasCredito) > 0
+                    ? Number(diasCredito)
+                    : c.ciclo_facturacion === 'semanal'
+                        ? 7
+                        : plazoCreditoDias;
 
                 // Entrega inicial opcional: el cliente paga una parte ahora
                 // (efectivo/transferencia/tarjeta) y el resto queda fiado -
@@ -611,7 +636,7 @@ export async function crearVenta(req, res) {
 
             const vencimiento =
                 tipoPago === 'credito'
-                    ? new Date(Date.now() + Number(plazoCreditoDias) * 86400000).toISOString().slice(0, 10)
+                    ? new Date(Date.now() + Number(diasParaVencimiento) * 86400000).toISOString().slice(0, 10)
                     : null;
 
             // Numeracion correlativa del ticket (independiente del CDC de
@@ -746,7 +771,7 @@ export async function crearVenta(req, res) {
                         tipoPago,
                         pagos: pagos || [],
                         vencimiento,
-                        plazoCreditoDias,
+                        plazoCreditoDias: diasParaVencimiento,
                         cdcRemisionAsociada: remision?.cdc || undefined,
                     },
                     items: itemsCalculados,
@@ -816,7 +841,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
         const { rows } = await db.query(
             `SELECT de.id AS de_id, de.estado AS de_estado, de.cdc AS de_cdc, de.intento AS de_intento,
                     de.numero_formateado AS de_numero_formateado, de.actualizado_en AS de_actualizado_en,
-                    v.tipo_pago, v.vencimiento,
+                    v.tipo_pago, v.vencimiento, v.creado_en AS venta_creado_en,
                     e.sifen_api_key, e.sifen_establecimiento, e.sifen_estado, e.sifen_conector_tenant_id,
                     e.plazo_credito_dias,
                     s.punto_expedicion,
@@ -919,7 +944,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
             tipoPago: fila.tipo_pago,
             pagos: pagos.rows,
             vencimiento: fila.vencimiento,
-            plazoCreditoDias: fila.plazo_credito_dias,
+            plazoCreditoDias: diasCreditoDesde(fila.vencimiento, fila.venta_creado_en, fila.plazo_credito_dias),
         },
         items: items.rows,
         cliente: {
@@ -1001,7 +1026,7 @@ export async function convertirAFacturaLegal(req, res) {
     try {
         deParaEmitir = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const ventaResultado = await cliente.query(
-                `SELECT tipo_pago, vencimiento, sucursal_id, tipo_comprobante, anulada FROM ventas WHERE id = $1 FOR UPDATE`,
+                `SELECT tipo_pago, vencimiento, creado_en, sucursal_id, tipo_comprobante, anulada FROM ventas WHERE id = $1 FOR UPDATE`,
                 [ventaId]
             );
             const venta = ventaResultado.rows[0];
@@ -1053,7 +1078,7 @@ export async function convertirAFacturaLegal(req, res) {
                     tipoPago: venta.tipo_pago,
                     pagos: pagosResultado.rows,
                     vencimiento: venta.vencimiento,
-                    plazoCreditoDias: empresaFila.plazo_credito_dias,
+                    plazoCreditoDias: diasCreditoDesde(venta.vencimiento, venta.creado_en, empresaFila.plazo_credito_dias),
                 },
                 items: itemsResultado.rows,
                 cliente: clienteResultado.rows[0] || { nombre: 'Consumidor Final', es_generico: true },

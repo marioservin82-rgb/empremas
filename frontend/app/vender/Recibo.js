@@ -365,6 +365,17 @@ function fechaCorta(valor) {
   return a && m && d ? `${d}/${m}/${a}` : null;
 }
 
+// El plazo real usado en ESTA venta puede ser distinto al de la empresa (el
+// cajero lo escribió a mano, o el cliente tiene ciclo de facturación
+// semanal - ver Vender/crearVenta) - se deriva de vencimiento - creadoEn en
+// vez de mostrar siempre el default de la empresa, para que el ticket
+// nunca diga un plazo que no es el que realmente se usó.
+function diasCreditoDe(venta, empresa) {
+  if (!venta.vencimiento) return empresa.plazo_credito_dias || null;
+  const dias = Math.round((new Date(`${venta.vencimiento}T00:00:00`) - new Date(venta.creadoEn)) / 86400000);
+  return dias > 0 ? dias : empresa.plazo_credito_dias || null;
+}
+
 // Datos del emisor obligatorios en la representacion grafica (KuDE) que no
 // van en el encabezado comun: actividad(es) economica(s), numero de
 // timbrado e inicio de vigencia. Vienen cacheados del conector en la fila
@@ -553,8 +564,9 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numer
   if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
   if (cliente.direccion) lineas.push({ texto: `Dirección: ${cliente.direccion}` });
   lineas.push({ texto: `Condición: ${ETIQUETA_TIPO_PAGO[venta.tipoPago]}` });
-  if (venta.tipoPago === "credito" && empresa.plazo_credito_dias) {
-    lineas.push({ texto: `Plazo: ${empresa.plazo_credito_dias} días` });
+  const diasCreditoTicket = venta.tipoPago === "credito" ? diasCreditoDe(venta, empresa) : null;
+  if (diasCreditoTicket) {
+    lineas.push({ texto: `Plazo: ${diasCreditoTicket} días` });
   }
   lineas.push(SEPARADOR);
   for (const i of items) {
@@ -970,8 +982,8 @@ export default function Recibo({
         {cliente.celular && <p className="text-sm">Cel: {cliente.celular}</p>}
         {cliente.direccion && <p className="text-sm">Dirección: {cliente.direccion}</p>}
         <p className="text-sm font-semibold">Condición: {ETIQUETA_TIPO_PAGO[venta.tipoPago]}</p>
-        {venta.tipoPago === "credito" && empresa.plazo_credito_dias && (
-          <p className="text-sm">Plazo: {empresa.plazo_credito_dias} días</p>
+        {venta.tipoPago === "credito" && diasCreditoDe(venta, empresa) && (
+          <p className="text-sm">Plazo: {diasCreditoDe(venta, empresa)} días</p>
         )}
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />

@@ -129,6 +129,11 @@ export default function Vender() {
   const [enviando, setEnviando] = useState(false);
 
   const [empresaInfo, setEmpresaInfo] = useState(null);
+  // Plazo de crédito de ESTA venta puntual - vacío = usa el default (el
+  // ciclo de facturación del cliente si tiene, si no el plazo de la
+  // empresa). Se resetea a vacío cada vez que cambia el cliente para no
+  // arrastrar un override pensado para el cliente anterior.
+  const [diasCreditoOverride, setDiasCreditoOverride] = useState("");
   const [vendedores, setVendedores] = useState([]);
   const [vendedorId, setVendedorId] = useState("");
   const [recibo, setRecibo] = useState(null);
@@ -142,6 +147,12 @@ export default function Vender() {
   // Sin caja abierta no se puede vender - cada dia hay que abrirla y
   // cerrarla, para que el arqueo de caja tenga sentido.
   const [cajaAbierta, setCajaAbierta] = useState(null);
+
+  // Un override de plazo pensado para un cliente no debe quedar pegado si
+  // se cambia de cliente a mitad de la venta.
+  useEffect(() => {
+    setDiasCreditoOverride("");
+  }, [cliente?.id]);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -631,6 +642,7 @@ export default function Vender() {
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
           pagos: pagosParaEnviar,
           pin: pinDescuento || undefined,
+          diasCredito: tipoPago === "credito" && diasCreditoOverride ? Number(diasCreditoOverride) : undefined,
           items: carrito.map((i) => ({
             productoId: i.productoId,
             cantidad: i.cantidad,
@@ -1007,6 +1019,18 @@ export default function Vender() {
                 </p>
                 <p className="text-sm text-slate-400">crédito disponible</p>
               </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <label className="text-sm text-slate-500">Plazo (días):</label>
+              <input
+                type="number"
+                min="1"
+                value={diasCreditoOverride}
+                onChange={(e) => setDiasCreditoOverride(e.target.value)}
+                placeholder={cliente.ciclo_facturacion === "semanal" ? "7 (semanal)" : `${empresaInfo?.plazo_credito_dias ?? 30}`}
+                className="w-28 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+              />
+              <span className="text-xs text-slate-400">Vacío = default del cliente/empresa</span>
             </div>
             {productosFrecuentes.length > 0 && (
               <div className="mt-3 rounded-xl bg-tint p-3">
