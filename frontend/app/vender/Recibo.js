@@ -8,6 +8,7 @@ import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
 import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
 import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 import { logoParaTicket } from "@/lib/logoEmpresa";
+import { montoEnLetras } from "@/lib/numeroALetras";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -254,6 +255,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
           <div className="w-full rounded-2xl bg-white p-6 text-center shadow shadow-slate-200">
             <p className="text-sm text-slate-400">Factura Legal</p>
             <p className="mt-1 text-3xl font-extrabold text-navy">Gs {formatoGs.format(venta.total)}</p>
+            <p className="text-xs text-slate-400">{montoEnLetras(Number(venta.total))}</p>
             <p className={`mt-3 text-sm font-semibold ${aprobada ? "text-emerald-600" : "text-amber-600"}`}>
               {aprobada ? "✅ Aprobada por SIFEN" : "⏳ Pendiente de confirmación final"}
             </p>
@@ -511,7 +513,12 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl, log
   for (const fila of filasDesgloseIVA(venta)) {
     lineas.push({ texto: `${fila.etiqueta}: ${fila.valor}`, negrita: fila.negrita });
   }
-  lineas.push(SEPARADOR, { texto: `TOTAL: Gs ${formatoGs.format(venta.total)}`, negrita: true }, SEPARADOR);
+  lineas.push(
+    SEPARADOR,
+    { texto: `TOTAL: Gs ${formatoGs.format(venta.total)}`, negrita: true },
+    { texto: montoEnLetras(Number(venta.total)) },
+    SEPARADOR
+  );
   if (qrDataUrl) {
     lineas.push({ tipo: "imagen", dataUrl: qrDataUrl, alineacion: "centro" });
   }
@@ -780,6 +787,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
           <span>TOTAL</span>
           <span>Gs {formatoGs.format(venta.total)}</span>
         </div>
+        <p className="text-center text-xs">{montoEnLetras(Number(venta.total))}</p>
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 

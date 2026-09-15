@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { imprimirTicket } from "@/lib/agenteImpresion";
 import { nombresEmpresa, lineasNombreEmpresa } from "@/lib/encabezadoEmpresa";
 import { logoParaTicket } from "@/lib/logoEmpresa";
+import { montoEnLetras } from "@/lib/numeroALetras";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -44,7 +45,11 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qrDataU
   lineas.push(SEPARADOR, { texto: `Cliente: ${cliente.nombre}`, negrita: true });
   if (cliente.documento) lineas.push({ texto: `RUC/CI: ${cliente.documento}` });
   if (cliente.celular) lineas.push({ texto: `Cel: ${cliente.celular}` });
-  lineas.push({ texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true }, SEPARADOR);
+  lineas.push(
+    { texto: `Total: Gs ${formatoGs.format(cobro.monto)}`, negrita: true },
+    { texto: montoEnLetras(Number(cobro.monto)) },
+    SEPARADOR
+  );
   for (const p of cobro.pagos) {
     lineas.push({ texto: `${ETIQUETA_FORMA_PAGO[p.formaPago]}: Gs ${formatoGs.format(p.monto)}` });
   }
@@ -204,6 +209,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           {cliente.documento && <p className="text-sm">RUC/CI: {cliente.documento}</p>}
           {cliente.celular && <p className="text-sm">Cel: {cliente.celular}</p>}
           <p className="mt-2 text-3xl font-extrabold">Gs {formatoGs.format(cobro.monto)}</p>
+          <p className="text-sm text-slate-500">{montoEnLetras(Number(cobro.monto))}</p>
 
           <div className="my-4 border-t border-slate-200" />
 
@@ -283,6 +289,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           {cliente.documento && <p className="text-sm">RUC/CI: {cliente.documento}</p>}
           {cliente.celular && <p className="text-sm">Cel: {cliente.celular}</p>}
           <p className="mt-2 text-2xl font-bold">Gs {formatoGs.format(cobro.monto)}</p>
+          <p className="text-sm text-slate-500">{montoEnLetras(Number(cobro.monto))}</p>
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
 
