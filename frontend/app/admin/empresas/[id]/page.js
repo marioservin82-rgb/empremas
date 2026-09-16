@@ -324,6 +324,12 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.reparaciones_habilitadas}
             onCambiar={(v) => guardarModulo("reparacionesHabilitada", v)}
           />
+          <ModuloToggle
+            titulo="Módulo de Mascotas"
+            descripcion="Veterinarias/guarderías: ficha de mascota con historial, vacunación con alertas de refuerzo, internación (hospedaje/hospitalización) y tratamientos/análisis vía Agenda de citas."
+            activo={!!empresa.mascotas_habilitadas}
+            onCambiar={(v) => guardarModulo("mascotasHabilitada", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

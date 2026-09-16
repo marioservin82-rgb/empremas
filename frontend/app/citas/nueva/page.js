@@ -32,6 +32,10 @@ function NuevaCitaContenido() {
   const [resultadosCliente, setResultadosCliente] = useState([]);
   const [cliente, setCliente] = useState(null);
 
+  const [mascotasHabilitadas, setMascotasHabilitadas] = useState(false);
+  const [mascotasDelCliente, setMascotasDelCliente] = useState([]);
+  const [mascotaId, setMascotaId] = useState("");
+
   const [busquedaServicio, setBusquedaServicio] = useState("");
   const [resultadosServicio, setResultadosServicio] = useState([]);
   const [servicio, setServicio] = useState(null);
@@ -58,8 +62,26 @@ function NuevaCitaContenido() {
         setProfesionalId((pedido && lista.some((p) => p.id === pedido)) ? pedido : lista[0]?.id || "");
       })
       .catch(() => {});
+    apiFetch("/api/empresas/actual")
+      .then((e) => setMascotasHabilitadas(!!e.mascotas_habilitadas))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // Al elegir el cliente, si el modulo de Mascotas esta activo se traen
+  // sus mascotas ya registradas - una cita de veterinaria/guarderia se
+  // vincula a una en particular (opcional: sigue funcionando igual sin
+  // elegir ninguna, para un salon/barberia comun).
+  useEffect(() => {
+    if (!mascotasHabilitadas || !cliente) {
+      setMascotasDelCliente([]);
+      setMascotaId("");
+      return;
+    }
+    apiFetch(`/api/mascotas?clienteId=${cliente.id}`)
+      .then(setMascotasDelCliente)
+      .catch(() => {});
+  }, [mascotasHabilitadas, cliente]);
 
   async function ejecutarBusquedaCliente(q) {
     if (!q) return setResultadosCliente([]);
@@ -112,6 +134,7 @@ function NuevaCitaContenido() {
           fechaHoraInicio: new Date(fechaHoraInicio).toISOString(),
           duracionMinutos: Number(duracionMinutos),
           nota: nota || undefined,
+          mascotaId: mascotaId || undefined,
         }),
       });
       router.push("/citas");
@@ -178,6 +201,30 @@ function NuevaCitaContenido() {
             </div>
           )}
         </div>
+
+        {mascotasHabilitadas && cliente && (
+          <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            <p className="mb-3 font-semibold text-slate-700">Mascota (opcional)</p>
+            {mascotasDelCliente.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                {cliente.nombre} no tiene mascotas registradas todavía —{" "}
+                <Link href={`/mascotas/nueva?clienteId=${cliente.id}`} className="font-semibold text-navy hover:text-brand">
+                  registrá una
+                </Link>{" "}
+                y volvé acá, o continuá sin elegir ninguna.
+              </p>
+            ) : (
+              <select value={mascotaId} onChange={(e) => setMascotaId(e.target.value)} className={campo}>
+                <option value="">— No aplica a una mascota en particular —</option>
+                {mascotasDelCliente.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre} ({m.especie})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
           <p className="mb-3 font-semibold text-slate-700">Servicio</p>

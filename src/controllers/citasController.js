@@ -33,11 +33,13 @@ export async function listarCitas(req, res) {
     const resultado = await consultaDeEmpresa(
         empresaId,
         `SELECT c.*, cl.nombre AS cliente_nombre, cl.celular AS cliente_celular,
-                p.nombre AS producto_nombre, pr.nombre AS profesional_nombre
+                p.nombre AS producto_nombre, pr.nombre AS profesional_nombre,
+                m.nombre AS mascota_nombre
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
          JOIN productos p ON p.id = c.producto_id
          JOIN profesionales pr ON pr.id = c.profesional_id
+         LEFT JOIN mascotas m ON m.id = c.mascota_id
          WHERE ${condiciones.join(' AND ')}
          ORDER BY c.fecha_hora_inicio ASC`,
         valores
@@ -54,11 +56,13 @@ export async function obtenerCita(req, res) {
         empresaId,
         `SELECT c.*, cl.nombre AS cliente_nombre, cl.documento AS cliente_documento, cl.celular AS cliente_celular,
                 p.nombre AS producto_nombre, p.unidad_medida,
-                pr.nombre AS profesional_nombre, pr.vendedor_id AS profesional_vendedor_id
+                pr.nombre AS profesional_nombre, pr.vendedor_id AS profesional_vendedor_id,
+                m.nombre AS mascota_nombre, m.especie AS mascota_especie
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
          JOIN productos p ON p.id = c.producto_id
          JOIN profesionales pr ON pr.id = c.profesional_id
+         LEFT JOIN mascotas m ON m.id = c.mascota_id
          WHERE c.id = $1`,
         [id]
     );
@@ -70,7 +74,10 @@ export async function obtenerCita(req, res) {
 
 export async function crearCita(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { clienteId, productoId, profesionalId, fechaHoraInicio, nota, duracionMinutos: duracionPedida } = req.body;
+    const {
+        clienteId, productoId, profesionalId, fechaHoraInicio, nota,
+        duracionMinutos: duracionPedida, mascotaId,
+    } = req.body;
 
     if (!clienteId) {
         return res.status(400).json({ error: 'La cita necesita un cliente' });
@@ -87,6 +94,19 @@ export async function crearCita(req, res) {
             const clienteResultado = await cliente.query(`SELECT id FROM clientes WHERE id = $1`, [clienteId]);
             if (!clienteResultado.rows[0]) {
                 throw new ErrorNegocio('El cliente ya no existe');
+            }
+
+            // Vinculo opcional a una mascota (veterinaria/guarderia): tiene
+            // que ser una mascota de ese mismo cliente, si no el historial
+            // de la ficha quedaria mezclado con el de otro dueño.
+            if (mascotaId) {
+                const mascotaResultado = await cliente.query(
+                    `SELECT id FROM mascotas WHERE id = $1 AND cliente_id = $2`,
+                    [mascotaId, clienteId]
+                );
+                if (!mascotaResultado.rows[0]) {
+                    throw new ErrorNegocio('La mascota elegida no pertenece a este cliente');
+                }
             }
 
             const productoResultado = await cliente.query(
@@ -135,8 +155,8 @@ export async function crearCita(req, res) {
             }
 
             const insertado = await cliente.query(
-                `INSERT INTO citas (empresa_id, sucursal_id, profesional_id, cliente_id, producto_id, precio_unitario, fecha_hora_inicio, duracion_minutos, nota, usuario_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                `INSERT INTO citas (empresa_id, sucursal_id, profesional_id, cliente_id, producto_id, precio_unitario, fecha_hora_inicio, duracion_minutos, nota, usuario_id, mascota_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                  RETURNING *`,
                 [
                     empresaId,
@@ -149,6 +169,7 @@ export async function crearCita(req, res) {
                     duracionMinutos,
                     nota || null,
                     usuarioId,
+                    mascotaId || null,
                 ]
             );
             return insertado.rows[0];
@@ -199,6 +220,25 @@ export async function actualizarEstadoCita(req, res) {
         }
         throw error;
     }
+}
+
+// Anota el resultado de un tratamiento o analisis (veterinaria/guarderia) -
+// texto libre, no cambia el estado de la cita. Se puede cargar en cualquier
+// momento, antes o despues de cobrarla.
+export async function actualizarResultadoCita(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const { resultado } = req.body;
+
+    const actualizado = await consultaDeEmpresa(
+        empresaId,
+        `UPDATE citas SET resultado = $2 WHERE id = $1 RETURNING *`,
+        [id, resultado || null]
+    );
+    if (!actualizado.rows[0]) {
+        return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+    res.json(actualizado.rows[0]);
 }
 
 export async function listarProfesionales(req, res) {

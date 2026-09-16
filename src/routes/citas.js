@@ -7,6 +7,7 @@ import {
     obtenerCita,
     crearCita,
     actualizarEstadoCita,
+    actualizarResultadoCita,
     listarProfesionales,
     crearProfesional,
     actualizarProfesional,
@@ -29,5 +30,6 @@ router.get('/', asyncHandler(listarCitas));
 router.post('/', asyncHandler(crearCita));
 router.get('/:id', asyncHandler(obtenerCita));
 router.patch('/:id/estado', asyncHandler(actualizarEstadoCita));
+router.patch('/:id/resultado', asyncHandler(actualizarResultadoCita));
 
 export default router;

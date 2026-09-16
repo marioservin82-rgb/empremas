@@ -12,7 +12,7 @@ export async function obtenerEmpresaActual(req, res) {
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                 lomiteria_habilitada, citas_habilitadas,
-                reparaciones_habilitadas, reparaciones_nota_legal,
+                reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -226,6 +226,7 @@ export async function actualizarConfiguracion(req, res) {
     const lomiteriaHabilitada = null;
     const citasHabilitada = null;
     const reparacionesHabilitada = null;
+    const mascotasHabilitada = null;
 
     if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
         return res.status(400).json({ error: 'Política inválida' });
@@ -296,6 +297,7 @@ export async function actualizarConfiguracion(req, res) {
             citas_habilitadas = COALESCE($28, citas_habilitadas),
             reparaciones_habilitadas = COALESCE($29, reparaciones_habilitadas),
             reparaciones_nota_legal = COALESCE($30, reparaciones_nota_legal),
+            mascotas_habilitadas = COALESCE($31, mascotas_habilitadas),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -306,7 +308,7 @@ export async function actualizarConfiguracion(req, res) {
          RETURNING razon_social, nombre_fantasia, ruc, timbrado, direccion, direccion_atencion, telefono, email,
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                    comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
-                   citas_habilitadas, reparaciones_habilitadas, reparaciones_nota_legal,
+                   citas_habilitadas, reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -321,7 +323,7 @@ export async function actualizarConfiguracion(req, res) {
             produccionHabilitada, sugerenciasVentaHabilitadas,
             comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada,
             nombreFantasia === undefined ? null : String(nombreFantasia).trim(),
-            citasHabilitada, reparacionesHabilitada, reparacionesNotaLegal ?? null]
+            citasHabilitada, reparacionesHabilitada, reparacionesNotaLegal ?? null, mascotasHabilitada]
     );
 
     res.json(resultado.rows[0]);

@@ -44,6 +44,7 @@ export default function Panel() {
   const [lomiteriaHabilitada, setLomiteriaHabilitada] = useState(false);
   const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [reparacionesHabilitada, setReparacionesHabilitada] = useState(false);
+  const [mascotasHabilitadas, setMascotasHabilitadas] = useState(false);
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
   const [pedidosPendientes, setPedidosPendientes] = useState(0);
@@ -66,6 +67,7 @@ export default function Panel() {
         setLomiteriaHabilitada(!!e.lomiteria_habilitada);
         setCitasHabilitada(!!e.citas_habilitadas);
         setReparacionesHabilitada(!!e.reparaciones_habilitadas);
+        setMascotasHabilitadas(!!e.mascotas_habilitadas);
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -324,6 +326,12 @@ export default function Panel() {
         // cajero puede recibir un equipo), igual de abierto que Vender/Citas.
         if (reparacionesHabilitada) {
           secundarios.push({ nombre: "Nota de Recepción", icono: "🔧", href: "/reparaciones" });
+        }
+        // Modulo de Mascotas: visible a cualquier rol, igual de abierto que
+        // Vender/Citas/Reparaciones.
+        if (mascotasHabilitadas) {
+          secundarios.push({ nombre: "Mascotas", icono: "🐾", href: "/mascotas" });
+          secundarios.push({ nombre: "Internación", icono: "🏥", href: "/internaciones" });
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });

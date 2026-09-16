@@ -214,7 +214,7 @@ export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
-        reparacionId, pin, diasCredito,
+        reparacionId, internacionId, pin, diasCredito,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -651,8 +651,8 @@ export async function crearVenta(req, res) {
             const numeroTicket = numeroResultado.rows[0].numero;
 
             const ventaInsertada = await cliente.query(
-                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id, descuento_autorizado_por, reparacion_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                `INSERT INTO ventas (empresa_id, cliente_id, usuario_id, turno_id, sucursal_id, numero_ticket, tipo_pago, vuelto, total, vencimiento, saldo_pendiente, tipo_comprobante, presupuesto_id, vendedor_id, cita_id, descuento_autorizado_por, reparacion_id, internacion_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                  RETURNING id, creado_en`,
                 [
                     empresaId,
@@ -678,6 +678,11 @@ export async function crearVenta(req, res) {
                     // se puede cobrar mas de una vez (anticipo + saldo, etc.).
                     // Es solo trazabilidad: se confia el valor tal cual llega.
                     reparacionId || null,
+                    // Misma logica que reparacionId: una internacion tampoco
+                    // tiene precio de catalogo (depende de cuantos dias se
+                    // quedo), y se puede cobrar en cualquier momento sin que
+                    // eso cambie su estado.
+                    internacionId || null,
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;

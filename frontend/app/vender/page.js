@@ -88,6 +88,7 @@ export default function Vender() {
   const [presupuestoId, setPresupuestoId] = useState(null);
   const [citaId, setCitaId] = useState(null);
   const [reparacionId, setReparacionId] = useState(null);
+  const [internacionId, setInternacionId] = useState(null);
   const [remisionId, setRemisionId] = useState(null);
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
@@ -234,6 +235,7 @@ export default function Vender() {
         setPresupuestoId(datos.presupuestoId ?? null);
         setCitaId(datos.citaId ?? null);
         setReparacionId(datos.reparacionId ?? null);
+        setInternacionId(datos.internacionId ?? null);
         setRemisionId(datos.remisionId ?? null);
         setCliente(datos.cliente ?? null);
         setCarrito(datos.carrito ?? []);
@@ -300,24 +302,24 @@ export default function Vender() {
   useEffect(() => {
     if (!restaurado) return;
     // A diferencia de una cita/presupuesto (que siempre llegan con al
-    // menos un item precargado), cobrar una reparacion arranca con el
-    // carrito vacio a proposito (el precio recien se sabe acá) - no hay
-    // que perder el cliente/reparacionId solo porque el carrito este
-    // vacio, o se pierde la referencia antes de que el cajero cargue el
-    // primer producto.
-    if (carrito.length === 0 && !reparacionId) {
+    // menos un item precargado), cobrar una reparacion o una internacion
+    // arranca con el carrito vacio a proposito (el precio recien se sabe
+    // acá) - no hay que perder el cliente/reparacionId/internacionId solo
+    // porque el carrito este vacio, o se pierde la referencia antes de que
+    // el cajero cargue el primer producto.
+    if (carrito.length === 0 && !reparacionId && !internacionId) {
       localStorage.removeItem(CLAVE_VENTA_EN_CURSO);
       return;
     }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
-        tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, remisionId, cliente, carrito, pagos, vendedorId,
+        tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
       })
     );
   }, [
-    restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, remisionId, cliente, carrito, pagos,
-    vendedorId,
+    restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, internacionId, remisionId, cliente,
+    carrito, pagos, vendedorId,
   ]);
 
   function cambiarTipoPago(valor) {
@@ -637,6 +639,7 @@ export default function Vender() {
           presupuestoId,
           citaId,
           reparacionId,
+          internacionId,
           remisionId,
           clienteId: cliente?.id,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
@@ -733,6 +736,7 @@ export default function Vender() {
     // paso, mismo criterio que presupuestoId/remisionId.
     setCitaId(null);
     setReparacionId(null);
+    setInternacionId(null);
     setRemisionId(null);
     setError("");
   }
@@ -836,6 +840,13 @@ export default function Vender() {
           <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
             Cobrando la reparación de {cliente?.nombre || "el cliente"} — buscá abajo lo que corresponda cobrar
             (servicio, repuestos) y agregalo antes de confirmar la venta.
+          </div>
+        )}
+
+        {internacionId && (
+          <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
+            Cobrando la internación de {cliente?.nombre || "el cliente"} — cargá abajo el total que corresponda
+            (días de estadía, tratamientos, productos) antes de confirmar la venta.
           </div>
         )}
 
