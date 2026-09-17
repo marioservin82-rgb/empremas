@@ -1230,9 +1230,12 @@ export default function Vender() {
                 ))}
               </div>
             )}
+          </div>
 
-            {carrito.length > 0 && tipoPago !== "credito" && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
+          {carrito.length > 0 && (
+              <div className="mt-4 lg:mt-0 lg:sticky lg:top-6 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+                {carrito.length > 0 && tipoPago !== "credito" && (
+                  <div className="mb-4 border-b border-slate-200 pb-4">
                     {cliente ? (
                       <div>
                         <div className="flex items-center justify-between">
@@ -1401,10 +1404,6 @@ export default function Vender() {
                     )}
                   </div>
                 )}
-          </div>
-
-          {carrito.length > 0 && (
-              <div className="mt-4 lg:mt-0 lg:sticky lg:top-6 rounded-2xl bg-white p-5 shadow shadow-slate-200">
                 <p className="mb-2 text-sm font-medium text-slate-500">
                       {tipoPago === "credito" ? "Entrega inicial (opcional)" : "Forma de cobro"}
                     </p>
