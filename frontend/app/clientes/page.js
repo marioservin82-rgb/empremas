@@ -111,6 +111,12 @@ export default function Clientes() {
               Importar CSV
             </Link>
             <Link
+              href="/clientes/saldos"
+              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              📄 Resumen de deudas
+            </Link>
+            <Link
               href="/clientes/nuevo"
               className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700"
             >

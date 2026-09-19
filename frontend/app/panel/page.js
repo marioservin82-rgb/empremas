@@ -297,9 +297,6 @@ export default function Panel() {
         if (yo?.rol === "dueno") {
           secundarios.push({ nombre: "Gastos", icono: "💸", href: "/gastos" });
         }
-        if (yo?.rol === "dueno" || yo?.rol === "encargado") {
-          secundarios.push({ nombre: "Cuentas por cobrar/pagar", icono: "🧾", href: "/reportes/saldos" });
-        }
         // Modulo de Produccion: oculto por completo si la empresa no lo
         // activo desde Perfil de Empresa - el permiso extra
         // gestionar_produccion lo evalua el backend en cada endpoint, acá
