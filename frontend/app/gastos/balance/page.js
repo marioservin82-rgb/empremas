@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
-const formatoGs = new Intl.NumberFormat("es-PY");
+const formatoGs = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 
 const ETIQUETA_CATEGORIA = {
   servicios_fijos: "Servicios fijos",
@@ -203,11 +203,29 @@ export default function BalanceMensual() {
                 </div>
               </div>
 
-              {(balance.inversionEquipos > 0 || balance.retirosPersonales > 0 || balance.prestamos.length > 0) && (
+              {(balance.inversionEquipos > 0 ||
+                balance.retirosPersonales > 0 ||
+                balance.prestamos.length > 0 ||
+                balance.pagoProveedorYaEnCosto > 0) && (
                 <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-5">
                   <h2 className="mb-3 font-bold text-slate-600">
                     Aparte — no afecta el resultado operativo
                   </h2>
+
+                  {balance.pagoProveedorYaEnCosto > 0 && (
+                    <div className="mb-2">
+                      <div className="flex justify-between py-1 text-sm">
+                        <span className="text-slate-500">Pago a proveedores (de compras registradas)</span>
+                        <span className="font-semibold text-slate-700">
+                          Gs {formatoGs.format(balance.pagoProveedorYaEnCosto)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        No se cuenta como gasto acá porque el costo de esa mercadería ya se descuenta como
+                        "Costo de mercadería vendida" el día que se venda — contarlo dos veces inflaría la pérdida.
+                      </p>
+                    </div>
+                  )}
 
                   {balance.inversionEquipos > 0 && (
                     <div className="flex justify-between py-1 text-sm">

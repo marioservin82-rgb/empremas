@@ -347,9 +347,13 @@ export async function obtenerBalanceMensual(req, res) {
         `SELECT * FROM prestamos WHERE activo = true ORDER BY creado_en DESC`,
         []
     );
+    // Se separa "pago_proveedor" segun si esta vinculado a una compra
+    // (compra_id) o fue cargado suelto a mano - ver el desglose de
+    // retirosOperativos mas abajo para el porque.
     const retirosPorMotivo = await consultaDeEmpresa(
         empresaId,
-        `SELECT motivo, COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE ${whereFecha('creado_en')} GROUP BY motivo`,
+        `SELECT motivo, (compra_id IS NULL) AS sin_compra, COALESCE(SUM(monto), 0) AS total
+         FROM retiros_caja WHERE ${whereFecha('creado_en')} GROUP BY motivo, (compra_id IS NULL)`,
         [desde, hasta]
     );
 
@@ -360,20 +364,44 @@ export async function obtenerBalanceMensual(req, res) {
         .reduce((acumulado, f) => acumulado + Number(f.total), 0);
 
     // Retiros de caja: segun el motivo se cuentan como gasto operativo
-    // (pago a proveedor / gasto puntual), quedan aparte sin afectar el
-    // resultado (retiro personal del dueno, mismo trato que prestamos e
-    // inversion en equipos), o quedan marcados para revisar a mano (envio
-    // con tercero / otro) - no se sabe de antemano si son gasto del
-    // negocio o no, asi que no se cuentan solos en ningun lado.
-    const desgloseRetiros = Object.fromEntries(retirosPorMotivo.rows.map((f) => [f.motivo, Number(f.total)]));
-    const retirosOperativos = (desgloseRetiros.pago_proveedor || 0) + (desgloseRetiros.gasto_puntual || 0);
-    const retirosPersonales = desgloseRetiros.retiro_personal || 0;
-    const retirosARevisar = (desgloseRetiros.envio_tercero || 0) + (desgloseRetiros.otro || 0);
+    // (pago a proveedor sin compra asociada / gasto puntual), quedan aparte
+    // sin afectar el resultado (retiro personal del dueno, mismo trato que
+    // prestamos e inversion en equipos), o quedan marcados para revisar a
+    // mano (envio con tercero / otro) - no se sabe de antemano si son gasto
+    // del negocio o no, asi que no se cuentan solos en ningun lado.
+    //
+    // "pago_proveedor" con compra_id (el retiro que el sistema genera solo
+    // al pagar una compra en efectivo) NO se cuenta como gasto operativo:
+    // esa mercaderia ya se va a descontar como costoMercaderiaVendida el
+    // dia que se venda (o queda como inversion en stock sin vender todavia,
+    // igual que "pagar stock que no se vendio no es una perdida" en el
+    // comentario de costoMercaderiaVendida mas arriba). Contarlo aca de
+    // nuevo duplicaba el mismo costo. Se muestra aparte, informativo, para
+    // que no desaparezca de la vista sin explicacion.
+    let pagoProveedorSinCompra = 0;
+    let pagoProveedorConCompra = 0;
+    let gastoPuntual = 0;
+    let retirosPersonales = 0;
+    let retirosARevisar = 0;
+    for (const fila of retirosPorMotivo.rows) {
+        const monto = Number(fila.total);
+        if (fila.motivo === 'pago_proveedor') {
+            if (fila.sin_compra) pagoProveedorSinCompra += monto;
+            else pagoProveedorConCompra += monto;
+        } else if (fila.motivo === 'gasto_puntual') {
+            gastoPuntual += monto;
+        } else if (fila.motivo === 'retiro_personal') {
+            retirosPersonales += monto;
+        } else if (fila.motivo === 'envio_tercero' || fila.motivo === 'otro') {
+            retirosARevisar += monto;
+        }
+    }
+    const retirosOperativos = pagoProveedorSinCompra + gastoPuntual;
 
-    const ingresos = Number(ventasContado.rows[0].total) + Number(cobrosFiado.rows[0].total);
-    const montoCostoMercaderiaVendida = Number(costoMercaderiaVendida.rows[0].total);
-    const montoConsumoInterno = Number(consumoInterno.rows[0].total);
-    const montoMerma = Number(merma.rows[0].total);
+    const ingresos = Math.round(Number(ventasContado.rows[0].total) + Number(cobrosFiado.rows[0].total));
+    const montoCostoMercaderiaVendida = Math.round(Number(costoMercaderiaVendida.rows[0].total));
+    const montoConsumoInterno = Math.round(Number(consumoInterno.rows[0].total));
+    const montoMerma = Math.round(Number(merma.rows[0].total));
     const resultadoOperativo =
         ingresos - gastosOperativos - montoCostoMercaderiaVendida - montoConsumoInterno - montoMerma - retirosOperativos;
 
@@ -394,5 +422,6 @@ export async function obtenerBalanceMensual(req, res) {
         prestamos: prestamos.rows,
         retirosPersonales,
         retirosARevisar,
+        pagoProveedorYaEnCosto: pagoProveedorConCompra,
     });
 }
