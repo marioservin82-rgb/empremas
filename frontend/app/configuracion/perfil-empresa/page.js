@@ -49,6 +49,7 @@ export default function PerfilEmpresa() {
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
   const [reparacionesNotaLegal, setReparacionesNotaLegal] = useState("");
+  const [metaGananciaMensual, setMetaGananciaMensual] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -77,6 +78,7 @@ export default function PerfilEmpresa() {
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
         setReparacionesNotaLegal(e.reparaciones_nota_legal || "");
+        setMetaGananciaMensual(e.meta_ganancia_mensual != null ? String(e.meta_ganancia_mensual) : "");
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -195,6 +197,7 @@ export default function PerfilEmpresa() {
           sifenCertVencimiento: certVencimiento || null,
           sifenCertNota: certNota || null,
           reparacionesNotaLegal,
+          metaGananciaMensual: metaGananciaMensual === "" ? null : Number(metaGananciaMensual),
         }),
       });
       setEmpresa((actual) => ({ ...actual, ...actualizado }));
@@ -310,7 +313,8 @@ export default function PerfilEmpresa() {
           {(empresa.produccion_habilitada ||
             empresa.lomiteria_habilitada ||
             empresa.citas_habilitadas ||
-            empresa.reparaciones_habilitadas) && (
+            empresa.reparaciones_habilitadas ||
+            empresa.recomendacion_margen_habilitada) && (
             <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
               <p className="font-semibold text-slate-800">Módulos activos</p>
               <p className="mt-1 text-sm text-slate-400">
@@ -319,6 +323,7 @@ export default function PerfilEmpresa() {
                   empresa.lomiteria_habilitada && "Lomitería / Restaurante",
                   empresa.citas_habilitadas && "Agenda de citas",
                   empresa.reparaciones_habilitadas && "Nota de Recepción",
+                  empresa.recomendacion_margen_habilitada && "Recomendación de margen",
                 ]
                   .filter(Boolean)
                   .join(" · ")}{" "}
@@ -338,6 +343,24 @@ export default function PerfilEmpresa() {
                   <p className="mb-0 -mt-2 text-xs text-slate-400">
                     Se imprime al pie de cada Nota de Recepción. Dejalo vacío para usar el texto por defecto —
                     revisalo con un abogado si te importa el detalle legal, esto no es asesoría legal de EMPREMAS.
+                  </p>
+                </div>
+              )}
+
+              {empresa.recomendacion_margen_habilitada && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <label className={etiqueta}>¿Cuánto querés ganar por mes? (Gs)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={metaGananciaMensual}
+                    onChange={(e) => setMetaGananciaMensual(e.target.value)}
+                    className={campo}
+                    placeholder="Ej: 3000000"
+                  />
+                  <p className="mb-0 -mt-2 text-xs text-slate-400">
+                    Con esto calculamos qué margen promedio necesitás según tus gastos y lo que movés en
+                    ventas, y te lo sugerimos al cargar cada compra — vos decidís el precio final.
                   </p>
                 </div>
               )}

@@ -2188,3 +2188,11 @@ CREATE POLICY internaciones_aislamiento ON internaciones
 -- Venta <- internacion, mismo patron que ventas.reparacion_id/cita_id.
 ALTER TABLE ventas ADD COLUMN internacion_id UUID REFERENCES internaciones(id);
 CREATE INDEX idx_ventas_internacion ON ventas (internacion_id) WHERE internacion_id IS NOT NULL;
+
+-- Modulo de Recomendacion de margen - apagado por defecto, lo habilita
+-- EMPREMAS por empresa desde el panel admin, NO el dueño.
+ALTER TABLE empresas ADD COLUMN recomendacion_margen_habilitada BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE empresas ADD COLUMN meta_ganancia_mensual NUMERIC(14,2);
+
+CREATE TYPE categoria_rotacion AS ENUM ('alta', 'media', 'baja');
+ALTER TABLE productos ADD COLUMN categoria_rotacion_manual categoria_rotacion;

@@ -330,6 +330,12 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.mascotas_habilitadas}
             onCambiar={(v) => guardarModulo("mascotasHabilitada", v)}
           />
+          <ModuloToggle
+            titulo="Módulo de Recomendación de margen"
+            descripcion="Sugiere qué margen aplicar a cada producto (según su rotación) para llegar a la ganancia mensual que el dueño se propuso. Nunca cambia precios solo — es una sugerencia, el dueño decide."
+            activo={!!empresa.recomendacion_margen_habilitada}
+            onCambiar={(v) => guardarModulo("recomendacionMargenHabilitada", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

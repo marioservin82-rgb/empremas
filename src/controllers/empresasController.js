@@ -13,6 +13,7 @@ export async function obtenerEmpresaActual(req, res) {
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                 lomiteria_habilitada, citas_habilitadas,
                 reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
+                recomendacion_margen_habilitada, meta_ganancia_mensual,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -216,17 +217,22 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
         sugerenciasVentaHabilitadas,
         comisionesHabilitadas, politicaClientesVendedorInactivo,
-        reparacionesNotaLegal,
+        reparacionesNotaLegal, metaGananciaMensual,
     } = req.body;
-    // Producción, Lomitería/Restaurante, Agenda de citas y Nota de
-    // Recepción ya NO se activan desde la app del cliente — los habilita
-    // EMPREMAS por empresa (panel admin). Se ignora cualquier valor que
-    // llegue en el body.
+    // Producción, Lomitería/Restaurante, Agenda de citas, Nota de
+    // Recepción, Mascotas y Recomendación de margen ya NO se activan
+    // desde la app del cliente — los habilita EMPREMAS por empresa
+    // (panel admin). Se ignora cualquier valor que llegue en el body.
     const produccionHabilitada = null;
     const lomiteriaHabilitada = null;
     const citasHabilitada = null;
     const reparacionesHabilitada = null;
     const mascotasHabilitada = null;
+    const recomendacionMargenHabilitada = null;
+
+    if (metaGananciaMensual !== undefined && metaGananciaMensual !== null && !(Number(metaGananciaMensual) >= 0)) {
+        return res.status(400).json({ error: 'La meta de ganancia mensual debe ser 0 o mayor' });
+    }
 
     if (politicaClientesVendedorInactivo !== undefined && !['mantener', 'desasignar'].includes(politicaClientesVendedorInactivo)) {
         return res.status(400).json({ error: 'Política inválida' });
@@ -298,6 +304,8 @@ export async function actualizarConfiguracion(req, res) {
             reparaciones_habilitadas = COALESCE($29, reparaciones_habilitadas),
             reparaciones_nota_legal = COALESCE($30, reparaciones_nota_legal),
             mascotas_habilitadas = COALESCE($31, mascotas_habilitadas),
+            recomendacion_margen_habilitada = COALESCE($32, recomendacion_margen_habilitada),
+            meta_ganancia_mensual = COALESCE($33, meta_ganancia_mensual),
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -309,6 +317,7 @@ export async function actualizarConfiguracion(req, res) {
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                    comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
                    citas_habilitadas, reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
+                   recomendacion_margen_habilitada, meta_ganancia_mensual,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -323,7 +332,8 @@ export async function actualizarConfiguracion(req, res) {
             produccionHabilitada, sugerenciasVentaHabilitadas,
             comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada,
             nombreFantasia === undefined ? null : String(nombreFantasia).trim(),
-            citasHabilitada, reparacionesHabilitada, reparacionesNotaLegal ?? null, mascotasHabilitada]
+            citasHabilitada, reparacionesHabilitada, reparacionesNotaLegal ?? null, mascotasHabilitada,
+            recomendacionMargenHabilitada, metaGananciaMensual ?? null]
     );
 
     res.json(resultado.rows[0]);

@@ -84,6 +84,9 @@ export default function NuevaCompra() {
   const [ultimaCompraId, setUltimaCompraId] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
+  const [margenHabilitado, setMargenHabilitado] = useState(false);
+  const [recomendaciones, setRecomendaciones] = useState({});
+
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
       router.push("/");
@@ -100,7 +103,32 @@ export default function NuevaCompra() {
     apiFetch("/api/empresas/sifen")
       .then((c) => setSifenConfigurado(!!c.configurado && c.via === "conector"))
       .catch(() => {});
+    apiFetch("/api/empresas/actual")
+      .then((e) => setMargenHabilitado(!!e.recomendacion_margen_habilitada))
+      .catch(() => {});
   }, [router]);
+
+  async function cargarRecomendacion(productoId) {
+    try {
+      const r = await apiFetch(`/api/productos/${productoId}/recomendacion-margen`);
+      setRecomendaciones((actual) => ({ ...actual, [productoId]: r }));
+    } catch {
+      // Silencioso a proposito: es solo una sugerencia, nunca debe romper
+      // la carga de la compra si falla.
+    }
+  }
+
+  async function elegirRotacionManual(productoId, categoria) {
+    try {
+      await apiFetch(`/api/productos/${productoId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ categoriaRotacionManual: categoria }),
+      });
+      cargarRecomendacion(productoId);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function buscarRucProveedorRapido() {
     const numero = (nuevoProveedorDocumento || "").trim();
@@ -228,6 +256,7 @@ export default function NuevaCompra() {
     });
     setResultadosProducto([]);
     setBusquedaProducto("");
+    if (margenHabilitado) cargarRecomendacion(p.id);
   }
 
   function abrirProductoRapido() {
@@ -696,6 +725,40 @@ export default function NuevaCompra() {
                         <p className="mb-2 text-xs font-medium text-slate-500">
                           Precios de venta (se guardan al confirmar la compra)
                         </p>
+
+                        {margenHabilitado && recomendaciones[i.productoId] && (
+                          <div className="mb-3 rounded-xl bg-tint p-3 text-sm">
+                            {recomendaciones[i.productoId].clasificado ? (
+                              <p className="text-navy">
+                                💡 Sugerencia (rotación {recomendaciones[i.productoId].categoria}): margen ~
+                                {Math.round(recomendaciones[i.productoId].margenSugeridoPct * 100)}% → precio contado
+                                sugerido{" "}
+                                <span className="font-bold">
+                                  Gs {formatoGs.format(recomendaciones[i.productoId].precioSugerido)}
+                                </span>
+                              </p>
+                            ) : recomendaciones[i.productoId].habilitado ? (
+                              <div>
+                                <p className="text-slate-500">{recomendaciones[i.productoId].motivo}</p>
+                                {recomendaciones[i.productoId].motivo?.includes("elegí a mano") && (
+                                  <div className="mt-2 flex gap-2">
+                                    {["alta", "media", "baja"].map((cat) => (
+                                      <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => elegirRotacionManual(i.productoId, cat)}
+                                        className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy hover:text-white"
+                                      >
+                                        {cat}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-3">
                           {[
                             ["precioContado", "Contado"],

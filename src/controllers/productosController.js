@@ -298,6 +298,7 @@ export async function crearProducto(req, res) {
         receta,
         esServicio,
         duracionMinutos,
+        categoriaRotacionManual,
     } = req.body;
 
     if (!nombre) {
@@ -305,6 +306,9 @@ export async function crearProducto(req, res) {
     }
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
+    }
+    if (categoriaRotacionManual !== undefined && !['alta', 'media', 'baja'].includes(categoriaRotacionManual)) {
+        return res.status(400).json({ error: 'Categoría de rotación inválida' });
     }
     // Un insumo de produccion nunca se vende directo - no tiene sentido
     // exigirle un precio de venta.
@@ -330,9 +334,9 @@ export async function crearProducto(req, res) {
                     empresa_id, codigo_barras, nombre, unidad_medida,
                     precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
                     es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto,
-                    es_servicio, duracion_minutos
+                    es_servicio, duracion_minutos, categoria_rotacion_manual
                  )
-                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16)
+                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16, $17)
                  RETURNING *`,
                 [
                     empresaId,
@@ -351,6 +355,7 @@ export async function crearProducto(req, res) {
                     esCompuesto,
                     esServicio,
                     duracionMinutos || null,
+                    categoriaRotacionManual || null,
                 ]
             );
             let nuevoProducto = productoInsertado.rows[0];
@@ -406,6 +411,7 @@ export async function actualizarProducto(req, res) {
         receta,
         esServicio,
         duracionMinutos,
+        categoriaRotacionManual,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
@@ -419,6 +425,9 @@ export async function actualizarProducto(req, res) {
     }
     if (esServicio && duracionMinutos !== undefined && !(Number(duracionMinutos) > 0)) {
         return res.status(400).json({ error: 'Un servicio necesita una duración en minutos mayor a 0' });
+    }
+    if (categoriaRotacionManual !== undefined && !['alta', 'media', 'baja'].includes(categoriaRotacionManual)) {
+        return res.status(400).json({ error: 'Categoría de rotación inválida' });
     }
 
     try {
@@ -446,7 +455,8 @@ export async function actualizarProducto(req, res) {
                     equivalencia_unidad_compra = COALESCE($14, equivalencia_unidad_compra),
                     es_compuesto = COALESCE($15, es_compuesto),
                     es_servicio = COALESCE($16, es_servicio),
-                    duracion_minutos = COALESCE($17, duracion_minutos)
+                    duracion_minutos = COALESCE($17, duracion_minutos),
+                    categoria_rotacion_manual = COALESCE($18, categoria_rotacion_manual)
                  WHERE id = $1 AND empresa_id = $2
                  RETURNING *`,
                 [
@@ -467,6 +477,7 @@ export async function actualizarProducto(req, res) {
                     esCompuesto,
                     esServicio,
                     duracionMinutos,
+                    categoriaRotacionManual,
                 ]
             );
 

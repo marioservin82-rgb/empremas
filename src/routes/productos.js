@@ -19,6 +19,7 @@ import {
     resolverSugerencia,
     generarCodigoInterno,
 } from '../controllers/productosController.js';
+import { obtenerRecomendacionMargen } from '../controllers/margenController.js';
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.patch('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_in
 router.delete('/:id', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(eliminarProducto));
 router.get('/:id/ajustes', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(historialAjustes));
 router.post('/:id/ajustes', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(ajustarInventario));
+router.get('/:id/recomendacion-margen', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(obtenerRecomendacionMargen));
 router.get('/:id/asociados', asyncHandler(listarAsociados));
 router.post('/:id/asociados', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(agregarAsociacion));
 router.delete('/:id/asociados/:asociadoId', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(quitarAsociacion));

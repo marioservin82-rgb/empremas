@@ -106,7 +106,7 @@ export async function obtenerEmpresa(req, res) {
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
                 e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
                 e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas, e.citas_habilitadas,
-                e.reparaciones_habilitadas, e.mascotas_habilitadas,
+                e.reparaciones_habilitadas, e.mascotas_habilitadas, e.recomendacion_margen_habilitada,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          LEFT JOIN contadores_aliados c ON c.id = e.contador_id
@@ -137,6 +137,7 @@ export async function actualizarEmpresa(req, res) {
     const {
         plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId,
         produccionHabilitada, lomiteriaHabilitada, citasHabilitada, reparacionesHabilitada, mascotasHabilitada,
+        recomendacionMargenHabilitada,
     } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
@@ -177,11 +178,13 @@ export async function actualizarEmpresa(req, res) {
                                           ELSE comisiones_habilitadas END,
             citas_habilitadas = COALESCE($12, citas_habilitadas),
             reparaciones_habilitadas = COALESCE($13, reparaciones_habilitadas),
-            mascotas_habilitadas = COALESCE($14, mascotas_habilitadas)
+            mascotas_habilitadas = COALESCE($14, mascotas_habilitadas),
+            recomendacion_margen_habilitada = COALESCE($15, recomendacion_margen_habilitada)
          WHERE id = $1
          RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en,
                    monto_plan_mensual, contador_id, produccion_habilitada, lomiteria_habilitada,
-                   comisiones_habilitadas, citas_habilitadas, reparaciones_habilitadas, mascotas_habilitadas`,
+                   comisiones_habilitadas, citas_habilitadas, reparaciones_habilitadas, mascotas_habilitadas,
+                   recomendacion_margen_habilitada`,
         [
             id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
             contadorId !== undefined, contadorId,
@@ -190,6 +193,7 @@ export async function actualizarEmpresa(req, res) {
             citasHabilitada === undefined ? null : citasHabilitada,
             reparacionesHabilitada === undefined ? null : reparacionesHabilitada,
             mascotasHabilitada === undefined ? null : mascotasHabilitada,
+            recomendacionMargenHabilitada === undefined ? null : recomendacionMargenHabilitada,
         ]
     );
     if (!resultado.rows[0]) {
