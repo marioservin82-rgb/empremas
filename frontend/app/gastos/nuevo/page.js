@@ -18,6 +18,14 @@ const CATEGORIAS = [
 
 const ETIQUETA_CATEGORIA = Object.fromEntries(CATEGORIAS.map((c) => [c.valor, c.etiqueta]));
 
+const FORMAS_PAGO = [
+  { valor: "efectivo", etiqueta: "Efectivo" },
+  { valor: "transferencia", etiqueta: "Transferencia" },
+  { valor: "tarjeta_credito", etiqueta: "Tarjeta de crédito" },
+  { valor: "tarjeta_debito", etiqueta: "Tarjeta de débito" },
+];
+const ETIQUETA_FORMA_PAGO = Object.fromEntries(FORMAS_PAGO.map((f) => [f.valor, f.etiqueta]));
+
 function fecha(f) {
   return new Date(`${f.slice(0, 10)}T00:00:00`).toLocaleDateString("es-PY");
 }
@@ -29,6 +37,9 @@ export default function NuevoGasto() {
   const [monto, setMonto] = useState("");
   const [fechaGasto, setFechaGasto] = useState("");
   const [ordenProduccionId, setOrdenProduccionId] = useState("");
+  const [formaPago, setFormaPago] = useState("");
+  const [origen, setOrigen] = useState("administracion");
+  const [hayTurnoAbierto, setHayTurnoAbierto] = useState(false);
   const [gastos, setGastos] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
   const [produccionHabilitada, setProduccionHabilitada] = useState(false);
@@ -47,6 +58,13 @@ export default function NuevoGasto() {
       return;
     }
     cargarGastos();
+    apiFetch("/api/turnos/actual")
+      .then((t) => {
+        const abierto = !!t;
+        setHayTurnoAbierto(abierto);
+        setOrigen(abierto ? "caja" : "administracion");
+      })
+      .catch(() => {});
     apiFetch("/api/empresas/actual")
       .then((e) => {
         setProduccionHabilitada(!!e.produccion_habilitada);
@@ -67,6 +85,10 @@ export default function NuevoGasto() {
       setError("Elegí una categoría");
       return;
     }
+    if (!formaPago) {
+      setError("Indicá cómo se pagó este gasto");
+      return;
+    }
     setGuardando(true);
     try {
       await apiFetch("/api/gastos", {
@@ -77,6 +99,8 @@ export default function NuevoGasto() {
           monto: Number(monto),
           fechaGasto: fechaGasto || undefined,
           ordenProduccionId: ordenProduccionId || undefined,
+          formaPago,
+          origen: formaPago === "efectivo" ? origen : undefined,
         }),
       });
       setCategoria("");
@@ -84,6 +108,7 @@ export default function NuevoGasto() {
       setMonto("");
       setFechaGasto("");
       setOrdenProduccionId("");
+      setFormaPago("");
       cargarGastos();
     } catch (err) {
       setError(err.message);
@@ -140,6 +165,53 @@ export default function NuevoGasto() {
           <label className={etiqueta}>Fecha</label>
           <input type="date" value={fechaGasto} onChange={(e) => setFechaGasto(e.target.value)} className={campo} />
 
+          <p className={etiqueta}>¿Cómo se pagó?</p>
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            {FORMAS_PAGO.map((f) => (
+              <button
+                key={f.valor}
+                type="button"
+                onClick={() => setFormaPago(f.valor)}
+                className={`rounded-xl py-2 text-sm font-semibold transition ${
+                  formaPago === f.valor ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {f.etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {formaPago === "efectivo" && (
+            <div className="mb-4">
+              <p className="mb-1 text-sm font-medium text-slate-500">¿De dónde sale el efectivo?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { valor: "caja", texto: "De la caja" },
+                  { valor: "administracion", texto: "De administración" },
+                ].map((o) => (
+                  <button
+                    key={o.valor}
+                    type="button"
+                    onClick={() => setOrigen(o.valor)}
+                    disabled={o.valor === "caja" && !hayTurnoAbierto}
+                    className={`rounded-xl py-2 text-sm font-semibold transition ${
+                      origen === o.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    } disabled:opacity-40`}
+                  >
+                    {o.texto}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                {!hayTurnoAbierto
+                  ? "No hay una caja abierta — este pago va como administración."
+                  : origen === "caja"
+                  ? "Se registra solo como retiro de caja, no hace falta cargarlo aparte."
+                  : "No afecta la caja."}
+              </p>
+            </div>
+          )}
+
           {produccionHabilitada && categoria === "personal" && (
             <>
               <label className={etiqueta}>Asociar a una orden de producción (opcional)</label>
@@ -176,6 +248,13 @@ export default function NuevoGasto() {
                   <p className="font-semibold text-slate-800">{g.descripcion}</p>
                   <p className="text-xs text-slate-400">
                     {ETIQUETA_CATEGORIA[g.categoria]} · {fecha(g.fecha_gasto)}
+                    {g.forma_pago && (
+                      <>
+                        {" · "}
+                        {ETIQUETA_FORMA_PAGO[g.forma_pago]}
+                        {g.origen === "caja" && " (de la caja)"}
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

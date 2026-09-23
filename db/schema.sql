@@ -2196,3 +2196,9 @@ ALTER TABLE empresas ADD COLUMN meta_ganancia_mensual NUMERIC(14,2);
 
 CREATE TYPE categoria_rotacion AS ENUM ('alta', 'media', 'baja');
 ALTER TABLE productos ADD COLUMN categoria_rotacion_manual categoria_rotacion;
+
+-- Forma de pago al cargar un gasto puntual - si se paga en efectivo, si
+-- sale de la caja (genera un retiro de caja automatico) o de administracion.
+ALTER TABLE gastos ADD COLUMN forma_pago forma_pago_venta;
+ALTER TABLE gastos ADD COLUMN origen TEXT CHECK (origen IN ('administracion', 'caja'));
+ALTER TABLE retiros_caja ADD COLUMN gasto_id UUID REFERENCES gastos(id);

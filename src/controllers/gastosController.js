@@ -1,13 +1,58 @@
 import pool, { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { rangoDelMes } from '../utils/rangoDelMes.js';
+import { ErrorNegocio } from '../utils/errorNegocio.js';
 
 const CATEGORIAS_VALIDAS = [
     'servicios_fijos', 'software_suscripciones', 'personal',
     'vehiculo_transporte', 'equipos_inversion', 'otros',
 ];
+const FORMAS_PAGO_VALIDAS = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
 function validarCategoria(categoria) {
     return CATEGORIAS_VALIDAS.includes(categoria);
+}
+
+// Mismo patron que generarRetiroPorPagoDeCompra (comprasController): pagar
+// un gasto en efectivo "de la caja" genera un retiro contra el turno
+// abierto del usuario, asi la reconciliacion de cierre lo refleja solo -
+// sin esto, ese efectivo saldria del cajon sin ninguna explicacion en el
+// cierre de turno.
+async function generarRetiroPorGasto(cliente, { empresaId, usuarioId, gastoId, descripcion, monto }) {
+    const turnoRes = await cliente.query(
+        `SELECT id, sucursal_id FROM turnos WHERE usuario_id = $1 AND estado = 'abierto' LIMIT 1`,
+        [usuarioId]
+    );
+    const turno = turnoRes.rows[0];
+    if (!turno) {
+        throw new ErrorNegocio(
+            'Elegiste "de la caja" pero no tenés una caja abierta. Abrí la caja o elegí "Administración".'
+        );
+    }
+    const usuario = await cliente.query(`SELECT nombre FROM usuarios WHERE id = $1`, [usuarioId]);
+    await cliente.query(
+        `INSERT INTO retiros_caja
+            (empresa_id, turno_id, sucursal_id, monto, motivo, motivo_detalle, persona_retira, usuario_id, autorizado_por, gasto_id)
+         VALUES ($1, $2, $3, $4, 'gasto_puntual', $5, $6, $7, $7, $8)`,
+        [empresaId, turno.id, turno.sucursal_id, monto, descripcion, usuario.rows[0]?.nombre || 'Gasto puntual', usuarioId, gastoId]
+    );
+}
+
+// Borra el retiro autogenerado por un gasto si su turno sigue abierto
+// (uno de un turno ya cerrado no se puede deshacer sin descuadrar un
+// cierre) - mismo criterio que revertirRetirosDeCompra.
+async function revertirRetiroPorGasto(cliente, gastoId) {
+    const bloqueado = await cliente.query(
+        `SELECT r.id FROM retiros_caja r JOIN turnos t ON t.id = r.turno_id
+          WHERE r.gasto_id = $1 AND t.estado <> 'abierto'`,
+        [gastoId]
+    );
+    await cliente.query(
+        `DELETE FROM retiros_caja r
+          USING turnos t
+          WHERE r.turno_id = t.id AND r.gasto_id = $1 AND t.estado = 'abierto'`,
+        [gastoId]
+    );
+    return bloqueado.rows.length > 0;
 }
 
 // ---------------------------------------------------------------------
@@ -40,7 +85,7 @@ export async function listarGastos(req, res) {
 
 export async function crearGasto(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { categoria, descripcion, monto, fechaGasto, ordenProduccionId } = req.body;
+    const { categoria, descripcion, monto, fechaGasto, ordenProduccionId, formaPago, origen } = req.body;
 
     if (!validarCategoria(categoria)) {
         return res.status(400).json({ error: 'Categoría inválida' });
@@ -51,15 +96,40 @@ export async function crearGasto(req, res) {
     if (!(Number(monto) > 0)) {
         return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
     }
+    if (!FORMAS_PAGO_VALIDAS.includes(formaPago)) {
+        return res.status(400).json({ error: 'Indicá cómo se pagó este gasto' });
+    }
+    const origenFinal = formaPago === 'efectivo' && origen === 'caja' ? 'caja' : formaPago === 'efectivo' ? 'administracion' : null;
 
-    const resultado = await consultaDeEmpresa(
-        empresaId,
-        `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id, orden_produccion_id)
-         VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7)
-         RETURNING *`,
-        [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId, ordenProduccionId || null]
-    );
-    res.status(201).json(resultado.rows[0]);
+    try {
+        const gasto = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const gastoInsertado = await cliente.query(
+                `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id, orden_produccion_id, forma_pago, origen)
+                 VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7, $8, $9)
+                 RETURNING *`,
+                [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId, ordenProduccionId || null, formaPago, origenFinal]
+            );
+            const nuevoGasto = gastoInsertado.rows[0];
+
+            if (origenFinal === 'caja') {
+                await generarRetiroPorGasto(cliente, {
+                    empresaId,
+                    usuarioId,
+                    gastoId: nuevoGasto.id,
+                    descripcion: nuevoGasto.descripcion,
+                    monto: nuevoGasto.monto,
+                });
+            }
+
+            return nuevoGasto;
+        });
+        res.status(201).json(gasto);
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
 }
 
 export async function actualizarGasto(req, res) {
@@ -92,11 +162,31 @@ export async function eliminarGasto(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
 
-    const resultado = await consultaDeEmpresa(empresaId, `DELETE FROM gastos WHERE id = $1 RETURNING id`, [id]);
-    if (!resultado.rows[0]) {
-        return res.status(404).json({ error: 'Gasto no encontrado' });
+    try {
+        const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            // Si este gasto genero un retiro de caja (efectivo "de la caja")
+            // y su turno ya cerro, no se puede deshacer sin descuadrar ese
+            // cierre - se avisa en vez de dejar un retiro huerfano o fallar
+            // con un error de base de datos por la referencia (gasto_id).
+            const bloqueado = await revertirRetiroPorGasto(cliente, id);
+            if (bloqueado) {
+                throw new ErrorNegocio(
+                    'Este gasto generó un retiro de caja en un turno que ya cerró — no se puede eliminar sin descuadrar ese cierre.'
+                );
+            }
+            const borrado = await cliente.query(`DELETE FROM gastos WHERE id = $1 RETURNING id`, [id]);
+            return borrado.rows[0];
+        });
+        if (!resultado) {
+            return res.status(404).json({ error: 'Gasto no encontrado' });
+        }
+        res.json({ ok: true });
+    } catch (error) {
+        if (error instanceof ErrorNegocio) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
     }
-    res.json({ ok: true });
 }
 
 // ---------------------------------------------------------------------
@@ -348,12 +438,14 @@ export async function obtenerBalanceMensual(req, res) {
         []
     );
     // Se separa "pago_proveedor" segun si esta vinculado a una compra
-    // (compra_id) o fue cargado suelto a mano - ver el desglose de
-    // retirosOperativos mas abajo para el porque.
+    // (compra_id) y "gasto_puntual" segun si esta vinculado a un gasto
+    // (gasto_id) o fue cargado suelto a mano desde Caja - ver el desglose
+    // de retirosOperativos mas abajo para el porque.
     const retirosPorMotivo = await consultaDeEmpresa(
         empresaId,
-        `SELECT motivo, (compra_id IS NULL) AS sin_compra, COALESCE(SUM(monto), 0) AS total
-         FROM retiros_caja WHERE ${whereFecha('creado_en')} GROUP BY motivo, (compra_id IS NULL)`,
+        `SELECT motivo, (compra_id IS NULL) AS sin_compra, (gasto_id IS NULL) AS sin_gasto,
+                COALESCE(SUM(monto), 0) AS total
+         FROM retiros_caja WHERE ${whereFecha('creado_en')} GROUP BY motivo, (compra_id IS NULL), (gasto_id IS NULL)`,
         [desde, hasta]
     );
 
@@ -378,9 +470,16 @@ export async function obtenerBalanceMensual(req, res) {
     // comentario de costoMercaderiaVendida mas arriba). Contarlo aca de
     // nuevo duplicaba el mismo costo. Se muestra aparte, informativo, para
     // que no desaparezca de la vista sin explicacion.
+    //
+    // "gasto_puntual" con gasto_id (el retiro que el sistema genera solo
+    // al pagar un gasto en efectivo "de la caja") tampoco se cuenta aca:
+    // ese mismo monto ya esta adentro de gastosOperativos, via la tabla
+    // gastos. Solo el "gasto puntual" cargado suelto desde Caja (sin pasar
+    // por Gastos) es un gasto real que no esta contado en ningun otro lado.
     let pagoProveedorSinCompra = 0;
     let pagoProveedorConCompra = 0;
-    let gastoPuntual = 0;
+    let gastoPuntualSinGasto = 0;
+    let gastoPuntualConGasto = 0;
     let retirosPersonales = 0;
     let retirosARevisar = 0;
     for (const fila of retirosPorMotivo.rows) {
@@ -389,14 +488,15 @@ export async function obtenerBalanceMensual(req, res) {
             if (fila.sin_compra) pagoProveedorSinCompra += monto;
             else pagoProveedorConCompra += monto;
         } else if (fila.motivo === 'gasto_puntual') {
-            gastoPuntual += monto;
+            if (fila.sin_gasto) gastoPuntualSinGasto += monto;
+            else gastoPuntualConGasto += monto;
         } else if (fila.motivo === 'retiro_personal') {
             retirosPersonales += monto;
         } else if (fila.motivo === 'envio_tercero' || fila.motivo === 'otro') {
             retirosARevisar += monto;
         }
     }
-    const retirosOperativos = pagoProveedorSinCompra + gastoPuntual;
+    const retirosOperativos = pagoProveedorSinCompra + gastoPuntualSinGasto;
 
     const ingresos = Math.round(Number(ventasContado.rows[0].total) + Number(cobrosFiado.rows[0].total));
     const montoCostoMercaderiaVendida = Math.round(Number(costoMercaderiaVendida.rows[0].total));
