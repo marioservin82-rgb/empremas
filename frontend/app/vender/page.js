@@ -323,6 +323,14 @@ export default function Vender() {
   ]);
 
   function cambiarTipoPago(valor) {
+    if (valor === tipoPago) return;
+    // Cambiar Contado/Crédito/Mayorista borra el cliente y los pagos ya
+    // cargados (cada tipo maneja su propio flujo) - un toque accidental en
+    // pleno cobro no debería perder eso sin avisar.
+    const hayAlgoQuePerder = pagos.length > 0 || !!cliente;
+    if (hayAlgoQuePerder && !window.confirm("Cambiar el tipo de venta borra el cliente y los pagos que ya cargaste. ¿Continuar?")) {
+      return;
+    }
     setTipoPago(valor);
     setCliente(null);
     setProductosFrecuentes([]);
@@ -706,6 +714,12 @@ export default function Vender() {
   useEffect(() => {
     function alPresionarTecla(e) {
       if (!(e.ctrlKey && e.key === "Enter")) return;
+      // Si el foco está en un campo de texto (ej. cargando un descuento, el
+      // teléfono de un cliente nuevo, una búsqueda) NO se dispara el cierre
+      // rápido - tocar Ctrl+Enter ahí por error cobraría y cerraría la venta
+      // sin querer. El atajo solo actúa cuando no se está escribiendo nada.
+      const activo = document.activeElement;
+      if (activo && (activo.tagName === "INPUT" || activo.tagName === "TEXTAREA")) return;
       if (tipoPago === "credito" && !e.shiftKey) return;
       if (tipoPago !== "credito" && e.shiftKey) return;
       e.preventDefault();

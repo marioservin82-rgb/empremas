@@ -28,6 +28,7 @@ export default function Caja() {
   const [montoInicial, setMontoInicial] = useState("");
   const [montoDeclarado, setMontoDeclarado] = useState("");
   const [resultadoCierre, setResultadoCierre] = useState(null);
+  const [confirmandoCierre, setConfirmandoCierre] = useState(false);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [puedeVerHistorial, setPuedeVerHistorial] = useState(false);
@@ -194,6 +195,20 @@ export default function Caja() {
     }
   }
 
+  // Diferencia calculada en vivo, antes de mandar nada — así el cajero la ve
+  // y puede recontar si algo no cierra, en vez de enterarse recién cuando el
+  // turno ya quedó cerrado y no se puede volver atrás.
+  const diferenciaCierre =
+    efectivoEsperado !== null && montoDeclarado !== "" ? Number(montoDeclarado) - efectivoEsperado : null;
+
+  function intentarCerrarCaja() {
+    if (diferenciaCierre !== null && diferenciaCierre !== 0) {
+      setConfirmandoCierre(true);
+      return;
+    }
+    cerrarCaja();
+  }
+
   async function cerrarCaja() {
     setError("");
     setEnviando(true);
@@ -203,8 +218,10 @@ export default function Caja() {
         body: JSON.stringify({ montoDeclarado: Number(montoDeclarado) || 0 }),
       });
       setResultadoCierre(cerrado);
+      setConfirmandoCierre(false);
     } catch (err) {
       setError(err.message);
+      setConfirmandoCierre(false);
     } finally {
       setEnviando(false);
     }
@@ -529,18 +546,55 @@ export default function Caja() {
               type="number"
               min="0"
               value={montoDeclarado}
-              onChange={(e) => setMontoDeclarado(e.target.value)}
+              onChange={(e) => {
+                setMontoDeclarado(e.target.value);
+                setConfirmandoCierre(false);
+              }}
               placeholder="0"
-              className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              className="mb-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
+            {diferenciaCierre !== null && diferenciaCierre !== 0 && (
+              <p className={`mb-4 text-sm font-semibold ${diferenciaCierre > 0 ? "text-navy" : "text-red-600"}`}>
+                {diferenciaCierre > 0
+                  ? `Sobran Gs ${formatoGs.format(diferenciaCierre)}`
+                  : `Faltan Gs ${formatoGs.format(-diferenciaCierre)}`}
+              </p>
+            )}
             {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            <button
-              onClick={cerrarCaja}
-              disabled={enviando || montoDeclarado === ""}
-              className="w-full rounded-xl bg-amber-600 py-3 text-lg font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
-            >
-              {enviando ? "Cerrando..." : "Cerrar caja"}
-            </button>
+
+            {!confirmandoCierre ? (
+              <button
+                onClick={intentarCerrarCaja}
+                disabled={enviando || montoDeclarado === ""}
+                className="w-full rounded-xl bg-amber-600 py-3 text-lg font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
+              >
+                {enviando ? "Cerrando..." : "Cerrar caja"}
+              </button>
+            ) : (
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="mb-3 text-sm font-semibold text-amber-800">
+                  {diferenciaCierre > 0
+                    ? `Vas a cerrar con Gs ${formatoGs.format(diferenciaCierre)} de sobrante.`
+                    : `Vas a cerrar con Gs ${formatoGs.format(-diferenciaCierre)} de faltante.`}{" "}
+                  Una vez cerrado no se puede volver a abrir este turno. ¿Recontaste el efectivo?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmandoCierre(false)}
+                    className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+                  >
+                    Volver a contar
+                  </button>
+                  <button
+                    onClick={cerrarCaja}
+                    disabled={enviando}
+                    className="flex-1 rounded-xl bg-amber-600 py-3 font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                  >
+                    {enviando ? "Cerrando..." : "Confirmar cierre"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

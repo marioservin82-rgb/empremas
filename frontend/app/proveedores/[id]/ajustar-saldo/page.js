@@ -14,7 +14,9 @@ export default function AjustarSaldoProveedor() {
   const [proveedor, setProveedor] = useState(null);
   const [saldoNuevo, setSaldoNuevo] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [pin, setPin] = useState("");
 
+  const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -33,7 +35,7 @@ export default function AjustarSaldoProveedor() {
   }, [router, id]);
 
   const diferencia = proveedor ? Number(saldoNuevo || 0) - Number(proveedor.saldo) : 0;
-  const puedeConfirmar = proveedor && saldoNuevo !== "" && motivo.trim().length > 0;
+  const puedeContinuar = proveedor && saldoNuevo !== "" && motivo.trim().length >= 5;
 
   async function confirmar() {
     setError("");
@@ -41,13 +43,15 @@ export default function AjustarSaldoProveedor() {
     try {
       const ajuste = await apiFetch(`/api/proveedores/${id}/ajustes-saldo`, {
         method: "POST",
-        body: JSON.stringify({ saldoNuevo: Number(saldoNuevo), motivo: motivo.trim() }),
+        body: JSON.stringify({ saldoNuevo: Number(saldoNuevo), motivo: motivo.trim(), pin: pin || undefined }),
       });
       setExito(
         `Ajustado: ${ajuste.proveedorNombre} pasó de Gs ${formatoGs.format(ajuste.saldoAnterior)} a Gs ${formatoGs.format(ajuste.saldoNuevo)} (${ajuste.diferencia >= 0 ? "+" : ""}Gs ${formatoGs.format(ajuste.diferencia)})`
       );
       setProveedor((actual) => ({ ...actual, saldo: ajuste.saldoNuevo }));
       setMotivo("");
+      setPin("");
+      setConfirmando(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -101,20 +105,61 @@ export default function AjustarSaldoProveedor() {
           <label className="mb-1 block text-sm font-medium text-slate-700">Motivo</label>
           <input
             value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
+            onChange={(e) => {
+              setMotivo(e.target.value);
+              setConfirmando(false);
+            }}
             placeholder="Ej: migración de otro sistema, corrección de carga..."
             className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
           />
 
           {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-          <button
-            onClick={confirmar}
-            disabled={enviando || !puedeConfirmar}
-            className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
-          >
-            {enviando ? "Guardando..." : "Confirmar ajuste"}
-          </button>
+          {!confirmando ? (
+            <button
+              onClick={() => setConfirmando(true)}
+              disabled={!puedeContinuar}
+              className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
+            >
+              Ajustar saldo
+            </button>
+          ) : (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+              <p className="mb-3 text-sm font-semibold text-amber-800">
+                Vas a cambiar el saldo de {proveedor.nombre} de Gs {formatoGs.format(proveedor.saldo)} a Gs{" "}
+                {formatoGs.format(Number(saldoNuevo))} ({diferencia >= 0 ? "+" : ""}
+                Gs {formatoGs.format(diferencia)}). Esto no se puede deshacer.
+              </p>
+
+              <label className="mb-1 block text-sm font-medium text-slate-500">
+                PIN de autorización (dueño/encargado)
+              </label>
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Dejalo vacío si sos dueño/encargado"
+                inputMode="numeric"
+                className="mb-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              />
+              <p className="mb-3 text-xs text-slate-500">Si sos cajero, pedile el PIN a un dueño o encargado.</p>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmando(false)}
+                  className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmar}
+                  disabled={enviando}
+                  className="flex-1 rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {enviando ? "Guardando..." : "Confirmar ajuste"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

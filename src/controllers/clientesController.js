@@ -1,7 +1,9 @@
+import bcrypt from 'bcrypt';
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
 import { rangoDelMes } from '../utils/rangoDelMes.js';
+import { tienePermiso } from '../utils/permisos.js';
 
 // Categoria de fidelizacion de un cliente: nunca se guarda, siempre se
 // recalcula comparando el volumen de compra del mes (contado + credito +
@@ -398,15 +400,15 @@ export async function importarClientes(req, res) {
 // motivo obligatorio, dejando rastro en ajustes_saldo_cliente. Pensado
 // para migrar deuda de un sistema anterior o corregir un error de carga.
 export async function ajustarSaldo(req, res) {
-    const { empresaId, usuarioId } = req.usuario;
+    const { empresaId, usuarioId, rol } = req.usuario;
     const { id } = req.params;
-    const { saldoNuevo, motivo } = req.body;
+    const { saldoNuevo, motivo, pin } = req.body;
 
     if (!(Number(saldoNuevo) >= 0)) {
         return res.status(400).json({ error: 'El saldo nuevo debe ser 0 o mayor' });
     }
-    if (!motivo || !motivo.trim()) {
-        return res.status(400).json({ error: 'El motivo es obligatorio' });
+    if (!motivo || !motivo.trim() || motivo.trim().length < 5) {
+        return res.status(400).json({ error: 'Indicá un motivo más específico (mínimo 5 caracteres)' });
     }
 
     try {
@@ -415,6 +417,30 @@ export async function ajustarSaldo(req, res) {
             const cliente = clienteResultado.rows[0];
             if (!cliente) {
                 throw new ErrorNegocio('El cliente no existe');
+            }
+
+            // Reescribir un saldo a mano es tan sensible como anular una
+            // venta - mismo mecanismo de PIN (bcrypt contra dueño/encargado)
+            // y el mismo permiso para saltearlo, ver ventasController.anularVenta.
+            if (rol === 'cajero' && !(await tienePermiso(empresaId, usuarioId, 'anular_sin_pin'))) {
+                if (!pin) {
+                    throw new ErrorNegocio('Necesitás el PIN de un dueño o encargado para ajustar un saldo');
+                }
+                const supervisores = await db.query(
+                    `SELECT id, pin_hash FROM usuarios
+                     WHERE empresa_id = $1 AND rol IN ('dueno', 'encargado') AND activo = true AND pin_hash IS NOT NULL`,
+                    [empresaId]
+                );
+                let coincidencia = null;
+                for (const s of supervisores.rows) {
+                    if (await bcrypt.compare(pin, s.pin_hash)) {
+                        coincidencia = s.id;
+                        break;
+                    }
+                }
+                if (!coincidencia) {
+                    throw new ErrorNegocio('PIN de autorización incorrecto');
+                }
             }
 
             const saldoAnterior = Number(cliente.saldo);
