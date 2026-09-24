@@ -220,27 +220,33 @@ export default function CategoriasCliente() {
             </span>
           </label>
 
-          <label className={etiqueta}>Descuento adicional (%, opcional)</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            value={form.beneficioDescuentoAdicionalPct}
-            onChange={actualizar("beneficioDescuentoAdicionalPct")}
-            className={campo}
-            placeholder="Sin descuento adicional"
-          />
+          <label className={etiqueta}>Descuento adicional (opcional)</label>
+          <div className="relative mb-4">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={form.beneficioDescuentoAdicionalPct}
+              onChange={actualizar("beneficioDescuentoAdicionalPct")}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              placeholder="Sin descuento adicional"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">%</span>
+          </div>
 
-          <label className={etiqueta}>Línea de crédito extra (Gs, opcional)</label>
-          <input
-            type="number"
-            min="0"
-            value={form.beneficioLineaCreditoExtra}
-            onChange={actualizar("beneficioLineaCreditoExtra")}
-            className={campo}
-            placeholder="Sin crédito extra"
-          />
+          <label className={etiqueta}>Línea de crédito extra (opcional)</label>
+          <div className="relative mb-4">
+            <input
+              type="number"
+              min="0"
+              value={form.beneficioLineaCreditoExtra}
+              onChange={actualizar("beneficioLineaCreditoExtra")}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              placeholder="Sin crédito extra"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">Gs</span>
+          </div>
 
           <div className="flex gap-2">
             <button

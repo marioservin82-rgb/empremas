@@ -264,87 +264,114 @@ export default function Panel() {
       )}
 
       {(() => {
+        const yoManeja = yo?.rol === "dueno" || yo?.rol === "encargado";
+
+        // Cuando el comercio tiene un rubro vertical activo, ese es su
+        // trabajo del día a día - va al bloque grande junto a Vender, en
+        // vez de quedar mezclado en secundarios con el mismo peso que
+        // "Consumo interno". Si por algún motivo hay más de uno activo a
+        // la vez (poco común), se prioriza el que suele ser el negocio en
+        // sí (Producción/Mesas) antes que un módulo complementario (Citas).
+        let verticalPrincipal = null;
+        if (yo?.rol !== "mesero") {
+          if (produccionHabilitada && yoManeja) {
+            verticalPrincipal = { nombre: "Producción", icono: "🏭", color: "bg-navy hover:bg-navy-2", href: "/produccion", clave: "produccion" };
+          } else if (lomiteriaHabilitada) {
+            verticalPrincipal = { nombre: "Mesas", icono: "🍽️", color: "bg-navy hover:bg-navy-2", href: "/mesas", clave: "lomiteria" };
+          } else if (reparacionesHabilitada) {
+            verticalPrincipal = { nombre: "Nota de Recepción", icono: "🔧", color: "bg-navy hover:bg-navy-2", href: "/reparaciones", clave: "reparaciones" };
+          } else if (mascotasHabilitadas) {
+            verticalPrincipal = { nombre: "Mascotas", icono: "🐾", color: "bg-navy hover:bg-navy-2", href: "/mascotas", clave: "mascotas" };
+          } else if (citasHabilitada) {
+            verticalPrincipal = { nombre: "Agenda de citas", icono: "📅", color: "bg-navy hover:bg-navy-2", href: "/citas", clave: "citas" };
+          }
+        }
+
+        // Consumo interno / Pedido inteligente: sin un rubro vertical
+        // activo, un comercio general los usa seguido y quedan en el
+        // bloque grande, como siempre. Con un rubro activo, pasan a
+        // secundarios (sección General) para no competir con la acción
+        // principal de ese rubro.
         const extra = [];
-        if (yo?.rol === "dueno") {
-          extra.push({
-            nombre: "Consumo interno",
-            icono: "🏠",
-            color: "bg-navy hover:bg-navy-2",
-            href: "/gastos/salida-stock?motivo=consumo_interno",
-          });
+        if (!verticalPrincipal) {
+          if (yo?.rol === "dueno") {
+            extra.push({ nombre: "Consumo interno", icono: "🏠", color: "bg-navy hover:bg-navy-2", href: "/gastos/salida-stock?motivo=consumo_interno" });
+          }
+          if (yoManeja) {
+            extra.push({ nombre: "Pedido inteligente", icono: "📋", color: "bg-navy hover:bg-navy-2", href: "/proveedores" });
+          }
         }
-        // Pedido inteligente: mismo permiso que ya tiene el backend
-        // (dueño/encargado, gestionar_compras) - por eso encargado también
-        // lo ve acá, aunque no vea "Consumo interno".
-        if (yo?.rol === "dueno" || yo?.rol === "encargado") {
-          extra.push({
-            nombre: "Pedido inteligente",
-            icono: "📋",
-            color: "bg-navy hover:bg-navy-2",
-            href: "/proveedores",
-          });
-        }
+
         // El mesero nunca entra a Vender/Stock/Clientes/Caja directo (ver
         // Contexto del modulo de Lomiteria) - sus 4 botones grandes de
         // siempre se reemplazan por uno solo.
         const items =
           yo?.rol === "mesero"
             ? [{ nombre: "Mesas", icono: "🍽️", color: "bg-brand hover:bg-brand-light", href: "/mesas" }]
-            : [...botones, ...extra];
+            : [...botones, ...(verticalPrincipal ? [verticalPrincipal] : []), ...extra];
         const columnas = items.length > 4 ? "grid-cols-3" : items.length <= 1 ? "grid-cols-1" : "grid-cols-2";
 
-        const secundarios = [];
-        if (yo?.rol === "dueno") {
-          secundarios.push({ nombre: "Gastos", icono: "💸", href: "/gastos" });
+        // Secundarios agrupados en mini-secciones (en vez de una sola fila
+        // plana) para que no se amontonen hasta 16 accesos sin ningún
+        // orden cuando hay varios módulos activos a la vez.
+        const seccionRubro = [];
+        if (produccionHabilitada && verticalPrincipal?.clave !== "produccion" && yoManeja) {
+          seccionRubro.push({ nombre: "Producción", icono: "🏭", href: "/produccion" });
         }
-        // Modulo de Produccion: oculto por completo si la empresa no lo
-        // activo desde Perfil de Empresa - el permiso extra
-        // gestionar_produccion lo evalua el backend en cada endpoint, acá
-        // alcanza con dueño/encargado (mismo criterio que Pedido inteligente).
-        if (produccionHabilitada && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
-          secundarios.push({ nombre: "Producción", icono: "🏭", href: "/produccion" });
-        }
-        // Modulo de Vendedores por comision: mismo criterio que Produccion.
-        if (comisionesHabilitadas && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
-          secundarios.push({ nombre: "Vendedores", icono: "🤝", href: "/vendedores" });
-        }
-        // Modulo de Lomiteria: mismo criterio que Produccion/Vendedores,
-        // pero visible para todos los roles (el mesero tambien lo necesita).
         if (lomiteriaHabilitada) {
-          secundarios.push({ nombre: "Mesas", icono: "🍽️", href: "/mesas" });
-          secundarios.push({ nombre: "Cocina", icono: "🍳", href: "/cocina" });
+          if (verticalPrincipal?.clave !== "lomiteria") seccionRubro.push({ nombre: "Mesas", icono: "🍽️", href: "/mesas" });
+          seccionRubro.push({ nombre: "Cocina", icono: "🍳", href: "/cocina" });
         }
-        // Modulo de Agenda de citas: visible a cualquier rol (el cajero
-        // tambien reserva/cobra citas), igual de abierto que Vender.
-        if (citasHabilitada) {
-          secundarios.push({ nombre: "Agenda de citas", icono: "📅", href: "/citas" });
+        if (citasHabilitada && verticalPrincipal?.clave !== "citas") {
+          seccionRubro.push({ nombre: "Agenda de citas", icono: "📅", href: "/citas" });
         }
-        // Modulo de Nota de Recepcion: visible a cualquier rol (cualquier
-        // cajero puede recibir un equipo), igual de abierto que Vender/Citas.
-        if (reparacionesHabilitada) {
-          secundarios.push({ nombre: "Nota de Recepción", icono: "🔧", href: "/reparaciones" });
+        if (reparacionesHabilitada && verticalPrincipal?.clave !== "reparaciones") {
+          seccionRubro.push({ nombre: "Nota de Recepción", icono: "🔧", href: "/reparaciones" });
         }
-        // Modulo de Mascotas: visible a cualquier rol, igual de abierto que
-        // Vender/Citas/Reparaciones.
         if (mascotasHabilitadas) {
-          secundarios.push({ nombre: "Mascotas", icono: "🐾", href: "/mascotas" });
-          secundarios.push({ nombre: "Internación", icono: "🏥", href: "/internaciones" });
+          if (verticalPrincipal?.clave !== "mascotas") seccionRubro.push({ nombre: "Mascotas", icono: "🐾", href: "/mascotas" });
+          seccionRubro.push({ nombre: "Internación", icono: "🏥", href: "/internaciones" });
         }
+        if (comisionesHabilitadas && yoManeja) {
+          seccionRubro.push({ nombre: "Vendedores", icono: "🤝", href: "/vendedores" });
+        }
+
+        const seccionGeneral = [];
+        if (yo?.rol === "dueno") {
+          seccionGeneral.push({ nombre: "Gastos", icono: "💸", href: "/gastos" });
+          if (verticalPrincipal) {
+            seccionGeneral.push({ nombre: "Consumo interno", icono: "🏠", href: "/gastos/salida-stock?motivo=consumo_interno" });
+          }
+        }
+        if (verticalPrincipal && yoManeja) {
+          seccionGeneral.push({ nombre: "Pedido inteligente", icono: "📋", href: "/proveedores" });
+        }
+
+        const seccionReportes = [];
         if (yo?.rol !== "mesero") {
-          secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
-          secundarios.push({ nombre: "Crédito cobrado hoy", icono: "💵", href: "/clientes/cobros-dia" });
+          seccionReportes.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
+          seccionReportes.push({ nombre: "Crédito cobrado hoy", icono: "💵", href: "/clientes/cobros-dia" });
         }
+
         // Traslados/pedidos entre sucursales: sin sentido con una sola
         // sucursal. Mismo criterio de rol que Ajuste de Inventario
         // (dueño/encargado o cajero con el permiso, este último lo filtra
         // el propio backend en cada endpoint - acá alcanza con no ocultarlo
         // para dueño/encargado).
-        if (multiSucursal && (yo?.rol === "dueno" || yo?.rol === "encargado")) {
-          secundarios.push({ nombre: "Traslado entre sucursales", icono: "🚚", href: "/stock/traslados/nuevo" });
-          secundarios.push({ nombre: "Traslados", icono: "📋", href: "/stock/traslados" });
-          secundarios.push({ nombre: "Pedir a la central", icono: "📥", href: "/stock/pedidos/nuevo" });
-          secundarios.push({ nombre: "Pedidos de sucursales", icono: "📥", href: "/stock/pedidos" });
+        const seccionSucursales = [];
+        if (multiSucursal && yoManeja) {
+          seccionSucursales.push({ nombre: "Traslado entre sucursales", icono: "🚚", href: "/stock/traslados/nuevo" });
+          seccionSucursales.push({ nombre: "Traslados", icono: "📋", href: "/stock/traslados" });
+          seccionSucursales.push({ nombre: "Pedir a la central", icono: "📥", href: "/stock/pedidos/nuevo" });
+          seccionSucursales.push({ nombre: "Pedidos de sucursales", icono: "📥", href: "/stock/pedidos" });
         }
+
+        const secciones = [
+          { titulo: "Tu rubro", items: seccionRubro },
+          { titulo: "General", items: seccionGeneral },
+          { titulo: "Reportes", items: seccionReportes },
+          { titulo: "Sucursales", items: seccionSucursales },
+        ].filter((s) => s.items.length > 0);
 
         return (
           <>
@@ -365,18 +392,23 @@ export default function Panel() {
               })}
             </div>
 
-            <div className="mt-4 flex w-full max-w-3xl flex-wrap justify-center gap-3">
-              {secundarios.map((b) => (
-                <Link
-                  key={b.nombre}
-                  href={b.href}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-600 shadow-sm transition hover:border-navy hover:text-navy active:scale-[0.98]"
-                >
-                  <span className="text-lg">{b.icono}</span>
-                  <span className="text-sm font-semibold">{b.nombre}</span>
-                </Link>
-              ))}
-            </div>
+            {secciones.map((s) => (
+              <div key={s.titulo} className="mt-4 w-full max-w-3xl">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{s.titulo}</p>
+                <div className="flex flex-wrap gap-3">
+                  {s.items.map((b) => (
+                    <Link
+                      key={b.nombre}
+                      href={b.href}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-600 shadow-sm transition hover:border-navy hover:text-navy active:scale-[0.98]"
+                    >
+                      <span className="text-lg">{b.icono}</span>
+                      <span className="text-sm font-semibold">{b.nombre}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </>
         );
       })()}

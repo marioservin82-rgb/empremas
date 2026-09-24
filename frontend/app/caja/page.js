@@ -493,7 +493,7 @@ export default function Caja() {
                   )}
                   <button
                     onClick={abrirFormRetiro}
-                    className="text-sm font-semibold text-brand hover:text-navy"
+                    className="text-sm font-semibold text-navy hover:text-brand"
                   >
                     + Retiro de efectivo
                   </button>

@@ -9,6 +9,23 @@ import { TEXTO_LEGAL_POR_DEFECTO } from "@/lib/reparaciones";
 const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
+// Mismo patrón de tarjeta que ya usa Admin para activar/desactivar
+// módulos (admin/empresas/[id]/page.js) - acá sin el switch, porque
+// activar o desactivar un módulo lo gestiona EMPREMAS, no el dueño.
+function ModuloActivoInfo({ titulo, descripcion }) {
+  return (
+    <div className="mb-3 rounded-xl border border-slate-200 p-4 last:mb-0">
+      <div className="flex items-center justify-between gap-4">
+        <p className="font-semibold text-slate-800">{titulo}</p>
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          Activo
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-slate-400">{descripcion}</p>
+    </div>
+  );
+}
+
 function estadoCertificado(vencimiento) {
   if (!vencimiento) return { texto: "No cargado", clase: "bg-slate-100 text-slate-500" };
   const dias = Math.ceil(
@@ -255,8 +272,26 @@ export default function PerfilEmpresa() {
           <p className="mt-1 text-sm text-slate-500">Datos fiscales, de contacto e identidad de tu comercio.</p>
         </div>
 
+        <nav className="mb-6 flex gap-2 overflow-x-auto whitespace-nowrap pb-1 text-sm">
+          <a href="#seccion-fiscales" className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-600 shadow-sm hover:text-navy">
+            Fiscales
+          </a>
+          <a href="#seccion-contacto" className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-600 shadow-sm hover:text-navy">
+            Contacto
+          </a>
+          <a href="#seccion-modulos" className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-600 shadow-sm hover:text-navy">
+            Módulos
+          </a>
+          <a href="#seccion-sifen" className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-600 shadow-sm hover:text-navy">
+            SIFEN
+          </a>
+          <a href="#seccion-logo" className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-600 shadow-sm hover:text-navy">
+            Logo
+          </a>
+        </nav>
+
         <form onSubmit={guardar}>
-          <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+          <div id="seccion-fiscales" className="mb-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <h2 className="mb-4 text-lg font-bold text-slate-800">Datos fiscales</h2>
 
             <label className={etiqueta}>Razón social</label>
@@ -307,7 +342,7 @@ export default function PerfilEmpresa() {
             )}
           </div>
 
-          <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+          <div id="seccion-contacto" className="mb-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <h2 className="mb-4 text-lg font-bold text-slate-800">Datos de contacto</h2>
 
             <label className={etiqueta}>Teléfono / WhatsApp</label>
@@ -325,24 +360,49 @@ export default function PerfilEmpresa() {
             />
           </div>
 
+          <div id="seccion-modulos" className="scroll-mt-4">
+
           {(empresa.produccion_habilitada ||
             empresa.lomiteria_habilitada ||
             empresa.citas_habilitadas ||
             empresa.reparaciones_habilitadas ||
             empresa.recomendacion_margen_habilitada) && (
             <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
-              <p className="font-semibold text-slate-800">Módulos activos</p>
-              <p className="mt-1 text-sm text-slate-400">
-                {[
-                  empresa.produccion_habilitada && "Producción",
-                  empresa.lomiteria_habilitada && "Lomitería / Restaurante",
-                  empresa.citas_habilitadas && "Agenda de citas",
-                  empresa.reparaciones_habilitadas && "Nota de Recepción",
-                  empresa.recomendacion_margen_habilitada && "Recomendación de margen",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}{" "}
-                — los gestiona EMPREMAS. Escribinos si querés activar o desactivar alguno.
+              <p className="mb-3 font-semibold text-slate-800">Módulos activos</p>
+
+              {empresa.produccion_habilitada && (
+                <ModuloActivoInfo
+                  titulo="Producción"
+                  descripcion="Fabricación (ladrillera, chipería...): insumos, recetas, órdenes y costo real por unidad."
+                />
+              )}
+              {empresa.lomiteria_habilitada && (
+                <ModuloActivoInfo
+                  titulo="Lomitería / Restaurante"
+                  descripcion="Mesas, toma de pedido, comanda de cocina y caja compartida. Activa también Vendedores por comisión."
+                />
+              )}
+              {empresa.citas_habilitadas && (
+                <ModuloActivoInfo
+                  titulo="Agenda de citas"
+                  descripcion="Reservar cliente + profesional + servicio + duración, con cobro directo desde la agenda."
+                />
+              )}
+              {empresa.reparaciones_habilitadas && (
+                <ModuloActivoInfo
+                  titulo="Nota de Recepción"
+                  descripcion="Recibir un equipo con el estado y el comentario del cliente, e imprimir la nota firmada."
+                />
+              )}
+              {empresa.recomendacion_margen_habilitada && (
+                <ModuloActivoInfo
+                  titulo="Recomendación de margen"
+                  descripcion="Sugiere qué margen aplicar a cada producto según su rotación, para llegar a la ganancia mensual que te propusiste."
+                />
+              )}
+
+              <p className="mt-3 text-xs text-slate-400">
+                Los módulos los activa o desactiva EMPREMAS. Escribinos si querés sumar o sacar alguno.
               </p>
 
               {empresa.reparaciones_habilitadas && (
@@ -489,7 +549,9 @@ export default function PerfilEmpresa() {
             )}
           </div>
 
-          <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+          </div>
+
+          <div id="seccion-sifen" className="mb-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <h2 className="mb-1 text-lg font-bold text-slate-800">Datos fiscales SIFEN</h2>
 
             {gestionadoPorConector ? (
@@ -545,7 +607,7 @@ export default function PerfilEmpresa() {
           </button>
         </form>
 
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+        <div id="seccion-logo" className="mt-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
           <h2 className="mb-1 text-lg font-bold text-slate-800">Logo del comercio</h2>
           <p className="mb-4 text-sm text-slate-500">Aparece en la Factura Legal (SIFEN).</p>
 

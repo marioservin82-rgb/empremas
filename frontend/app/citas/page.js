@@ -39,6 +39,7 @@ export default function Citas() {
   const [sucursalId, setSucursalId] = useState("");
   const [mostrarSelectorSucursal, setMostrarSelectorSucursal] = useState(false);
   const [citas, setCitas] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState("");
   const [cambiandoId, setCambiandoId] = useState(null);
 
@@ -144,6 +145,16 @@ export default function Citas() {
     if (link) window.open(link, "_blank");
   }
 
+  const q = busqueda.trim().toLowerCase();
+  const citasFiltradas =
+    citas === null
+      ? []
+      : !q
+      ? citas
+      : citas.filter(
+          (c) => c.cliente_nombre.toLowerCase().includes(q) || c.producto_nombre.toLowerCase().includes(q)
+        );
+
   return (
     <main className="flex flex-1 flex-col items-center p-6">
       <div className="w-full max-w-2xl">
@@ -214,17 +225,24 @@ export default function Citas() {
           )}
         </div>
 
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por cliente o servicio..."
+          className="mb-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+        />
+
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         {citas === null ? (
           <p className="text-slate-500">Cargando...</p>
-        ) : citas.length === 0 ? (
+        ) : citasFiltradas.length === 0 ? (
           <p className="rounded-2xl bg-white p-5 text-center text-slate-500 shadow shadow-slate-200">
-            Sin citas para este día.
+            {citas.length === 0 ? "Sin citas para este día." : "Ninguna cita coincide con la búsqueda."}
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {citas.map((c) => (
+            {citasFiltradas.map((c) => (
               <div key={c.id} className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div>

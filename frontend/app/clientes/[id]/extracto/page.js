@@ -191,6 +191,7 @@ export default function ExtractoCliente() {
                 onChange={(e) => {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
+                  cargar({ desde: e.target.value, hasta });
                 }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
@@ -203,6 +204,7 @@ export default function ExtractoCliente() {
                 onChange={(e) => {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
+                  cargar({ desde, hasta: e.target.value });
                 }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />

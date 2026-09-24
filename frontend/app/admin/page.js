@@ -228,6 +228,45 @@ export default function AdminEmpresas() {
                         RUC {e.ruc} · Plan {e.plan} · Usuarios {e.usuarios_activos}/{e.limite_usuarios} · Sucursales{" "}
                         {e.sucursales_activas}/{e.limite_sucursales} · Vence {formatoFecha(e.vence_en)}
                       </p>
+                      {(e.produccion_habilitada ||
+                        e.lomiteria_habilitada ||
+                        e.citas_habilitadas ||
+                        e.reparaciones_habilitadas ||
+                        e.mascotas_habilitadas ||
+                        e.recomendacion_margen_habilitada) && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {e.produccion_habilitada && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              🏭 Producción
+                            </span>
+                          )}
+                          {e.lomiteria_habilitada && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              🍽️ Lomitería
+                            </span>
+                          )}
+                          {e.citas_habilitadas && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              📅 Citas
+                            </span>
+                          )}
+                          {e.reparaciones_habilitadas && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              🔧 Reparaciones
+                            </span>
+                          )}
+                          {e.mascotas_habilitadas && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              🐾 Mascotas
+                            </span>
+                          )}
+                          {e.recomendacion_margen_habilitada && (
+                            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
+                              📈 Margen
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <p className="mt-1 text-sm text-slate-400">
                         Registrada {formatoFecha(e.creado_en)}
                         {e.telefono && (

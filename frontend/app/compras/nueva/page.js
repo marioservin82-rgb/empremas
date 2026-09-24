@@ -249,7 +249,7 @@ export default function NuevaCompra() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busquedaProductoDebounced]);
 
-  function agregarAlCarrito(p) {
+  function agregarAlCarrito(p, { recienCreado = false } = {}) {
     setCarrito((actual) => {
       if (actual.find((i) => i.productoId === p.id)) return actual;
       return [
@@ -265,6 +265,11 @@ export default function NuevaCompra() {
           unidadCompra: p.unidad_compra || null,
           equivalenciaUnidadCompra: p.equivalencia_unidad_compra ? Number(p.equivalencia_unidad_compra) : null,
           cantidadUnidadCompra: "",
+          // El alta rápida solo carga nombre/código/unidad/precio contado -
+          // sin esto, ese producto queda para siempre sin IVA/stock mínimo
+          // real sin que nadie se entere (hallazgo de la auditoría de
+          // usabilidad). Se avisa en el carrito con link directo a completarlo.
+          recienCreado,
         },
         ...actual,
       ];
@@ -296,7 +301,7 @@ export default function NuevaCompra() {
           precioContado: Number(nuevoProductoPrecioContado) || 0,
         }),
       });
-      agregarAlCarrito(nuevo);
+      agregarAlCarrito(nuevo, { recienCreado: true });
       setCreandoProductoRapido(false);
     } catch (err) {
       setError(err.message);
@@ -695,6 +700,15 @@ export default function NuevaCompra() {
                           ✕
                         </button>
                       </div>
+
+                      {i.recienCreado && (
+                        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          Se creó con datos mínimos — le falta costo real, IVA y stock mínimo.{" "}
+                          <Link href={`/stock/${i.productoId}/editar`} target="_blank" className="font-semibold underline hover:text-amber-900">
+                            Completarlo en Stock →
+                          </Link>
+                        </p>
+                      )}
 
                       {i.unidadCompra && i.equivalenciaUnidadCompra > 0 && (
                         <div className="mb-3">

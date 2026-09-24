@@ -388,6 +388,18 @@ export default function CobroCliente() {
             )
           )}
 
+          {pagos.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-400">Agregá al menos un pago para poder confirmar.</p>
+          ) : (
+            totalSeleccionable > 0 &&
+            facturaIdsSeleccionadas.length === 0 &&
+            !incluirSaldoSinFactura && (
+              <p className="mt-4 text-sm font-semibold text-amber-600">
+                Elegí al menos una factura (o marcá "saldo sin factura") para poder confirmar.
+              </p>
+            )
+          )}
+
           {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
           <button

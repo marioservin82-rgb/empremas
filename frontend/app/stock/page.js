@@ -211,6 +211,12 @@ export default function Stock() {
           </div>
         )}
 
+        {!cargando && productos.length > 0 && seleccionados.length === 0 && (
+          <p className="mb-3 text-xs text-slate-400">
+            Marcá el ☑ de un producto para seleccionarlo e imprimir su etiqueta.
+          </p>
+        )}
+
         {cargando ? (
           <p className="text-slate-500">Cargando...</p>
         ) : productos.length === 0 ? (

@@ -579,10 +579,9 @@ export default function EditarProducto() {
         </form>
 
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-lg shadow-slate-200">
-          <h2 className="mb-1 text-lg font-bold text-navy">Dar de baja</h2>
+          <h2 className="mb-1 text-lg font-bold text-navy">Desactivar temporalmente</h2>
           <p className="mb-4 text-xs text-slate-400">
-            Desactivar lo saca de las búsquedas de Vender y Compras sin borrar nada — podés reactivarlo cuando
-            quieras. Eliminar es definitivo y solo funciona si el producto nunca tuvo movimientos.
+            Lo saca de las búsquedas de Vender y Compras sin borrar nada — podés reactivarlo cuando quieras.
           </p>
 
           {!activo && (
@@ -591,7 +590,7 @@ export default function EditarProducto() {
             </p>
           )}
 
-          <div className="mb-4 flex gap-2">
+          <div className="flex gap-2">
             {activo ? (
               <button
                 onClick={() => cambiarActivo(false)}
@@ -610,6 +609,14 @@ export default function EditarProducto() {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border-2 border-red-100 bg-white p-6 shadow-lg shadow-slate-200">
+          <h2 className="mb-1 text-lg font-bold text-red-700">Eliminar definitivamente</h2>
+          <p className="mb-4 text-xs text-slate-400">
+            No se puede deshacer, y solo funciona si el producto nunca tuvo movimientos. Si tiene historial, usá
+            "Desactivar" en vez de esto.
+          </p>
 
           {!confirmarEliminar ? (
             <button

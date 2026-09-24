@@ -76,6 +76,8 @@ export async function listarEmpresas(req, res) {
     const resultado = await pool.query(
         `SELECT e.id, e.razon_social, e.ruc, e.plan, e.estado, e.limite_usuarios, e.limite_sucursales, e.vence_en,
                 e.monto_plan_mensual, e.telefono, e.creado_en,
+                e.produccion_habilitada, e.lomiteria_habilitada, e.citas_habilitadas, e.reparaciones_habilitadas,
+                e.mascotas_habilitadas, e.recomendacion_margen_habilitada,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          ORDER BY e.razon_social ASC`

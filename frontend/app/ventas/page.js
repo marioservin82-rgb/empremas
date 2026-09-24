@@ -72,9 +72,10 @@ export default function Ventas() {
       .catch(() => {});
   }, [router]);
 
-  // El texto busca solo (mientras se escribe); desde/hasta se aplican con
-  // el botón "Consultar" o los atajos de período, para no relanzar la
-  // búsqueda en cada click de fecha.
+  // El texto busca solo (mientras se escribe, con debounce); desde/hasta
+  // consultan solos apenas se elige una fecha completa en el date picker
+  // (su onChange no dispara por cada tecla) - "Consultar" queda como
+  // reintento manual.
   const busquedaDebounced = useDebounced(busqueda);
   useEffect(() => {
     buscar({ q: busquedaDebounced, desde, hasta });
@@ -182,6 +183,7 @@ export default function Ventas() {
                 onChange={(e) => {
                   setDesde(e.target.value);
                   setPeriodoActivo("");
+                  buscar({ q: busqueda, desde: e.target.value, hasta });
                 }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
@@ -194,6 +196,7 @@ export default function Ventas() {
                 onChange={(e) => {
                   setHasta(e.target.value);
                   setPeriodoActivo("");
+                  buscar({ q: busqueda, desde, hasta: e.target.value });
                 }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />

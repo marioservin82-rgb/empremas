@@ -75,9 +75,9 @@ export default function BalanceMensual() {
     cargar(`mes=${mesActual(offsetMeses)}`);
   }
 
-  function consultarRango() {
+  function consultarRango(d = desde, h = hasta) {
     setPeriodoActivo("rango");
-    cargar(`desde=${desde}&hasta=${hasta}`);
+    cargar(`desde=${d}&hasta=${h}`);
   }
 
   const gano = balance && Number(balance.resultadoOperativo) >= 0;
@@ -116,7 +116,10 @@ export default function BalanceMensual() {
               <input
                 type="date"
                 value={desde}
-                onChange={(e) => setDesde(e.target.value)}
+                onChange={(e) => {
+                  setDesde(e.target.value);
+                  consultarRango(e.target.value, hasta);
+                }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>
@@ -125,7 +128,10 @@ export default function BalanceMensual() {
               <input
                 type="date"
                 value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
+                onChange={(e) => {
+                  setHasta(e.target.value);
+                  consultarRango(desde, e.target.value);
+                }}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
               />
             </div>

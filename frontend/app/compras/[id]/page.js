@@ -159,11 +159,6 @@ export default function DetalleCompra() {
         {modo === "anular" && (
           <AnularCompra id={id} onListo={() => { setModo("ver"); cargar(); }} onCancelar={() => setModo("ver")} setError={setError} />
         )}
-
-        <p className="mt-4 text-xs text-slate-400">
-          Editar cambia solo la forma de pago, la fecha y los datos de factura. Para corregir los
-          productos hay que anular la compra y volver a cargarla.
-        </p>
       </div>
     </main>
   );
@@ -218,7 +213,11 @@ function EditarCompra({ compra, hayTurnoAbierto, onListo, onCancelar, setError }
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow shadow-slate-200">
-      <h2 className="mb-3 text-lg font-bold text-slate-800">Editar compra</h2>
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Editar compra</h2>
+      <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        Esto cambia solo la forma de pago, la fecha y los datos de factura. Para corregir los productos hay que
+        anular la compra y volver a cargarla.
+      </p>
 
       <label className={etiqueta}>Forma de pago</label>
       <select value={f.tipoPago} onChange={set("tipoPago")} className={campo}>

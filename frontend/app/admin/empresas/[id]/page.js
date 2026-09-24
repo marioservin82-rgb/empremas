@@ -132,6 +132,23 @@ export default function AdminEmpresaDetalle() {
     }
   }
 
+  // Combos de módulos por rubro común - solo PRENDE los que corresponden
+  // a ese rubro (nunca apaga otros que ya estén activos), para no pisar
+  // una combinación que el cliente ya tenía por otro motivo.
+  async function aplicarPreset(campos) {
+    setError("");
+    setExito("");
+    try {
+      await adminFetch(`/api/admin/empresas/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(campos),
+      });
+      await cargar();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function registrarPago(e) {
     e.preventDefault();
     setError("");
@@ -294,6 +311,25 @@ export default function AdminEmpresaDetalle() {
           <p className="mb-4 text-sm text-slate-400">
             El cliente no los puede activar solo — se prenden acá según lo que use cada comercio.
           </p>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            {[
+              { nombre: "Peluquería", campos: { citasHabilitada: true } },
+              { nombre: "Veterinaria", campos: { mascotasHabilitada: true, citasHabilitada: true } },
+              { nombre: "Taller de reparación", campos: { reparacionesHabilitada: true } },
+              { nombre: "Restaurante", campos: { lomiteriaHabilitada: true } },
+              { nombre: "Fábrica", campos: { produccionHabilitada: true } },
+            ].map((p) => (
+              <button
+                key={p.nombre}
+                type="button"
+                onClick={() => aplicarPreset(p.campos)}
+                className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                {p.nombre}
+              </button>
+            ))}
+          </div>
 
           <ModuloToggle
             titulo="Módulo de Producción"

@@ -1413,6 +1413,14 @@ export default function Vender() {
                           </button>
                         )}
                       </div>
+                    ) : tipoComprobante === "factura_legal" ? (
+                      <button
+                        onClick={() => setBuscandoClienteOpcional(true)}
+                        className="flex w-full items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-left text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                      >
+                        <span>⚠️ Factura Legal necesita un cliente asociado</span>
+                        <span className="underline">Asociar →</span>
+                      </button>
                     ) : (
                       <button
                         onClick={() => setBuscandoClienteOpcional(true)}
@@ -1608,13 +1616,28 @@ export default function Vender() {
                 {error && (
                   <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
                 )}
-                <button
-                  onClick={() => confirmarVenta()}
-                  disabled={enviando || !puedeConfirmar}
-                  className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
-                >
-                  {enviando ? "Guardando..." : "Confirmar venta"}
-                </button>
+                {tipoPago !== "credito" && pagos.length === 0 && total > 0 ? (
+                  // Sin nada cargado todavia, cobrar el total exacto en
+                  // efectivo (el caso más común) es un solo toque - antes
+                  // hacían falta 3 (elegir Efectivo, confirmar el monto,
+                  // Confirmar venta). Mismo camino que ya usa el atajo
+                  // Ctrl+Enter, ahora también visible para el celular.
+                  <button
+                    onClick={cierreRapido}
+                    disabled={enviando || carrito.length === 0}
+                    className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
+                  >
+                    {enviando ? "Guardando..." : `Cobrar Gs ${formatoGs.format(total)} en efectivo`}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => confirmarVenta()}
+                    disabled={enviando || !puedeConfirmar}
+                    className="mt-4 w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
+                  >
+                    {enviando ? "Guardando..." : "Confirmar venta"}
+                  </button>
+                )}
                 <p className="mt-2 text-center text-xs text-slate-400">
                   {tipoPago === "credito"
                     ? "Atajo: Ctrl+Shift+Enter fía toda la venta y confirma de una"
