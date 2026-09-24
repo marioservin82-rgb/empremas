@@ -97,7 +97,7 @@ export default function ConfiguracionRecordatorios() {
           </Link>
           <h1 className="text-2xl font-bold text-navy">Recordatorios de pago</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Cuándo aparece el botón "Recordar pago" en Fiado/Crédito y qué dice cada mensaje.
+            Cuándo aparece el botón "Recordar pago" en Crédito y qué dice cada mensaje.
           </p>
         </div>
 

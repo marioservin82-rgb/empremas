@@ -85,7 +85,7 @@ export default function Clientes() {
             <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-navy">Fiado</h1>
+            <h1 className="text-2xl font-bold text-navy">Crédito</h1>
           </div>
           <div className="flex gap-2">
             {yo?.rol === "dueno" && (
@@ -114,13 +114,13 @@ export default function Clientes() {
               href="/clientes/saldos"
               className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200"
             >
-              📄 Resumen de fiado
+              📄 Resumen de crédito
             </Link>
             <Link
               href="/clientes/cobros-dia"
               className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200"
             >
-              💵 Fiado cobrado hoy
+              💵 Crédito cobrado hoy
             </Link>
             <Link
               href="/clientes/nuevo"

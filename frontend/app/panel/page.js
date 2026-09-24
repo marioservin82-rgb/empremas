@@ -10,7 +10,7 @@ const formatoGs = new Intl.NumberFormat("es-PY");
 
 const botones = [
   { nombre: "Vender", icono: "🛒", color: "bg-brand hover:bg-brand-light", href: "/vender" },
-  { nombre: "Fiado / Crédito", icono: "📒", color: "bg-navy hover:bg-navy-2", href: "/clientes" },
+  { nombre: "Crédito", icono: "📒", color: "bg-navy hover:bg-navy-2", href: "/clientes" },
   { nombre: "Stock / Compras", icono: "📦", color: "bg-navy-2 hover:bg-navy", href: "/stock" },
   { nombre: "Caja", icono: "🔒", color: "bg-slate-700 hover:bg-slate-800", href: "/caja" },
 ];
@@ -332,7 +332,7 @@ export default function Panel() {
         }
         if (yo?.rol !== "mesero") {
           secundarios.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
-          secundarios.push({ nombre: "Fiado cobrado hoy", icono: "💵", href: "/clientes/cobros-dia" });
+          secundarios.push({ nombre: "Crédito cobrado hoy", icono: "💵", href: "/clientes/cobros-dia" });
         }
         // Traslados/pedidos entre sucursales: sin sentido con una sola
         // sucursal. Mismo criterio de rol que Ajuste de Inventario
