@@ -70,6 +70,7 @@ export default function PerfilEmpresa() {
   const [reparacionesNotaLegal, setReparacionesNotaLegal] = useState("");
   const [metaGananciaMensual, setMetaGananciaMensual] = useState("");
   const [accesoRapidoFavorito, setAccesoRapidoFavorito] = useState("");
+  const [busquedaFavorito, setBusquedaFavorito] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -452,17 +453,29 @@ export default function PerfilEmpresa() {
               Se agrega como un 6to botón grande en el panel principal — el que más uses vos en tu día a día. Sin
               elegir uno, el panel arma igual la grilla más pareja que pueda con lo que ya tenés activado.
             </p>
+            <input
+              value={busquedaFavorito}
+              onChange={(e) => setBusquedaFavorito(e.target.value)}
+              placeholder="Buscar otro acceso (ej: presupuesto, proveedor, mesas...)"
+              className="mb-3 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+            />
             <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setAccesoRapidoFavorito("")}
-                className={`rounded-xl py-2 text-sm font-semibold transition ${
-                  accesoRapidoFavorito === "" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Ninguno
-              </button>
-              {OPCIONES_ACCESO_RAPIDO.filter((o) => !o.modulo || empresa[o.modulo]).map((o) => (
+              {!busquedaFavorito && (
+                <button
+                  type="button"
+                  onClick={() => setAccesoRapidoFavorito("")}
+                  className={`rounded-xl py-2 text-sm font-semibold transition ${
+                    accesoRapidoFavorito === "" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Ninguno
+                </button>
+              )}
+              {OPCIONES_ACCESO_RAPIDO.filter(
+                (o) =>
+                  (!o.modulo || (o.modulo === "multi_sucursal" ? sucursales.length > 1 : empresa[o.modulo])) &&
+                  o.nombre.toLowerCase().includes(busquedaFavorito.trim().toLowerCase()),
+              ).map((o) => (
                 <button
                   key={o.valor}
                   type="button"

@@ -322,6 +322,10 @@ export default function Panel() {
             citas_habilitadas: citasHabilitada,
             reparaciones_habilitadas: reparacionesHabilitada,
             mascotas_habilitadas: mascotasHabilitadas,
+            produccion_habilitada: produccionHabilitada,
+            lomiteria_habilitada: lomiteriaHabilitada,
+            comisiones_habilitadas: comisionesHabilitadas,
+            multi_sucursal: multiSucursal,
           });
           if (favorito && !items.some((b) => b.href === favorito.href)) {
             items.push({ ...favorito, color: "bg-navy hover:bg-navy-2" });
