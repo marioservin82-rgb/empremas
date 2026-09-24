@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import CampanaNovedades from "@/components/CampanaNovedades";
+import { resolverAccesoRapido } from "@/lib/accesoRapido";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -45,6 +46,7 @@ export default function Panel() {
   const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [reparacionesHabilitada, setReparacionesHabilitada] = useState(false);
   const [mascotasHabilitadas, setMascotasHabilitadas] = useState(false);
+  const [accesoRapidoFavorito, setAccesoRapidoFavorito] = useState("");
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
   const [pedidosPendientes, setPedidosPendientes] = useState(0);
@@ -68,6 +70,7 @@ export default function Panel() {
         setCitasHabilitada(!!e.citas_habilitadas);
         setReparacionesHabilitada(!!e.reparaciones_habilitadas);
         setMascotasHabilitadas(!!e.mascotas_habilitadas);
+        setAccesoRapidoFavorito(e.acceso_rapido_favorito || "");
       })
       .catch(() => {});
     // Solo dueño/encargado ven esto (el backend devuelve 403 para cajero,
@@ -309,6 +312,21 @@ export default function Panel() {
           yo?.rol === "mesero"
             ? [{ nombre: "Mesas", icono: "🍽️", color: "bg-brand hover:bg-brand-light", href: "/mesas" }]
             : [...botones, ...(verticalPrincipal ? [verticalPrincipal] : []), ...extra];
+
+        // 4 o 6 botones grandes ya arman una grilla pareja (2x2 o 3x2) -
+        // solo 5 queda desparejo (3+2, con un hueco visible). Se completa
+        // con el favorito que eligió el dueño en Mi Empresa, si hay uno
+        // configurado y válido para este rol/módulos activos.
+        if (items.length === 5) {
+          const favorito = resolverAccesoRapido(accesoRapidoFavorito, yo?.rol, {
+            citas_habilitadas: citasHabilitada,
+            reparaciones_habilitadas: reparacionesHabilitada,
+            mascotas_habilitadas: mascotasHabilitadas,
+          });
+          if (favorito && !items.some((b) => b.href === favorito.href)) {
+            items.push({ ...favorito, color: "bg-navy hover:bg-navy-2" });
+          }
+        }
         const columnas = items.length > 4 ? "grid-cols-3" : items.length <= 1 ? "grid-cols-1" : "grid-cols-2";
 
         // Secundarios agrupados en mini-secciones (en vez de una sola fila

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { TEXTO_LEGAL_POR_DEFECTO } from "@/lib/reparaciones";
+import { OPCIONES_ACCESO_RAPIDO } from "@/lib/accesoRapido";
 
 const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
@@ -68,6 +69,7 @@ export default function PerfilEmpresa() {
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
   const [reparacionesNotaLegal, setReparacionesNotaLegal] = useState("");
   const [metaGananciaMensual, setMetaGananciaMensual] = useState("");
+  const [accesoRapidoFavorito, setAccesoRapidoFavorito] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -98,6 +100,7 @@ export default function PerfilEmpresa() {
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
         setReparacionesNotaLegal(e.reparaciones_nota_legal || "");
         setMetaGananciaMensual(e.meta_ganancia_mensual != null ? String(e.meta_ganancia_mensual) : "");
+        setAccesoRapidoFavorito(e.acceso_rapido_favorito || "");
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -230,6 +233,7 @@ export default function PerfilEmpresa() {
           sifenCertNota: certNota || null,
           reparacionesNotaLegal,
           metaGananciaMensual: metaGananciaMensual === "" ? null : Number(metaGananciaMensual),
+          accesoRapidoFavorito,
         }),
       });
       setEmpresa((actual) => ({ ...actual, ...actualizado }));
@@ -441,6 +445,39 @@ export default function PerfilEmpresa() {
               )}
             </div>
           )}
+
+          <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <p className="font-semibold text-slate-800">Acceso rápido favorito</p>
+            <p className="mb-3 text-sm text-slate-400">
+              Se agrega como un 6to botón grande en el panel principal — el que más uses vos en tu día a día. Sin
+              elegir uno, el panel arma igual la grilla más pareja que pueda con lo que ya tenés activado.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAccesoRapidoFavorito("")}
+                className={`rounded-xl py-2 text-sm font-semibold transition ${
+                  accesoRapidoFavorito === "" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Ninguno
+              </button>
+              {OPCIONES_ACCESO_RAPIDO.filter((o) => !o.modulo || empresa[o.modulo]).map((o) => (
+                <button
+                  key={o.valor}
+                  type="button"
+                  onClick={() => setAccesoRapidoFavorito(o.valor)}
+                  className={`rounded-xl py-2 text-sm font-semibold transition ${
+                    accesoRapidoFavorito === o.valor
+                      ? "bg-navy text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {o.icono} {o.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <div>

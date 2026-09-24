@@ -2,6 +2,14 @@ import pool, { transaccionDeEmpresa } from '../config/db.js';
 import { efectivoDisponibleActual } from './turnosController.js';
 import { actualizarTenant as actualizarTenantConector } from '../services/conectorSifen.js';
 
+// Debe coincidir con las claves de OPCIONES_ACCESO_RAPIDO en
+// frontend/lib/accesoRapido.js - el valor guardado es una clave lógica,
+// no una URL, para que el frontend decida a qué rol/módulo aplica cada una.
+const ACCESO_RAPIDO_VALIDOS = [
+    'registrar_compra', 'nuevo_gasto', 'ajustar_stock', 'nuevo_cliente',
+    'nueva_cita', 'nueva_reparacion', 'nueva_mascota', 'historial_compras', 'nuevo_producto',
+];
+
 export async function obtenerEmpresaActual(req, res) {
     const { empresaId } = req.usuario;
 
@@ -13,7 +21,7 @@ export async function obtenerEmpresaActual(req, res) {
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
                 lomiteria_habilitada, citas_habilitadas,
                 reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
-                recomendacion_margen_habilitada, meta_ganancia_mensual,
+                recomendacion_margen_habilitada, meta_ganancia_mensual, acceso_rapido_favorito,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
                 datos_fiscales_modificado_en, impresora_agente_nombre,
@@ -217,7 +225,7 @@ export async function actualizarConfiguracion(req, res) {
         recordatorioMensajeMoraLeve, recordatorioMensajeMoraProlongada,
         sugerenciasVentaHabilitadas,
         comisionesHabilitadas, politicaClientesVendedorInactivo,
-        reparacionesNotaLegal, metaGananciaMensual,
+        reparacionesNotaLegal, metaGananciaMensual, accesoRapidoFavorito,
     } = req.body;
     // Producción, Lomitería/Restaurante, Agenda de citas, Nota de
     // Recepción, Mascotas y Recomendación de margen ya NO se activan
@@ -240,6 +248,9 @@ export async function actualizarConfiguracion(req, res) {
 
     if (ticketEscala !== undefined && !(Number(ticketEscala) >= 50 && Number(ticketEscala) <= 300)) {
         return res.status(400).json({ error: 'La escala del ticket debe estar entre 50% y 300%' });
+    }
+    if (accesoRapidoFavorito && !ACCESO_RAPIDO_VALIDOS.includes(accesoRapidoFavorito)) {
+        return res.status(400).json({ error: 'Acceso rápido favorito inválido' });
     }
     if (razonSocial !== undefined && !razonSocial?.trim()) {
         return res.status(400).json({ error: 'La razón social no puede quedar vacía' });
@@ -306,6 +317,10 @@ export async function actualizarConfiguracion(req, res) {
             mascotas_habilitadas = COALESCE($31, mascotas_habilitadas),
             recomendacion_margen_habilitada = COALESCE($32, recomendacion_margen_habilitada),
             meta_ganancia_mensual = COALESCE($33, meta_ganancia_mensual),
+            -- "" vuelve al panel sin favorito (relleno automático de todos
+            -- modos si el conteo natural da 5); null (no enviado) no toca nada.
+            acceso_rapido_favorito = CASE WHEN $34::text IS NULL THEN acceso_rapido_favorito
+                                          WHEN $34::text = '' THEN NULL ELSE $34::text END,
             datos_fiscales_modificado_en = CASE
                 WHEN ($4 IS NOT NULL AND $4 <> razon_social) OR ($5 IS NOT NULL AND $5 <> ruc)
                 THEN now() ELSE datos_fiscales_modificado_en END,
@@ -317,7 +332,7 @@ export async function actualizarConfiguracion(req, res) {
                    permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                    comisiones_habilitadas, politica_clientes_vendedor_inactivo, lomiteria_habilitada,
                    citas_habilitadas, reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
-                   recomendacion_margen_habilitada, meta_ganancia_mensual,
+                   recomendacion_margen_habilitada, meta_ganancia_mensual, acceso_rapido_favorito,
                    ticket_escala, sifen_cert_vencimiento, sifen_cert_nota,
                    datos_fiscales_modificado_en, impresora_agente_nombre,
                    recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
@@ -333,7 +348,8 @@ export async function actualizarConfiguracion(req, res) {
             comisionesHabilitadas, politicaClientesVendedorInactivo, lomiteriaHabilitada,
             nombreFantasia === undefined ? null : String(nombreFantasia).trim(),
             citasHabilitada, reparacionesHabilitada, reparacionesNotaLegal ?? null, mascotasHabilitada,
-            recomendacionMargenHabilitada, metaGananciaMensual ?? null]
+            recomendacionMargenHabilitada, metaGananciaMensual ?? null,
+            accesoRapidoFavorito === undefined ? null : accesoRapidoFavorito]
     );
 
     res.json(resultado.rows[0]);

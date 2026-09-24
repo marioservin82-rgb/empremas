@@ -2202,3 +2202,10 @@ ALTER TABLE productos ADD COLUMN categoria_rotacion_manual categoria_rotacion;
 ALTER TABLE gastos ADD COLUMN forma_pago forma_pago_venta;
 ALTER TABLE gastos ADD COLUMN origen TEXT CHECK (origen IN ('administracion', 'caja'));
 ALTER TABLE retiros_caja ADD COLUMN gasto_id UUID REFERENCES gastos(id);
+
+-- Acceso rápido favorito: un 6to botón grande configurable por el dueño
+-- en el panel principal, para que la grilla quede siempre pareja (3x2)
+-- en vez de desparejarse cuando el conteo natural de botones da 5. NULL =
+-- sin favorito elegido. El valor es una clave de OPCIONES_ACCESO_RAPIDO
+-- (frontend/lib/accesoRapido.js), no una URL.
+ALTER TABLE empresas ADD COLUMN acceso_rapido_favorito TEXT;
