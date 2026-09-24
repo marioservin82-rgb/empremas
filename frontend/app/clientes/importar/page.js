@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { parsearCsv, filasAObjetos } from "@/lib/csv";
 
-const COLUMNAS = ["nombre", "documento", "telefono", "celular", "email", "direccion", "linea_credito", "saldo_inicial"];
+const COLUMNAS = ["nombre", "documento", "telefono", "celular", "email", "direccion", "linea_credito", "saldo_inicial", "fecha_nacimiento"];
 
 const MAPEO_CAMPO = {
   nombre: "nombre",
@@ -17,11 +17,12 @@ const MAPEO_CAMPO = {
   direccion: "direccion",
   linea_credito: "lineaCredito",
   saldo_inicial: "saldoInicial",
+  fecha_nacimiento: "fechaNacimiento",
 };
 
 function descargarPlantilla() {
   const encabezado = COLUMNAS.join(",");
-  const ejemplo = "Ferretería Don Ramón,80012345,021123456,0981234567,donramon@email.com,Av. España 123,2000000,150000";
+  const ejemplo = "Ferretería Don Ramón,80012345,021123456,0981234567,donramon@email.com,Av. España 123,2000000,150000,15/03/1985";
   const contenido = `${encabezado}\n${ejemplo}\n`;
   const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
   const enlace = document.createElement("a");
@@ -114,7 +115,8 @@ export default function ImportarClientes() {
             <strong>nombre</strong> es obligatorio. Si el documento ya existe en el catálogo, ese cliente se actualiza
             en vez de duplicarse — el saldo no se toca al actualizar (para eso está Ajustar saldo).{" "}
             <strong>saldo_inicial</strong> solo aplica al crear un cliente nuevo y queda auditado como cualquier otro
-            ajuste de saldo.
+            ajuste de saldo. <strong>fecha_nacimiento</strong> es opcional (formato DD/MM/AAAA) — sin ella, ese
+            cliente no va a aparecer en Cumpleaños.
           </p>
           <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">{COLUMNAS.join(", ")}</p>
           <button

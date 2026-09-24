@@ -46,6 +46,7 @@ export default function PerfilEmpresa() {
   const [guardando, setGuardando] = useState(false);
 
   const [sugerenciasVentaHabilitadas, setSugerenciasVentaHabilitadas] = useState(true);
+  const [permitirVentaSinStock, setPermitirVentaSinStock] = useState(false);
   const [comisionesHabilitadas, setComisionesHabilitadas] = useState(false);
   const [politicaVendedorInactivo, setPoliticaVendedorInactivo] = useState("mantener");
   const [reparacionesNotaLegal, setReparacionesNotaLegal] = useState("");
@@ -75,6 +76,7 @@ export default function PerfilEmpresa() {
         setCertVencimiento(e.sifen_cert_vencimiento ? e.sifen_cert_vencimiento.slice(0, 10) : "");
         setCertNota(e.sifen_cert_nota || "");
         setSugerenciasVentaHabilitadas(e.sugerencias_venta_habilitadas !== false);
+        setPermitirVentaSinStock(!!e.permitir_venta_sin_stock);
         setComisionesHabilitadas(!!e.comisiones_habilitadas);
         setPoliticaVendedorInactivo(e.politica_clientes_vendedor_inactivo || "mantener");
         setReparacionesNotaLegal(e.reparaciones_nota_legal || "");
@@ -145,6 +147,19 @@ export default function PerfilEmpresa() {
       });
     } catch (err) {
       setSugerenciasVentaHabilitadas(!valor);
+      setError(err.message);
+    }
+  }
+
+  async function cambiarPermitirVentaSinStock(valor) {
+    setPermitirVentaSinStock(valor);
+    try {
+      await apiFetch("/api/empresas/actual", {
+        method: "PATCH",
+        body: JSON.stringify({ permitirVentaSinStock: valor }),
+      });
+    } catch (err) {
+      setPermitirVentaSinStock(!valor);
       setError(err.message);
     }
   }
@@ -385,6 +400,29 @@ export default function PerfilEmpresa() {
               <span
                 className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
                   sugerenciasVentaHabilitadas ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <div>
+              <p className="font-semibold text-slate-800">Permitir vender sin stock</p>
+              <p className="text-sm text-slate-400">
+                Prendido: se puede vender un producto aunque no tenga stock cargado suficiente. Apagado (por
+                defecto): Vender lo bloquea.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => cambiarPermitirVentaSinStock(!permitirVentaSinStock)}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                permitirVentaSinStock ? "bg-emerald-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                  permitirVentaSinStock ? "left-7" : "left-1"
                 }`}
               />
             </button>

@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
+import { fechaLocal } from '../utils/fechaLocal.js';
 import { rangoDelMes } from '../utils/rangoDelMes.js';
 import { tienePermiso } from '../utils/permisos.js';
 
@@ -334,6 +335,11 @@ export async function importarClientes(req, res) {
             errores.push({ fila, motivo: `"${c.lineaCredito}" no es un número válido para linea_credito` });
             return;
         }
+        const fechaNacimientoParseada = fechaLocal(c.fechaNacimiento);
+        if (Number.isNaN(fechaNacimientoParseada)) {
+            errores.push({ fila, motivo: `"${c.fechaNacimiento}" no es una fecha válida para fecha_nacimiento (DD/MM/AAAA)` });
+            return;
+        }
         validos.push(c);
     });
 
@@ -346,6 +352,7 @@ export async function importarClientes(req, res) {
             for (const c of validos) {
                 const documento = c.documento ? String(c.documento).trim() : null;
                 const lineaCredito = numeroLocal(c.lineaCredito);
+                const fechaNacimiento = fechaLocal(c.fechaNacimiento);
                 let existenteId = null;
                 if (documento) {
                     const resultado = await db.query(`SELECT id FROM clientes WHERE documento = $1`, [documento]);
@@ -360,18 +367,19 @@ export async function importarClientes(req, res) {
                             celular = COALESCE($4, celular),
                             email = COALESCE($5, email),
                             direccion = COALESCE($6, direccion),
-                            linea_credito = COALESCE($7, linea_credito)
+                            linea_credito = COALESCE($7, linea_credito),
+                            fecha_nacimiento = COALESCE($8, fecha_nacimiento)
                          WHERE id = $1`,
-                        [existenteId, c.nombre, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito]
+                        [existenteId, c.nombre, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito, fechaNacimiento]
                     );
                     actualizados++;
                 } else {
                     const saldoInicial = numeroLocal(c.saldoInicial) ?? 0;
                     const insertado = await db.query(
-                        `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), $9)
+                        `INSERT INTO clientes (empresa_id, nombre, documento, telefono, celular, email, direccion, linea_credito, saldo, fecha_nacimiento)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0::numeric), $9, $10)
                          RETURNING id`,
-                        [empresaId, c.nombre, documento, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito, saldoInicial]
+                        [empresaId, c.nombre, documento, c.telefono || null, c.celular || null, c.email || null, c.direccion || null, lineaCredito, saldoInicial, fechaNacimiento]
                     );
                     if (saldoInicial > 0) {
                         await db.query(

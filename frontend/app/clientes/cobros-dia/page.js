@@ -96,10 +96,10 @@ export default function CobrosDia() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between py-6 print:hidden">
           <div>
-            <Link href="/panel" className="text-sm font-medium text-slate-500 hover:text-slate-700">
+            <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-navy">Crédito cobrado</h1>
+            <h1 className="text-2xl font-bold text-navy">Fiado cobrado hoy</h1>
           </div>
           {resumen && (
             <button
@@ -164,7 +164,7 @@ export default function CobrosDia() {
           <div className="reporte-imprimible rounded-2xl bg-white p-6 shadow shadow-slate-200">
             <style>{"@page { size: A4; margin: 15mm; }"}</style>
             <div className="mb-4 hidden print:block">
-              <p className="text-xl font-bold">Crédito cobrado</p>
+              <p className="text-xl font-bold">Fiado cobrado hoy</p>
               <p className="text-sm text-slate-500">{fechaLegible(resumen.fecha)}</p>
             </div>
 

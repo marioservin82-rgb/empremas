@@ -259,14 +259,32 @@ export async function crearCompra(req, res) {
 
 export async function listarCompras(req, res) {
     const { empresaId } = req.usuario;
+    const { q, desde, hasta } = req.query;
+
+    const condiciones = [];
+    const valores = [];
+    if (q) {
+        valores.push(`%${q}%`);
+        condiciones.push(`(p.nombre ILIKE $${valores.length} OR p.documento ILIKE $${valores.length} OR c.numero_factura ILIKE $${valores.length})`);
+    }
+    if (desde) {
+        valores.push(desde);
+        condiciones.push(`c.creado_en >= $${valores.length}::date`);
+    }
+    if (hasta) {
+        valores.push(hasta);
+        condiciones.push(`c.creado_en < ($${valores.length}::date + INTERVAL '1 day')`);
+    }
+    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     const resultado = await consultaDeEmpresa(
         empresaId,
         `SELECT c.*, p.nombre AS proveedor_nombre
          FROM compras c
          JOIN proveedores p ON p.id = c.proveedor_id
-         ORDER BY c.creado_en DESC LIMIT 100`,
-        []
+         ${where}
+         ORDER BY c.creado_en DESC LIMIT 200`,
+        valores
     );
 
     res.json(resultado.rows);

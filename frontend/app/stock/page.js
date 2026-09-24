@@ -18,7 +18,6 @@ export default function Stock() {
   const [cargandoMas, setCargandoMas] = useState(false);
   const [hayMas, setHayMas] = useState(false);
   const [error, setError] = useState("");
-  const [permitirVentaSinStock, setPermitirVentaSinStock] = useState(null);
   const [sucursalActual, setSucursalActual] = useState(null);
   const [valorStock, setValorStock] = useState(null);
   const [verDesactivados, setVerDesactivados] = useState(false);
@@ -26,19 +25,6 @@ export default function Stock() {
 
   function alternarSeleccion(id) {
     setSeleccionados((actual) => (actual.includes(id) ? actual.filter((x) => x !== id) : [...actual, id]));
-  }
-
-  async function cambiarPermitirVentaSinStock(valor) {
-    setPermitirVentaSinStock(valor);
-    try {
-      await apiFetch("/api/empresas/actual", {
-        method: "PATCH",
-        body: JSON.stringify({ permitirVentaSinStock: valor }),
-      });
-    } catch (err) {
-      setPermitirVentaSinStock(!valor);
-      setError(err.message);
-    }
   }
 
   // Sin busqueda, se trae de a paginas (TAMANO_PAGINA a la vez) - con un
@@ -87,7 +73,6 @@ export default function Stock() {
     }
     apiFetch("/api/empresas/actual")
       .then((e) => {
-        setPermitirVentaSinStock(e.permitir_venta_sin_stock);
         if (e.limite_sucursales > 1) {
           apiFetch("/api/usuarios/yo")
             .then((yo) => setSucursalActual(yo.sucursal_nombre))
@@ -126,31 +111,32 @@ export default function Stock() {
               <p className="text-sm text-slate-400">Mostrando stock de: {sucursalActual}</p>
             )}
           </div>
-          <div className="flex gap-2">
-            <Link
-              href="/proveedores"
-              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
-            >
-              Compras
-            </Link>
+          <div className="flex flex-wrap justify-end gap-2">
             <Link
               href="/stock/inventario"
-              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
+              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
             >
               Inventario
             </Link>
-            <Link
-              href="/stock/importar"
-              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
-            >
-              Importar CSV
-            </Link>
-            <Link
-              href="/stock/sugerencias-asociaciones"
-              className="rounded-xl bg-slate-700 px-5 py-3 font-semibold text-white hover:bg-slate-800"
-            >
-              Venta cruzada
-            </Link>
+            <details className="relative">
+              <summary className="flex cursor-pointer list-none items-center gap-1 rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 [&::-webkit-details-marker]:hidden">
+                Más ▾
+              </summary>
+              <div className="absolute right-0 z-20 mt-2 flex w-56 flex-col gap-1 rounded-xl bg-white p-2 shadow-lg shadow-slate-200">
+                <Link href="/compras" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  Compras
+                </Link>
+                <Link href="/proveedores" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  Proveedores
+                </Link>
+                <Link href="/stock/importar" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  Importar CSV
+                </Link>
+                <Link href="/stock/sugerencias-asociaciones" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  Venta cruzada
+                </Link>
+              </div>
+            </details>
             <Link
               href="/stock/nuevo"
               className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
@@ -197,29 +183,6 @@ export default function Stock() {
           />
           Ver también los desactivados
         </label>
-
-        {permitirVentaSinStock !== null && (
-          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white p-5 shadow shadow-slate-200">
-            <div>
-              <p className="font-semibold text-slate-800">Vender aunque no haya stock</p>
-              <p className="text-sm text-slate-400">
-                Si está apagado, el POS no deja vender un producto sin stock suficiente.
-              </p>
-            </div>
-            <button
-              onClick={() => cambiarPermitirVentaSinStock(!permitirVentaSinStock)}
-              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
-                permitirVentaSinStock ? "bg-emerald-600" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
-                  permitirVentaSinStock ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
-          </div>
-        )}
 
         {error && (
           <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

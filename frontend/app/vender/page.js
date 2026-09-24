@@ -128,8 +128,12 @@ export default function Vender() {
 
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+  // Aviso de por qué Factura Legal está bloqueada - antes solo vivía en un
+  // title (tooltip), invisible al tocar en el celular.
+  const [avisoFacturaLegalBloqueada, setAvisoFacturaLegalBloqueada] = useState(false);
 
   const [empresaInfo, setEmpresaInfo] = useState(null);
+  const [yo, setYo] = useState(null);
   // Plazo de crédito de ESTA venta puntual - vacío = usa el default (el
   // ciclo de facturación del cliente si tiene, si no el plazo de la
   // empresa). Se resetea a vacío cada vez que cambia el cliente para no
@@ -163,6 +167,7 @@ export default function Vender() {
     apiFetch("/api/empresas/actual")
       .then(setEmpresaInfo)
       .catch((err) => setError(err.message));
+    apiFetch("/api/usuarios/yo").then(setYo).catch(() => {});
     apiFetch("/api/empresas/sifen")
       .then((c) => {
         setSifenConfigurado(c.configurado);
@@ -1474,7 +1479,10 @@ export default function Vender() {
                               }`}
                             >
                               <span className="text-lg leading-none">{ICONO_FORMA_PAGO[f.valor]}</span>
-                              <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">{f.etiqueta}</span>
+                              {/* Sin lg:sr-only a propósito: "Tarjeta de crédito" y "Tarjeta de
+                                  débito" comparten el mismo ícono (💳) - ocultar el texto en
+                                  pantalla grande los volvía indistinguibles antes de tocar. */}
+                              <span className="text-center text-[11px] font-semibold leading-tight">{f.etiqueta}</span>
                             </button>
                           ))}
                         </div>
@@ -1533,7 +1541,10 @@ export default function Vender() {
                     {TIPOS_COMPROBANTE.map((t) => (
                       <button
                         key={t.valor}
-                        onClick={() => setTipoComprobante(t.valor)}
+                        onClick={() => {
+                          setTipoComprobante(t.valor);
+                          setAvisoFacturaLegalBloqueada(false);
+                        }}
                         className={`flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 transition ${
                           tipoComprobante === t.valor
                             ? "bg-navy text-white"
@@ -1545,9 +1556,13 @@ export default function Vender() {
                       </button>
                     ))}
                     <button
-                      disabled={!sifenConfigurado}
-                      title={sifenConfigurado ? undefined : "Necesita configurar SIFEN (Configuración → Facturación electrónica)"}
-                      onClick={() => setTipoComprobante("factura_legal")}
+                      onClick={() => {
+                        if (!sifenConfigurado) {
+                          setAvisoFacturaLegalBloqueada(true);
+                          return;
+                        }
+                        setTipoComprobante("factura_legal");
+                      }}
                       className={`flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 transition ${
                         !sifenConfigurado
                           ? "cursor-not-allowed bg-slate-50 text-slate-300"
@@ -1562,6 +1577,12 @@ export default function Vender() {
                       </span>
                     </button>
                   </div>
+                  {avisoFacturaLegalBloqueada && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Para emitir Factura Legal primero hay que configurar SIFEN en Configuración → Facturación
+                      electrónica.
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
@@ -1569,7 +1590,7 @@ export default function Vender() {
                   <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                 </div>
 
-                {carrito.some((i) => i.descuentoMonto > 0) && (
+                {carrito.some((i) => i.descuentoMonto > 0) && yo?.rol === "cajero" && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <label className="mb-1 block text-sm font-medium text-slate-500">
                       PIN de autorización del descuento (dueño/encargado)
@@ -1577,13 +1598,10 @@ export default function Vender() {
                     <input
                       value={pinDescuento}
                       onChange={(e) => setPinDescuento(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      placeholder="Dejalo vacío si sos dueño/encargado"
+                      placeholder="Pedile el PIN a un dueño o encargado"
                       inputMode="numeric"
                       className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      Si sos cajero, pedile el PIN a un dueño o encargado para aplicar el descuento.
-                    </p>
                   </div>
                 )}
 

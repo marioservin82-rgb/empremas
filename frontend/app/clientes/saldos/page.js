@@ -13,7 +13,7 @@ function fecha(f) {
   return new Date(f).toLocaleDateString("es-PY");
 }
 
-export default function ResumenCuentasPorCobrar() {
+export default function ResumenFiado() {
   const router = useRouter();
   const recuadroRef = useRef(null);
   const [datos, setDatos] = useState(null);
@@ -33,7 +33,7 @@ export default function ResumenCuentasPorCobrar() {
     const html2canvas = (await import("html2canvas-pro")).default;
     const canvas = await html2canvas(recuadroRef.current, { backgroundColor: "#ffffff", scale: 2 });
     const enlace = document.createElement("a");
-    enlace.download = "resumen-cuentas-por-cobrar.png";
+    enlace.download = "resumen-fiado.png";
     enlace.href = canvas.toDataURL("image/png");
     enlace.click();
   }
@@ -46,7 +46,7 @@ export default function ResumenCuentasPorCobrar() {
             <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
               ← Volver
             </Link>
-            <h1 className="text-2xl font-bold text-navy">Resumen de cuentas por cobrar</h1>
+            <h1 className="text-2xl font-bold text-navy">Resumen de fiado</h1>
           </div>
           {datos && (
             <div className="flex gap-2">
@@ -83,7 +83,7 @@ export default function ResumenCuentasPorCobrar() {
                   <p className="text-sm text-slate-500">RUC {empresa.ruc}</p>
                 </>
               )}
-              <p className="mt-2 text-xl font-bold">Resumen de cuentas por cobrar</p>
+              <p className="mt-2 text-xl font-bold">Resumen de fiado</p>
               <p className="text-sm text-slate-500">Emitido el {fecha(datos.generadoEn)}</p>
             </div>
 

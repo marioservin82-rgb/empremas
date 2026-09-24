@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import CampoCantidad from "@/components/CampoCantidad";
@@ -9,7 +9,17 @@ import CampoCantidad from "@/components/CampoCantidad";
 const formatoGs = new Intl.NumberFormat("es-PY");
 
 export default function AjusteInventario() {
+  return (
+    <Suspense fallback={null}>
+      <AjusteInventarioContenido />
+    </Suspense>
+  );
+}
+
+function AjusteInventarioContenido() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const productoIdInicial = searchParams.get("productoId");
 
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState([]);
@@ -24,14 +34,34 @@ export default function AjusteInventario() {
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
       router.push("/");
+      return;
     }
-  }, [router]);
+    // Viniste de "Ajustar" en la ficha de un producto - se precarga solo,
+    // en vez de obligar a volver a buscarlo por nombre.
+    if (productoIdInicial) {
+      apiFetch(`/api/productos/${productoIdInicial}`)
+        .then(seleccionar)
+        .catch((err) => setError(err.message));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, productoIdInicial]);
 
   async function buscar(e) {
     e.preventDefault();
     if (!busqueda) return;
+    // Codigo de barras exacto (lector fisico) selecciona directo, sin
+    // obligar a elegirlo de una lista con un solo resultado - mismo
+    // criterio que Traslados entre sucursales.
     try {
-      setResultados(await apiFetch(`/api/productos?excluirCompuestos=true&excluirServicios=true&q=${encodeURIComponent(busqueda)}`));
+      const resultado = await apiFetch(
+        `/api/productos?excluirCompuestos=true&excluirServicios=true&q=${encodeURIComponent(busqueda)}`
+      );
+      const porCodigoExacto = resultado.filter((p) => p.codigo_barras === busqueda);
+      if (porCodigoExacto.length === 1) {
+        seleccionar(porCodigoExacto[0]);
+      } else {
+        setResultados(resultado);
+      }
     } catch (err) {
       setError(err.message);
     }

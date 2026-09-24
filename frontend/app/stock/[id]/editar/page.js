@@ -554,7 +554,7 @@ export default function EditarProducto() {
               <label className={etiqueta}>Stock actual</label>
               <div className="mb-1 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg">
                 <span className="font-semibold text-slate-700">{form.stock}</span>
-                <Link href="/stock/inventario/ajuste" className="text-sm font-semibold text-navy hover:text-brand">
+                <Link href={`/stock/inventario/ajuste?productoId=${id}`} className="text-sm font-semibold text-navy hover:text-brand">
                   Ajustar
                 </Link>
               </div>

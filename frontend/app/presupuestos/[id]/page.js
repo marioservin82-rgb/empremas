@@ -166,10 +166,11 @@ export default function DetallePresupuesto() {
           disabled={convirtiendo}
           className="w-full rounded-xl bg-brand py-4 text-xl font-bold text-white transition hover:bg-brand-light disabled:opacity-60"
         >
-          {convirtiendo ? "Preparando..." : "Convertir a venta"}
+          {convirtiendo ? "Abriendo Vender..." : "Cargar en Vender →"}
         </button>
         <p className="mt-2 text-center text-sm text-slate-400">
-          Se puede reutilizar las veces que haga falta — no queda "usado" después de convertirlo.
+          Se abre en Vender con todo cargado — ahí elegís la forma de cobro y confirmás. Se puede reutilizar las
+          veces que haga falta, no queda "usado" después de cargarlo.
         </p>
       </div>
     </main>

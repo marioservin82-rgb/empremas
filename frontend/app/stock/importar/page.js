@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { parsearCsv, filasAObjetos } from "@/lib/csv";
+import { numeroLocal } from "@/lib/numeroLocal";
 
 const COLUMNAS = [
   "nombre",
@@ -30,6 +31,28 @@ const MAPEO_CAMPO = {
   stock: "stock",
 };
 
+const CAMPOS_NUMERICOS = ["precio_costo", "precio_contado", "precio_credito", "precio_mayorista", "stock"];
+
+// Mismo criterio de validación que el backend (importarProductos) - se
+// corre acá ANTES de mandar el archivo, para marcar en la vista previa
+// exactamente qué celda está mal, en vez de que el usuario se entere
+// recién después de importar y tenga que adivinar cuál fila era.
+function validarFila(f) {
+  const errores = {};
+  if (!f.nombre || !String(f.nombre).trim()) {
+    errores.nombre = "Falta el nombre";
+  }
+  if (f.tasa_iva !== undefined && f.tasa_iva !== "" && ![0, 5, 10].includes(Number(f.tasa_iva))) {
+    errores.tasa_iva = "Debe ser 0, 5 o 10";
+  }
+  for (const campo of CAMPOS_NUMERICOS) {
+    if (Number.isNaN(numeroLocal(f[campo]))) {
+      errores[campo] = "No es un número válido";
+    }
+  }
+  return errores;
+}
+
 function descargarPlantilla() {
   const encabezado = COLUMNAS.join(",");
   const ejemplo = "Tornillo autoperforante 2 pulg,7801111111111,unidad,450,800,950,650,10,690";
@@ -50,6 +73,9 @@ export default function ImportarProductos() {
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
   const [importando, setImportando] = useState(false);
+
+  const erroresPorFila = filas.map(validarFila);
+  const cantidadFilasConError = erroresPorFila.filter((e) => Object.keys(e).length > 0).length;
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -173,6 +199,13 @@ export default function ImportarProductos() {
             <p className="mb-3 font-semibold text-slate-700">
               Vista previa — {filas.length} fila{filas.length === 1 ? "" : "s"}
             </p>
+            {cantidadFilasConError > 0 && (
+              <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                {cantidadFilasConError} fila{cantidadFilasConError === 1 ? "" : "s"} con un dato inválido — marcadas
+                en rojo abajo. Esas filas se van a saltear al importar; corregí el archivo y volvé a subirlo si
+                querés que se carguen.
+              </p>
+            )}
             <div className="mb-4 max-h-80 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50">
@@ -188,7 +221,13 @@ export default function ImportarProductos() {
                   {filas.slice(0, 50).map((f, i) => (
                     <tr key={i} className="border-t border-slate-100">
                       {COLUMNAS.map((c) => (
-                        <td key={c} className="px-3 py-2 text-slate-700">
+                        <td
+                          key={c}
+                          title={erroresPorFila[i][c]}
+                          className={`px-3 py-2 ${
+                            erroresPorFila[i][c] ? "bg-red-50 font-semibold text-red-700" : "text-slate-700"
+                          }`}
+                        >
                           {f[c]}
                         </td>
                       ))}
@@ -205,7 +244,11 @@ export default function ImportarProductos() {
               disabled={importando}
               className="w-full rounded-xl bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
             >
-              {importando ? "Importando..." : `Importar ${filas.length} producto${filas.length === 1 ? "" : "s"}`}
+              {importando
+                ? "Importando..."
+                : cantidadFilasConError > 0
+                ? `Importar ${filas.length - cantidadFilasConError} de ${filas.length} (${cantidadFilasConError} con error se van a saltear)`
+                : `Importar ${filas.length} producto${filas.length === 1 ? "" : "s"}`}
             </button>
           </div>
         )}

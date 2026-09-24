@@ -223,9 +223,24 @@ export default function NuevaCompra() {
     }
   }
 
-  function buscarProducto(e) {
+  async function buscarProducto(e) {
     e.preventDefault();
-    ejecutarBusquedaProducto(busquedaProducto);
+    const q = busquedaProducto;
+    if (!q) return;
+    // Codigo de barras exacto (lector fisico) agrega directo, sin obligar
+    // a elegirlo de una lista con un solo resultado - mismo criterio que
+    // Traslados entre sucursales.
+    try {
+      const resultado = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
+      const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
+      if (porCodigoExacto.length === 1) {
+        agregarAlCarrito(porCodigoExacto[0]);
+      } else {
+        setResultadosProducto(resultado);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   const busquedaProductoDebounced = useDebounced(busquedaProducto);
@@ -729,27 +744,42 @@ export default function NuevaCompra() {
                         {margenHabilitado && recomendaciones[i.productoId] && (
                           <div className="mb-3 rounded-xl bg-tint p-3 text-sm">
                             {recomendaciones[i.productoId].clasificado ? (
-                              <p className="text-navy">
-                                💡 Sugerencia (rotación {recomendaciones[i.productoId].categoria}): margen ~
-                                {Math.round(recomendaciones[i.productoId].margenSugeridoPct * 100)}% → precio contado
-                                sugerido{" "}
-                                <span className="font-bold">
-                                  Gs {formatoGs.format(recomendaciones[i.productoId].precioSugerido)}
-                                </span>
-                              </p>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-navy">
+                                  💡 Sugerencia (rotación {recomendaciones[i.productoId].categoria}): margen ~
+                                  {Math.round(recomendaciones[i.productoId].margenSugeridoPct * 100)}% → precio
+                                  contado sugerido{" "}
+                                  <span className="font-bold">
+                                    Gs {formatoGs.format(recomendaciones[i.productoId].precioSugerido)}
+                                  </span>
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    actualizarItem(i.productoId, "precioContado", recomendaciones[i.productoId].precioSugerido)
+                                  }
+                                  className="shrink-0 rounded-lg bg-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy-2"
+                                >
+                                  Usar precio sugerido
+                                </button>
+                              </div>
                             ) : recomendaciones[i.productoId].habilitado ? (
                               <div>
                                 <p className="text-slate-500">{recomendaciones[i.productoId].motivo}</p>
                                 {recomendaciones[i.productoId].motivo?.includes("elegí a mano") && (
-                                  <div className="mt-2 flex gap-2">
-                                    {["alta", "media", "baja"].map((cat) => (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {[
+                                      { valor: "alta", texto: "Alta (se vende seguido)" },
+                                      { valor: "media", texto: "Media" },
+                                      { valor: "baja", texto: "Baja (se vende poco)" },
+                                    ].map((cat) => (
                                       <button
-                                        key={cat}
+                                        key={cat.valor}
                                         type="button"
-                                        onClick={() => elegirRotacionManual(i.productoId, cat)}
+                                        onClick={() => elegirRotacionManual(i.productoId, cat.valor)}
                                         className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy hover:text-white"
                                       >
-                                        {cat}
+                                        {cat.texto}
                                       </button>
                                     ))}
                                   </div>

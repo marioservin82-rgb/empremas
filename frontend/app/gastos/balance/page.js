@@ -175,17 +175,26 @@ export default function BalanceMensual() {
                     </div>
                   ))}
 
-                <div className="flex justify-between py-1 text-sm">
-                  <span className="text-slate-500">Costo de mercadería vendida (a costo promedio)</span>
-                  <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.costoMercaderiaVendida)}</span>
+                <div>
+                  <div className="flex justify-between py-1 text-sm">
+                    <span className="text-slate-500">Costo de mercadería vendida (a costo promedio)</span>
+                    <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.costoMercaderiaVendida)}</span>
+                  </div>
+                  <p className="mb-1 text-xs text-slate-400">Lo que te costó a vos la mercadería que vendiste este período.</p>
                 </div>
-                <div className="flex justify-between py-1 text-sm">
-                  <span className="text-slate-500">Consumo interno (a costo)</span>
-                  <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.consumoInterno)}</span>
+                <div>
+                  <div className="flex justify-between py-1 text-sm">
+                    <span className="text-slate-500">Consumo interno (a costo)</span>
+                    <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.consumoInterno)}</span>
+                  </div>
+                  <p className="mb-1 text-xs text-slate-400">Mercadería que salió del stock para uso propio del negocio, no para vender.</p>
                 </div>
-                <div className="flex justify-between py-1 text-sm">
-                  <span className="text-slate-500">Merma (a costo)</span>
-                  <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.merma)}</span>
+                <div>
+                  <div className="flex justify-between py-1 text-sm">
+                    <span className="text-slate-500">Merma (a costo)</span>
+                    <span className="font-semibold text-red-600">− Gs {formatoGs.format(balance.merma)}</span>
+                  </div>
+                  <p className="mb-1 text-xs text-slate-400">Mercadería que se rompió, venció o se perdió, y ya no se puede vender.</p>
                 </div>
                 {balance.retirosOperativos > 0 && (
                   <div className="flex justify-between py-1 text-sm">
