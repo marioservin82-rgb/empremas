@@ -171,6 +171,7 @@ export async function actualizarPresupuesto(req, res) {
 
 export async function listarPresupuestos(req, res) {
     const { empresaId } = req.usuario;
+    const { q } = req.query;
 
     const resultado = await consultaDeEmpresa(
         empresaId,
@@ -178,8 +179,12 @@ export async function listarPresupuestos(req, res) {
                 (p.vencimiento < CURRENT_DATE) AS vencido
          FROM presupuestos p
          LEFT JOIN clientes c ON c.id = p.cliente_id
+         WHERE $1::text IS NULL
+            OR c.documento LIKE $1
+            OR unaccent(lower(c.nombre)) LIKE unaccent(lower($1))
+            OR p.numero::text = $2
          ORDER BY p.creado_en DESC LIMIT 200`,
-        []
+        [q ? `%${q}%` : null, q ?? null]
     );
 
     res.json(resultado.rows);
