@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { linkWhatsapp } from "@/lib/whatsapp";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -14,11 +15,13 @@ function fecha(f) {
 export default function ListaPedido() {
   const router = useRouter();
   const { id } = useParams();
+  const recuadroRef = useRef(null);
 
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState("");
   const [incluirComparacion, setIncluirComparacion] = useState(true);
   const [cantidades, setCantidades] = useState({});
+  const [descargando, setDescargando] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -32,6 +35,20 @@ export default function ListaPedido() {
 
   function actualizarCantidad(productoId, valor) {
     setCantidades((actual) => ({ ...actual, [productoId]: valor }));
+  }
+
+  async function descargarImagen() {
+    setDescargando(true);
+    try {
+      const html2canvas = (await import("html2canvas-pro")).default;
+      const canvas = await html2canvas(recuadroRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      const enlace = document.createElement("a");
+      enlace.download = `pedido-${datos.proveedor.nombre.replace(/\s+/g, "-").toLowerCase()}.png`;
+      enlace.href = canvas.toDataURL("image/png");
+      enlace.click();
+    } finally {
+      setDescargando(false);
+    }
   }
 
   if (!datos) {
@@ -59,12 +76,38 @@ export default function ListaPedido() {
             </Link>
             <h1 className="text-2xl font-bold text-navy">Pedido a {proveedor.nombre}</h1>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
-          >
-            Imprimir pedido
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={descargarImagen}
+              disabled={descargando}
+              className="rounded-xl bg-navy px-5 py-3 font-semibold text-white hover:bg-navy-2 disabled:opacity-60"
+            >
+              {descargando ? "Generando..." : "Descargar imagen"}
+            </button>
+            {proveedor.telefono ? (
+              <a
+                href={linkWhatsapp(proveedor.telefono, "Hola, te paso nuestro pedido (adjunto la imagen)")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"
+              >
+                Enviar por WhatsApp
+              </a>
+            ) : (
+              <span
+                title="Este proveedor no tiene teléfono cargado"
+                className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-400"
+              >
+                Sin teléfono
+              </span>
+            )}
+            <button
+              onClick={() => window.print()}
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
+            >
+              Imprimir pedido
+            </button>
+          </div>
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -78,7 +121,7 @@ export default function ListaPedido() {
           Incluir comparación de precios en el impreso
         </label>
 
-        <div className="reporte-imprimible rounded-xl bg-white p-6 shadow">
+        <div ref={recuadroRef} className="reporte-imprimible rounded-xl bg-white p-6 shadow">
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
           <div className="mb-4 hidden print:block">
             <p className="text-xl font-bold">Pedido a {proveedor.nombre}</p>

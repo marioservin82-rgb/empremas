@@ -357,7 +357,7 @@ export async function listaPedido(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
 
-    const proveedor = await consultaDeEmpresa(empresaId, `SELECT id, nombre FROM proveedores WHERE id = $1`, [id]);
+    const proveedor = await consultaDeEmpresa(empresaId, `SELECT id, nombre, telefono FROM proveedores WHERE id = $1`, [id]);
     if (!proveedor.rows[0]) {
         return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
