@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -76,6 +76,12 @@ export default function NuevoPresupuesto() {
     setBusquedaCliente("");
   }
 
+  // Evita agregar el mismo codigo dos veces cuando la busqueda automatica
+  // (mientras se escribe/escanea) y el envio del formulario (Enter) llegan
+  // a dispararse los dos para el mismo escaneo - sin esto, un lector
+  // rapido podia cargar la misma cantidad "de a dos".
+  const codigoYaAgregadoRef = useRef(null);
+
   async function ejecutarBusquedaProducto(qCrudo) {
     // trim(): algunos lectores de código de barras mandan un salto de
     // línea o espacio de más al final - sin esto, el código nunca
@@ -86,6 +92,7 @@ export default function NuevoPresupuesto() {
     // dejaría el producto encontrado en la lista pero nunca lo cargaría solo.
     const q = qCrudo.trim();
     if (!q) {
+      codigoYaAgregadoRef.current = null;
       setResultadosProducto([]);
       return;
     }
@@ -93,6 +100,8 @@ export default function NuevoPresupuesto() {
       const resultado = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
       const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
       if (porCodigoExacto.length === 1) {
+        if (codigoYaAgregadoRef.current === q) return;
+        codigoYaAgregadoRef.current = q;
         agregarAlCarrito(porCodigoExacto[0]);
       } else {
         setResultadosProducto(resultado);
