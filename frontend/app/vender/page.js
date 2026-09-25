@@ -1447,8 +1447,13 @@ export default function Vender() {
                             key={indice}
                             className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-2"
                           >
-                            <span className="font-semibold text-slate-700">
+                            <span className="flex items-center gap-2 font-semibold text-slate-700">
                               {ETIQUETA_FORMA_PAGO[p.formaPago]}
+                              {p.anticipoId && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                                  Anticipo
+                                </span>
+                              )}
                             </span>
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-slate-700">

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { linkWhatsapp } from "@/lib/whatsapp";
 import PresupuestoImprimible from "./PresupuestoImprimible";
+import AnticiposDelPedido from "@/components/AnticiposDelPedido";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -55,6 +56,20 @@ export default function DetallePresupuesto() {
         },
       }));
 
+      // Los anticipos ya cobrados (disponibles) se precargan como pagos ya
+      // hechos, para no tener que acordarse de descontarlos a mano.
+      let pagos = [];
+      if (presupuesto.cliente_id) {
+        try {
+          const anticipos = await apiFetch(`/api/anticipos?presupuestoId=${presupuesto.id}`);
+          pagos = anticipos
+            .filter((a) => a.estado === "disponible")
+            .map((a) => ({ formaPago: a.forma_pago, monto: Number(a.monto), anticipoId: a.id }));
+        } catch {
+          // Si falla traer los anticipos, se sigue igual sin precargar nada.
+        }
+      }
+
       localStorage.setItem(
         CLAVE_VENTA_EN_CURSO,
         JSON.stringify({
@@ -63,7 +78,7 @@ export default function DetallePresupuesto() {
           presupuestoId: presupuesto.id,
           cliente,
           carrito,
-          pagos: [],
+          pagos,
         })
       );
       router.push("/vender");
@@ -144,6 +159,12 @@ export default function DetallePresupuesto() {
             )
           }
         />
+
+        {presupuesto.cliente_id && (
+          <div className="mb-4">
+            <AnticiposDelPedido origen="presupuesto" origenId={presupuesto.id} clienteId={presupuesto.cliente_id} />
+          </div>
+        )}
 
         {presupuesto.ventasGeneradas.length > 0 && (
           <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">

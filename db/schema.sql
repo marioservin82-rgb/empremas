@@ -2209,3 +2209,42 @@ ALTER TABLE retiros_caja ADD COLUMN gasto_id UUID REFERENCES gastos(id);
 -- sin favorito elegido. El valor es una clave de OPCIONES_ACCESO_RAPIDO
 -- (frontend/lib/accesoRapido.js), no una URL.
 ALTER TABLE empresas ADD COLUMN acceso_rapido_favorito TEXT;
+
+-- Anticipos de clientes: plata que un cliente deja ANTES de que exista
+-- una venta final (internación, reparación o presupuesto). Se suma a
+-- caja el mismo día que se recibe (turno propio), y más adelante se
+-- convierte en una línea de pago más dentro de la venta que finalmente
+-- se genera (ver ventasController.js).
+CREATE TYPE estado_anticipo AS ENUM ('disponible', 'aplicado', 'anulado');
+
+CREATE TABLE anticipos (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id        UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    cliente_id        UUID NOT NULL REFERENCES clientes(id),
+    presupuesto_id    UUID REFERENCES presupuestos(id),
+    internacion_id    UUID REFERENCES internaciones(id),
+    reparacion_id     UUID REFERENCES reparaciones(id),
+    monto             NUMERIC(14,2) NOT NULL CHECK (monto > 0),
+    forma_pago        forma_pago_venta NOT NULL,
+    estado            estado_anticipo NOT NULL DEFAULT 'disponible',
+    turno_id          UUID REFERENCES turnos(id),
+    usuario_id        UUID NOT NULL REFERENCES usuarios(id),
+    nota              TEXT,
+    anulado_en        TIMESTAMPTZ,
+    anulado_por       UUID REFERENCES usuarios(id),
+    motivo_anulacion  TEXT,
+    creado_en         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT anticipo_un_solo_origen CHECK (
+        (presupuesto_id IS NOT NULL)::int + (internacion_id IS NOT NULL)::int + (reparacion_id IS NOT NULL)::int = 1
+    )
+);
+CREATE INDEX idx_anticipos_empresa ON anticipos (empresa_id);
+CREATE INDEX idx_anticipos_presupuesto ON anticipos (presupuesto_id) WHERE presupuesto_id IS NOT NULL;
+CREATE INDEX idx_anticipos_internacion ON anticipos (internacion_id) WHERE internacion_id IS NOT NULL;
+CREATE INDEX idx_anticipos_reparacion ON anticipos (reparacion_id) WHERE reparacion_id IS NOT NULL;
+ALTER TABLE anticipos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE anticipos FORCE ROW LEVEL SECURITY;
+CREATE POLICY anticipos_aislamiento ON anticipos
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+ALTER TABLE venta_pagos ADD COLUMN origen_anticipo_id UUID REFERENCES anticipos(id);

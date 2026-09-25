@@ -30,6 +30,7 @@ import pedidosSucursalRoutes from './routes/pedidosSucursal.js';
 import citasRoutes from './routes/citas.js';
 import cobrosRoutes from './routes/cobros.js';
 import reparacionesRoutes from './routes/reparaciones.js';
+import anticiposRoutes from './routes/anticipos.js';
 import mascotasRoutes from './routes/mascotas.js';
 import internacionesRoutes from './routes/internaciones.js';
 import { iniciarBarredorDocumentosElectronicos } from './jobs/barrerDocumentosElectronicos.js';
@@ -74,6 +75,7 @@ app.use('/api/pedidos-sucursal', pedidosSucursalRoutes);
 app.use('/api/citas', citasRoutes);
 app.use('/api/cobros', cobrosRoutes);
 app.use('/api/reparaciones', reparacionesRoutes);
+app.use('/api/anticipos', anticiposRoutes);
 app.use('/api/mascotas', mascotasRoutes);
 app.use('/api/internaciones', internacionesRoutes);
 

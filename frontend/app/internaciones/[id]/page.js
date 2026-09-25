@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import AnticiposDelPedido from "@/components/AnticiposDelPedido";
 
 const CLAVE_VENTA_EN_CURSO = "empremas_venta_en_curso";
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -54,10 +55,22 @@ export default function DetalleInternacion() {
     }
   }
 
-  function cobrar() {
+  async function cobrar() {
     // Igual que Reparaciones: el precio no se conoce de antemano (depende
     // de cuantos dias se quedo) - se lleva el cliente ya elegido, sin
-    // ningun item precargado; lo que corresponda se carga en Vender.
+    // ningun item precargado; lo que corresponda se carga en Vender. Los
+    // anticipos ya cobrados (disponibles) se precargan como pagos ya
+    // hechos, para no tener que acordarse de descontarlos a mano.
+    let pagos = [];
+    try {
+      const anticipos = await apiFetch(`/api/anticipos?internacionId=${internacion.id}`);
+      pagos = anticipos
+        .filter((a) => a.estado === "disponible")
+        .map((a) => ({ formaPago: a.forma_pago, monto: Number(a.monto), anticipoId: a.id }));
+    } catch {
+      // Si falla traer los anticipos, se sigue igual sin precargar nada -
+      // el cajero puede cobrar y aplicar el anticipo despues a mano.
+    }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
@@ -71,7 +84,7 @@ export default function DetalleInternacion() {
           celular: internacion.cliente_celular,
         },
         carrito: [],
-        pagos: [],
+        pagos,
         vendedorId: "",
       })
     );
@@ -156,6 +169,10 @@ export default function DetalleInternacion() {
               <p>{internacion.nota_ingreso}</p>
             </div>
           )}
+        </div>
+
+        <div className="mb-4">
+          <AnticiposDelPedido origen="internacion" origenId={internacion.id} clienteId={internacion.cliente_id} />
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">

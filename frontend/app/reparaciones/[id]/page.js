@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import NotaRecepcionImprimible from "../NotaRecepcionImprimible";
+import AnticiposDelPedido from "@/components/AnticiposDelPedido";
 
 const CLAVE_VENTA_EN_CURSO = "empremas_venta_en_curso";
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -70,10 +71,21 @@ function DetalleReparacionInterno() {
     }
   }
 
-  function cobrar() {
+  async function cobrar() {
     // A diferencia de una cita, acá el precio no se conoce de antemano
     // (recién se sabe al diagnosticar) - se lleva el cliente ya elegido,
     // sin ningún ítem precargado: lo que corresponda se carga en Vender.
+    // Los anticipos ya cobrados (disponibles) se precargan como pagos ya
+    // hechos, para no tener que acordarse de descontarlos a mano.
+    let pagos = [];
+    try {
+      const anticipos = await apiFetch(`/api/anticipos?reparacionId=${reparacion.id}`);
+      pagos = anticipos
+        .filter((a) => a.estado === "disponible")
+        .map((a) => ({ formaPago: a.forma_pago, monto: Number(a.monto), anticipoId: a.id }));
+    } catch {
+      // Si falla traer los anticipos, se sigue igual sin precargar nada.
+    }
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
@@ -87,7 +99,7 @@ function DetalleReparacionInterno() {
           celular: reparacion.cliente_celular,
         },
         carrito: [],
-        pagos: [],
+        pagos,
         vendedorId: "",
       })
     );
@@ -166,6 +178,10 @@ function DetalleReparacionInterno() {
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <div className="mb-4 print:hidden">
+          <AnticiposDelPedido origen="reparacion" origenId={reparacion.id} clienteId={reparacion.cliente_id} />
+        </div>
 
         <NotaRecepcionImprimible empresa={empresaInfo} reparacion={reparacion} autoImprimir={autoImprimir} />
       </div>

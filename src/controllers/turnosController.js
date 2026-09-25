@@ -18,10 +18,14 @@ export async function turnoAbiertoDe(cliente, usuarioId) {
 export async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
     // v.anulada = false: una venta anulada devolvio la plata, no cuenta
     // como efectivo real en la caja.
+    // origen_anticipo_id IS NULL: una linea de pago que vino de aplicar un
+    // anticipo ya se conto como efectivo el dia que se recibio el anticipo
+    // (en SU propio turno) - contarla de nuevo aca la duplicaria.
     const efectivoVentas = await cliente.query(
         `SELECT COALESCE(SUM(vp.monto), 0) AS total
          FROM venta_pagos vp JOIN ventas v ON v.id = vp.venta_id
-         WHERE v.turno_id = $1 AND vp.forma_pago = 'efectivo' AND v.anulada = false`,
+         WHERE v.turno_id = $1 AND vp.forma_pago = 'efectivo' AND v.anulada = false
+           AND vp.origen_anticipo_id IS NULL`,
         [turnoId]
     );
     const vueltoVentas = await cliente.query(
@@ -50,6 +54,14 @@ export async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
         `SELECT COALESCE(SUM(monto), 0) AS total FROM retiros_caja WHERE turno_id = $1 AND tipo_movimiento = 'entrega'`,
         [turnoId]
     );
+    // Un anticipo cuenta como efectivo real el dia que se recibe, en su
+    // propio turno - estado != 'anulado' porque uno anulado nunca llego a
+    // quedar en caja de verdad (o ya se revirtio).
+    const efectivoAnticipos = await cliente.query(
+        `SELECT COALESCE(SUM(monto), 0) AS total FROM anticipos
+         WHERE turno_id = $1 AND forma_pago = 'efectivo' AND estado != 'anulado'`,
+        [turnoId]
+    );
 
     return (
         Number(montoInicial) +
@@ -58,7 +70,8 @@ export async function efectivoEsperadoDeTurno(cliente, turnoId, montoInicial) {
         Number(efectivoCobros.rows[0].total) -
         Number(efectivoPagosProveedor.rows[0].total) -
         Number(retiros.rows[0].total) +
-        Number(entregas.rows[0].total)
+        Number(entregas.rows[0].total) +
+        Number(efectivoAnticipos.rows[0].total)
     );
 }
 

@@ -691,9 +691,28 @@ export async function crearVenta(req, res) {
             // arriba) - sin esto, esa plata no aparecia en la reconciliacion
             // de caja (efectivoEsperadoDeTurno suma venta_pagos).
             for (const p of pagos || []) {
+                let origenAnticipoId = null;
+                // Una linea de pago puede venir de un anticipo ya cobrado
+                // antes (internacion/reparacion/presupuesto) - se valida acá
+                // (nunca se confia en el estado que mande el front) y se
+                // marca "aplicado" para que no se pueda usar dos veces por un
+                // doble clic o dos pestañas abiertas. Esa plata NO se cuenta
+                // de nuevo en caja hoy: ya se contó el día que se recibió el
+                // anticipo (ver efectivoEsperadoDeTurno, filtro origen_anticipo_id).
+                if (p.anticipoId) {
+                    const anticipoResultado = await cliente.query(
+                        `SELECT id FROM anticipos WHERE id = $1 AND cliente_id = $2 AND estado = 'disponible' FOR UPDATE`,
+                        [p.anticipoId, clienteIdFinal]
+                    );
+                    if (!anticipoResultado.rows[0]) {
+                        throw new ErrorNegocio('Ese anticipo ya no está disponible');
+                    }
+                    await cliente.query(`UPDATE anticipos SET estado = 'aplicado' WHERE id = $1`, [p.anticipoId]);
+                    origenAnticipoId = p.anticipoId;
+                }
                 await cliente.query(
-                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
-                    [empresaId, ventaId, p.formaPago, p.monto]
+                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto, origen_anticipo_id) VALUES ($1, $2, $3, $4, $5)`,
+                    [empresaId, ventaId, p.formaPago, p.monto, origenAnticipoId]
                 );
             }
 
