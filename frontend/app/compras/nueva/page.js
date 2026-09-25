@@ -211,36 +211,38 @@ export default function NuevaCompra() {
     }
   }
 
-  async function ejecutarBusquedaProducto(q) {
+  async function ejecutarBusquedaProducto(qCrudo) {
+    // trim(): algunos lectores de código de barras mandan un salto de
+    // línea o espacio de más al final - sin esto, el código nunca
+    // coincide exacto contra lo guardado. El chequeo de código exacto va
+    // ACÁ (no solo al enviar el formulario) para que dispare también con
+    // la búsqueda automática mientras se escribe/escanea - si dependiera
+    // solo del Enter, un lector configurado para no mandar un Enter real
+    // (algunos mandan el salto de línea como caracter de texto) dejaría
+    // el producto encontrado en la lista pero nunca lo cargaría solo.
+    const q = qCrudo.trim();
     if (!q) {
       setResultadosProducto([]);
       return;
     }
     try {
-      setResultadosProducto(await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function buscarProducto(e) {
-    e.preventDefault();
-    const q = busquedaProducto;
-    if (!q) return;
-    // Codigo de barras exacto (lector fisico) agrega directo, sin obligar
-    // a elegirlo de una lista con un solo resultado - mismo criterio que
-    // Traslados entre sucursales.
-    try {
       const resultado = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
       const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
       if (porCodigoExacto.length === 1) {
         agregarAlCarrito(porCodigoExacto[0]);
+        setResultadosProducto([]);
+        setBusquedaProducto("");
       } else {
         setResultadosProducto(resultado);
       }
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  function buscarProducto(e) {
+    e.preventDefault();
+    ejecutarBusquedaProducto(busquedaProducto);
   }
 
   const busquedaProductoDebounced = useDebounced(busquedaProducto);

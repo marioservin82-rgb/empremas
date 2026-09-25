@@ -63,28 +63,19 @@ function NuevoTrasladoContenido() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, pedidoId]);
 
-  async function ejecutarBusqueda(q) {
+  async function ejecutarBusqueda(qCrudo) {
+    // trim(): algunos lectores de código de barras mandan un salto de
+    // línea o espacio de más al final - sin esto, el código nunca
+    // coincide exacto contra lo guardado. El chequeo de código exacto va
+    // ACÁ (no solo al enviar el formulario) para que dispare también con
+    // la búsqueda automática mientras se escribe/escanea - si dependiera
+    // solo del Enter, un lector configurado para no mandar un Enter real
+    // dejaría el producto encontrado en la lista pero nunca lo cargaría solo.
+    const q = qCrudo.trim();
     if (!q) {
       setResultados([]);
       return;
     }
-    try {
-      setResultados(await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  const busquedaDebounced = useDebounced(busqueda);
-  useEffect(() => {
-    ejecutarBusqueda(busquedaDebounced);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busquedaDebounced]);
-
-  async function buscarProducto(e) {
-    e.preventDefault();
-    const q = busqueda;
-    if (!q) return;
     try {
       const resultado = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
       const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
@@ -96,6 +87,17 @@ function NuevoTrasladoContenido() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  const busquedaDebounced = useDebounced(busqueda);
+  useEffect(() => {
+    ejecutarBusqueda(busquedaDebounced);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busquedaDebounced]);
+
+  function buscarProducto(e) {
+    e.preventDefault();
+    ejecutarBusqueda(busqueda);
   }
 
   function agregarAlCarrito(p) {

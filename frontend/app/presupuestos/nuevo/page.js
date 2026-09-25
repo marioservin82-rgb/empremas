@@ -76,13 +76,27 @@ export default function NuevoPresupuesto() {
     setBusquedaCliente("");
   }
 
-  async function ejecutarBusquedaProducto(q) {
+  async function ejecutarBusquedaProducto(qCrudo) {
+    // trim(): algunos lectores de código de barras mandan un salto de
+    // línea o espacio de más al final - sin esto, el código nunca
+    // coincide exacto contra lo guardado. El chequeo de código exacto va
+    // ACÁ (no solo al enviar el formulario) para que dispare también con
+    // la búsqueda automática mientras se escribe/escanea - si dependiera
+    // solo del Enter, un lector configurado para no mandar un Enter real
+    // dejaría el producto encontrado en la lista pero nunca lo cargaría solo.
+    const q = qCrudo.trim();
     if (!q) {
       setResultadosProducto([]);
       return;
     }
     try {
-      setResultadosProducto(await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`));
+      const resultado = await apiFetch(`/api/productos?q=${encodeURIComponent(q)}`);
+      const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
+      if (porCodigoExacto.length === 1) {
+        agregarAlCarrito(porCodigoExacto[0]);
+      } else {
+        setResultadosProducto(resultado);
+      }
     } catch (err) {
       setError(err.message);
     }

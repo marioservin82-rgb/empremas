@@ -48,15 +48,20 @@ function AjusteInventarioContenido() {
 
   async function buscar(e) {
     e.preventDefault();
-    if (!busqueda) return;
+    // trim(): algunos lectores de código de barras mandan un salto de
+    // línea o espacio de más al final - sin esto, el código nunca
+    // coincide exacto contra lo guardado y el auto-seleccionado de abajo
+    // nunca dispara.
+    const q = busqueda.trim();
+    if (!q) return;
     // Codigo de barras exacto (lector fisico) selecciona directo, sin
     // obligar a elegirlo de una lista con un solo resultado - mismo
-    // criterio que Traslados entre sucursales.
+    // criterio que Compras y Traslados entre sucursales.
     try {
       const resultado = await apiFetch(
-        `/api/productos?excluirCompuestos=true&excluirServicios=true&q=${encodeURIComponent(busqueda)}`
+        `/api/productos?excluirCompuestos=true&excluirServicios=true&q=${encodeURIComponent(q)}`
       );
-      const porCodigoExacto = resultado.filter((p) => p.codigo_barras === busqueda);
+      const porCodigoExacto = resultado.filter((p) => p.codigo_barras === q);
       if (porCodigoExacto.length === 1) {
         seleccionar(porCodigoExacto[0]);
       } else {
