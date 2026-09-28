@@ -2,6 +2,7 @@ import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { tienePermiso } from '../utils/permisos.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
+import { subirImagen, ErrorImagen } from '../services/imagenesService.js';
 
 // El cajero no debe ver el precio de costo (revela el margen del negocio) —
 // misma regla que ya rige para editar precios: eso es cosa de dueño/
@@ -223,7 +224,21 @@ export async function obtenerProducto(req, res) {
     }
 
     const productoFinal = (await ocultarCostoSiCorresponde([resultado.rows[0]], rol, empresaId, usuarioId))[0];
-    res.json({ ...productoFinal, receta });
+
+    let fotos = [];
+    if (resultado.rows[0].es_servicio) {
+        const fotosResultado = await consultaDeEmpresa(
+            empresaId,
+            `SELECT sf.id, sf.url_imagen, sf.orden
+             FROM servicio_fotos sf
+             WHERE sf.producto_id = $1 AND sf.activo = true
+             ORDER BY sf.orden, sf.creado_en`,
+            [id]
+        );
+        fotos = fotosResultado.rows;
+    }
+
+    res.json({ ...productoFinal, receta, fotos });
 }
 
 // Guarda la receta completa de un producto compuesto (ej. Sandwich):
@@ -896,5 +911,66 @@ export async function resolverSugerencia(req, res) {
         [empresaId, productoId, productoAsociadoId, estado, usuarioId]
     );
 
+    res.json({ ok: true });
+}
+
+// Galería de fotos de un servicio (módulo de Reservas públicas) - la
+// clienta la ve al elegir qué servicio reservar. Sube el archivo a
+// Cloudinary (única pieza de storage externo de todo EMPREMAS) y guarda
+// solo la URL resultante.
+export async function subirFotoServicio(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Falta el archivo de la foto' });
+    }
+
+    const producto = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, es_servicio FROM productos WHERE id = $1`,
+        [id]
+    );
+    if (!producto.rows[0]) {
+        return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+    if (!producto.rows[0].es_servicio) {
+        return res.status(400).json({ error: 'Solo los servicios tienen galería de fotos' });
+    }
+
+    let urlImagen;
+    try {
+        urlImagen = await subirImagen(req.file.buffer, 'empremas/servicios');
+    } catch (err) {
+        if (err instanceof ErrorImagen) {
+            return res.status(400).json({ error: err.message });
+        }
+        throw err;
+    }
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `INSERT INTO servicio_fotos (producto_id, url_imagen, orden)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(orden), -1) + 1 FROM servicio_fotos WHERE producto_id = $1))
+         RETURNING id, url_imagen, orden`,
+        [id, urlImagen]
+    );
+    res.status(201).json(resultado.rows[0]);
+}
+
+export async function eliminarFotoServicio(req, res) {
+    const { empresaId } = req.usuario;
+    const { fotoId } = req.params;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `UPDATE servicio_fotos SET activo = false
+         WHERE id = $1 AND producto_id IN (SELECT id FROM productos WHERE empresa_id = $2)
+         RETURNING id`,
+        [fotoId, empresaId]
+    );
+    if (!resultado.rows[0]) {
+        return res.status(404).json({ error: 'La foto no existe' });
+    }
     res.json({ ok: true });
 }

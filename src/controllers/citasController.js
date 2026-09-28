@@ -72,25 +72,25 @@ export async function obtenerCita(req, res) {
     res.json(resultado.rows[0]);
 }
 
-export async function crearCita(req, res) {
-    const { empresaId, usuarioId } = req.usuario;
-    const {
-        clienteId, productoId, profesionalId, fechaHoraInicio, nota,
-        duracionMinutos: duracionPedida, mascotaId,
-    } = req.body;
-
+// Corazon de crear-una-cita, separado del handler HTTP para poder
+// reusarlo desde la ruta pública de Reservas (que no tiene un usuario de
+// EMPREMAS logueado detrás - usuarioId llega null ahí, columna que
+// aceptaba NOT NULL antes de sumar Reservas públicas).
+export async function crearCitaCore(empresaId, {
+    clienteId, productoId, profesionalId, fechaHoraInicio, nota,
+    duracionMinutos: duracionPedida, mascotaId, usuarioId,
+}) {
     if (!clienteId) {
-        return res.status(400).json({ error: 'La cita necesita un cliente' });
+        throw new ErrorNegocio('La cita necesita un cliente');
     }
     if (!fechaHoraInicio) {
-        return res.status(400).json({ error: 'La cita necesita fecha y hora' });
+        throw new ErrorNegocio('La cita necesita fecha y hora');
     }
-    if (duracionPedida !== undefined && !(Number(duracionPedida) > 0)) {
-        return res.status(400).json({ error: 'La duración debe ser mayor a 0' });
+    if (duracionPedida !== undefined && duracionPedida !== null && !(Number(duracionPedida) > 0)) {
+        throw new ErrorNegocio('La duración debe ser mayor a 0');
     }
 
-    try {
-        const cita = await transaccionDeEmpresa(empresaId, async (cliente) => {
+    return transaccionDeEmpresa(empresaId, async (cliente) => {
             const clienteResultado = await cliente.query(`SELECT id FROM clientes WHERE id = $1`, [clienteId]);
             if (!clienteResultado.rows[0]) {
                 throw new ErrorNegocio('El cliente ya no existe');
@@ -168,13 +168,26 @@ export async function crearCita(req, res) {
                     fechaHoraInicio,
                     duracionMinutos,
                     nota || null,
-                    usuarioId,
+                    usuarioId || null,
                     mascotaId || null,
                 ]
             );
             return insertado.rows[0];
         });
+}
 
+export async function crearCita(req, res) {
+    const { empresaId, usuarioId } = req.usuario;
+    const {
+        clienteId, productoId, profesionalId, fechaHoraInicio, nota,
+        duracionMinutos, mascotaId,
+    } = req.body;
+
+    try {
+        const cita = await crearCitaCore(empresaId, {
+            clienteId, productoId, profesionalId, fechaHoraInicio, nota,
+            duracionMinutos, mascotaId, usuarioId,
+        });
         res.status(201).json(cita);
     } catch (error) {
         if (error instanceof ErrorNegocio) {

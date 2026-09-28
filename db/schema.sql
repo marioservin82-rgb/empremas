@@ -2248,3 +2248,19 @@ CREATE POLICY anticipos_aislamiento ON anticipos
     USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
 
 ALTER TABLE venta_pagos ADD COLUMN origen_anticipo_id UUID REFERENCES anticipos(id);
+
+-- Reservas públicas: la clienta reserva sin login, con nombre y celular,
+-- conectada al módulo real de Agenda de citas.
+ALTER TABLE empresas ADD COLUMN slug TEXT UNIQUE;
+ALTER TABLE empresas ADD COLUMN reservas_publicas_habilitadas BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE citas ALTER COLUMN usuario_id DROP NOT NULL;
+
+CREATE TABLE servicio_fotos (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    producto_id  UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    url_imagen   TEXT NOT NULL,
+    orden        INTEGER NOT NULL DEFAULT 0,
+    activo       BOOLEAN NOT NULL DEFAULT true,
+    creado_en    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_servicio_fotos_producto ON servicio_fotos (producto_id) WHERE activo = true;

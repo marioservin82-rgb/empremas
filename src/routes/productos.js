@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { autenticar } from '../middleware/autenticar.js';
 import { permitirRolesOPermiso } from '../middleware/permitirRoles.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -18,10 +19,16 @@ import {
     sugerenciasAsociaciones,
     resolverSugerencia,
     generarCodigoInterno,
+    subirFotoServicio,
+    eliminarFotoServicio,
 } from '../controllers/productosController.js';
 import { obtenerRecomendacionMargen } from '../controllers/margenController.js';
 
 const router = Router();
+// En memoria (no a disco): el buffer se reenvia directo a Cloudinary, nunca
+// se guarda un archivo propio en el servidor. Limite generoso para una
+// foto de celular sin comprimir a mano.
+const subidaFoto = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 router.use(autenticar);
 
@@ -44,5 +51,7 @@ router.get('/:id/recomendacion-margen', permitirRolesOPermiso(['dueno', 'encarga
 router.get('/:id/asociados', asyncHandler(listarAsociados));
 router.post('/:id/asociados', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(agregarAsociacion));
 router.delete('/:id/asociados/:asociadoId', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(quitarAsociacion));
+router.post('/:id/fotos', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), subidaFoto.single('foto'), asyncHandler(subirFotoServicio));
+router.delete('/fotos/:fotoId', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_inventario'), asyncHandler(eliminarFotoServicio));
 
 export default router;

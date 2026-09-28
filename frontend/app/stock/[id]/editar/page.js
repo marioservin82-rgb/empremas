@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, BASE_URL } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import CampoCantidad from "@/components/CampoCantidad";
 
@@ -30,6 +30,9 @@ export default function EditarProducto() {
   const [busquedaIngrediente, setBusquedaIngrediente] = useState("");
   const [resultadosIngrediente, setResultadosIngrediente] = useState([]);
   const [generandoCodigo, setGenerandoCodigo] = useState(false);
+  const [fotos, setFotos] = useState([]);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -40,6 +43,7 @@ export default function EditarProducto() {
       .then((p) => {
         setCostoPromedio(Number(p.precio_costo));
         setActivo(p.activo);
+        setFotos(p.fotos || []);
         setForm({
           nombre: p.nombre,
           codigoBarras: p.codigo_barras || "",
@@ -178,6 +182,43 @@ export default function EditarProducto() {
       setError(err.message);
     } finally {
       setGenerandoCodigo(false);
+    }
+  }
+
+  // Multipart, no JSON - apiFetch fuerza Content-Type: application/json,
+  // así que esta sube el archivo con fetch directo (el navegador arma el
+  // boundary del multipart solo si no se le fija el Content-Type a mano).
+  async function subirFoto(e) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setErrorFoto("");
+    setSubiendoFoto(true);
+    try {
+      const cuerpo = new FormData();
+      cuerpo.append("foto", archivo);
+      const token = localStorage.getItem("empremas_token");
+      const resp = await fetch(`${BASE_URL}/api/productos/${id}/fotos`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: cuerpo,
+      });
+      const datos = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(datos.error || "No se pudo subir la foto");
+      setFotos((actual) => [...actual, datos]);
+    } catch (err) {
+      setErrorFoto(err.message);
+    } finally {
+      setSubiendoFoto(false);
+      e.target.value = "";
+    }
+  }
+
+  async function borrarFoto(fotoId) {
+    try {
+      await apiFetch(`/api/productos/fotos/${fotoId}`, { method: "DELETE" });
+      setFotos((actual) => actual.filter((f) => f.id !== fotoId));
+    } catch (err) {
+      setErrorFoto(err.message);
     }
   }
 
@@ -407,6 +448,27 @@ export default function EditarProducto() {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2"
                     placeholder="Ej: 30"
                   />
+
+                  <label className={`${etiqueta} mt-4`}>Fotos (para la página pública de Reservas)</label>
+                  {fotos.length > 0 && (
+                    <div className="mb-3 grid grid-cols-3 gap-2">
+                      {fotos.map((f) => (
+                        <div key={f.id} className="relative">
+                          <img src={f.url_imagen} alt="" className="h-24 w-full rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => borrarFoto(f.id)}
+                            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white hover:bg-red-700"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" onChange={subirFoto} disabled={subiendoFoto} className={campo} />
+                  {subiendoFoto && <p className="text-xs text-slate-400">Subiendo...</p>}
+                  {errorFoto && <p className="text-xs text-red-600">{errorFoto}</p>}
                 </div>
               )}
             </>

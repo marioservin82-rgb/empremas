@@ -57,6 +57,8 @@ export default function AdminEmpresaDetalle() {
   const [venceEn, setVenceEn] = useState("");
   const [montoPlanMensual, setMontoPlanMensual] = useState("");
   const [contadorId, setContadorId] = useState("");
+  const [slug, setSlug] = useState("");
+  const [guardandoSlug, setGuardandoSlug] = useState(false);
 
   const [monto, setMonto] = useState("");
   const [periodoDesde, setPeriodoDesde] = useState("");
@@ -77,6 +79,7 @@ export default function AdminEmpresaDetalle() {
       setVenceEn(paraInput(e.vence_en));
       setMontoPlanMensual(e.monto_plan_mensual ?? "");
       setContadorId(e.contador_id || "");
+      setSlug(e.slug || "");
     });
   }
 
@@ -129,6 +132,23 @@ export default function AdminEmpresaDetalle() {
       await cargar();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function guardarSlug() {
+    setError("");
+    setExito("");
+    setGuardandoSlug(true);
+    try {
+      await adminFetch(`/api/admin/empresas/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ slug: slug.trim().toLowerCase() }),
+      });
+      await cargar();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardandoSlug(false);
     }
   }
 
@@ -354,6 +374,42 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.citas_habilitadas}
             onCambiar={(v) => guardarModulo("citasHabilitada", v)}
           />
+          {empresa.citas_habilitadas && (
+            <>
+              <ModuloToggle
+                titulo="Reservas públicas"
+                descripcion="Página pública sin login para que la clienta reserve sola (nombre + celular). Necesita Agenda de citas activo."
+                activo={!!empresa.reservas_publicas_habilitadas}
+                onCambiar={(v) => guardarModulo("reservasPublicasHabilitada", v)}
+              />
+              {empresa.reservas_publicas_habilitadas && (
+                <div className="mb-3 rounded-xl border border-slate-200 p-4">
+                  <label className={etiqueta}>Nombre de la URL pública</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                      placeholder="ej: diamond-nails"
+                      className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={guardarSlug}
+                      disabled={guardandoSlug || !slug.trim()}
+                      className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60"
+                    >
+                      {guardandoSlug ? "..." : "Guardar"}
+                    </button>
+                  </div>
+                  {empresa.slug && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      URL actual: empremas.com.py/turnos/{empresa.slug}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           <ModuloToggle
             titulo="Módulo de Nota de Recepción"
             descripcion="Locales de reparación de celulares/electrodomésticos: recibir un equipo con el estado y el comentario del cliente, e imprimir la nota firmada."

@@ -19,7 +19,9 @@ export default function BotonSoporteWhatsapp() {
       .catch(() => {});
   }, []);
 
-  if (pathname?.startsWith("/admin") || !numero) return null;
+  // /turnos: la pagina publica de Reservas la ve la clienta del salon, no
+  // el dueño del comercio - no tiene sentido ofrecerle soporte de EMPREMAS.
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/turnos") || !numero) return null;
 
   const link = linkWhatsapp(numero, "Hola, necesito ayuda con EMPREMAS");
   if (!link) return null;

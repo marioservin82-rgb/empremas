@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export async function apiFetch(ruta, opciones = {}) {
   const token = localStorage.getItem("empremas_token");

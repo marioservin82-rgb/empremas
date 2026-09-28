@@ -109,6 +109,7 @@ export async function obtenerEmpresa(req, res) {
                 e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
                 e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas, e.citas_habilitadas,
                 e.reparaciones_habilitadas, e.mascotas_habilitadas, e.recomendacion_margen_habilitada,
+                e.reservas_publicas_habilitadas, e.slug,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          LEFT JOIN contadores_aliados c ON c.id = e.contador_id
@@ -139,7 +140,7 @@ export async function actualizarEmpresa(req, res) {
     const {
         plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId,
         produccionHabilitada, lomiteriaHabilitada, citasHabilitada, reparacionesHabilitada, mascotasHabilitada,
-        recomendacionMargenHabilitada,
+        recomendacionMargenHabilitada, reservasPublicasHabilitada, slug,
     } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
@@ -162,8 +163,16 @@ export async function actualizarEmpresa(req, res) {
             return res.status(400).json({ error: 'El contador aliado elegido no existe o no está activo' });
         }
     }
+    // El slug arma la URL publica (empremas.com.py/turnos/<slug>) - solo
+    // minusculas, numeros y guiones, para que nunca haga falta codificar
+    // caracteres raros en la URL.
+    if (slug && !/^[a-z0-9-]+$/.test(slug)) {
+        return res.status(400).json({ error: 'El nombre de URL solo puede tener minúsculas, números y guiones' });
+    }
 
-    const resultado = await pool.query(
+    let resultado;
+    try {
+        resultado = await pool.query(
         `UPDATE empresas SET
             plan = COALESCE($2, plan),
             estado = COALESCE($3, estado),
@@ -181,23 +190,33 @@ export async function actualizarEmpresa(req, res) {
             citas_habilitadas = COALESCE($12, citas_habilitadas),
             reparaciones_habilitadas = COALESCE($13, reparaciones_habilitadas),
             mascotas_habilitadas = COALESCE($14, mascotas_habilitadas),
-            recomendacion_margen_habilitada = COALESCE($15, recomendacion_margen_habilitada)
+            recomendacion_margen_habilitada = COALESCE($15, recomendacion_margen_habilitada),
+            reservas_publicas_habilitadas = COALESCE($16, reservas_publicas_habilitadas),
+            slug = COALESCE($17, slug)
          WHERE id = $1
          RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en,
                    monto_plan_mensual, contador_id, produccion_habilitada, lomiteria_habilitada,
                    comisiones_habilitadas, citas_habilitadas, reparaciones_habilitadas, mascotas_habilitadas,
-                   recomendacion_margen_habilitada`,
-        [
-            id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
-            contadorId !== undefined, contadorId,
-            produccionHabilitada === undefined ? null : produccionHabilitada,
-            lomiteriaHabilitada === undefined ? null : lomiteriaHabilitada,
-            citasHabilitada === undefined ? null : citasHabilitada,
-            reparacionesHabilitada === undefined ? null : reparacionesHabilitada,
-            mascotasHabilitada === undefined ? null : mascotasHabilitada,
-            recomendacionMargenHabilitada === undefined ? null : recomendacionMargenHabilitada,
-        ]
-    );
+                   recomendacion_margen_habilitada, reservas_publicas_habilitadas, slug`,
+            [
+                id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
+                contadorId !== undefined, contadorId,
+                produccionHabilitada === undefined ? null : produccionHabilitada,
+                lomiteriaHabilitada === undefined ? null : lomiteriaHabilitada,
+                citasHabilitada === undefined ? null : citasHabilitada,
+                reparacionesHabilitada === undefined ? null : reparacionesHabilitada,
+                mascotasHabilitada === undefined ? null : mascotasHabilitada,
+                recomendacionMargenHabilitada === undefined ? null : recomendacionMargenHabilitada,
+                reservasPublicasHabilitada === undefined ? null : reservasPublicasHabilitada,
+                slug || null,
+            ]
+        );
+    } catch (err) {
+        if (err.code === '23505') {
+            return res.status(400).json({ error: 'Ese nombre de URL ya está en uso por otra empresa' });
+        }
+        throw err;
+    }
     if (!resultado.rows[0]) {
         return res.status(404).json({ error: 'Empresa no encontrada' });
     }

@@ -19,7 +19,7 @@ export default function BotonVenderRapido() {
   }, [pathname]);
 
   if (!logueado) return null;
-  if (pathname?.startsWith("/admin")) return null;
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/turnos")) return null;
   if (RUTAS_OCULTAS.includes(pathname)) return null;
 
   return (
