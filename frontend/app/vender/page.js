@@ -1565,7 +1565,7 @@ export default function Vender() {
                         }`}
                       >
                         <span className="text-lg leading-none">{t.icono}</span>
-                        <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">{t.etiqueta}</span>
+                        <span className="text-center text-[11px] font-semibold leading-tight">{t.etiqueta}</span>
                       </button>
                     ))}
                     <button
@@ -1585,7 +1585,7 @@ export default function Vender() {
                       }`}
                     >
                       <span className="text-lg leading-none">📋</span>
-                      <span className="text-center text-[11px] font-semibold leading-tight lg:sr-only">
+                      <span className="text-center text-[11px] font-semibold leading-tight">
                         Factura Legal{!sifenConfigurado ? " (no config.)" : ""}
                       </span>
                     </button>
