@@ -276,6 +276,16 @@ export function descargarKude(cdc) {
     return descargar(`/v1/documentos/${cdc}/kude`);
 }
 
+// El QR OFICIAL (el que ya trae el XML firmado, con el hash de seguridad
+// calculado con el CSC del contribuyente) - un QR armado solo con el CDC
+// (sin dFeEmiDE/dRucRec/dTotGralOpe/dTotIVA/cItems/DigestValue/cHashQR)
+// nunca es válido: SIFEN siempre contesta "Código QR inválido, consulte con
+// el emisor del DE" aunque el CDC sea real y esté aprobado. Respuesta:
+// { qrUrl }.
+export function consultarQr(cdc) {
+    return llamar('GET', `/v1/documentos/${cdc}/qr`);
+}
+
 // iTiOpe (D201) forzado por la clasificación SIFEN del cliente. 'auto' deja
 // que lo decida el conector (1 contribuyente / 2 no contribuyente).
 const ITIOPE_POR_CLASIFICACION = { b2b: 1, b2c: 2, b2g: 3, b2f: 4 };

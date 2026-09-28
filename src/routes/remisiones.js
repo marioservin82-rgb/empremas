@@ -9,6 +9,7 @@ import {
     obtenerRemision,
     reintentarRemision,
     descargarKudeRemision,
+    obtenerQrSifenRemision,
 } from '../controllers/remisionesController.js';
 
 const router = Router();
@@ -20,6 +21,7 @@ const puede = permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras')
 router.get('/', asyncHandler(listarRemisiones));
 router.get('/:id', asyncHandler(obtenerRemision));
 router.get('/:id/kude', asyncHandler(descargarKudeRemision));
+router.get('/:id/qr-sifen', asyncHandler(obtenerQrSifenRemision));
 router.post('/', puede, asyncHandler(crearRemision));
 router.post('/desde-venta', puede, asyncHandler(crearRemisionDesdeVenta));
 router.post('/:id/reintentar', puede, asyncHandler(reintentarRemision));

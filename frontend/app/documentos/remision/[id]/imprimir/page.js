@@ -57,21 +57,36 @@ export default function ImprimirRemision() {
       .catch((e) => setError(e.message));
   }, [id, router]);
 
-  // QR de verificación: abre la consulta pública del CDC en e-Kuatia. El QR
-  // criptográfico oficial va en el KuDE PDF del conector.
+  // QR de verificación: abre la consulta pública del CDC en e-Kuatia. Tiene
+  // que ser el OFICIAL (con el hash de seguridad del CSC) - uno armado solo
+  // con el CDC siempre da "Código QR inválido" en SIFEN. Recién está
+  // disponible una vez aprobado (se pide al conector); antes de eso, o si
+  // por lo que sea no se puede traer, se cae al de solo-CDC de siempre.
   useEffect(() => {
     if (!r?.cdc) return;
     let cancelado = false;
-    import("qrcode").then((QRCode) => {
-      const url = `https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id=${r.cdc}`;
-      QRCode.toDataURL(url, { margin: 0, width: 240, errorCorrectionLevel: "M" }).then((d) => {
-        if (!cancelado) setQr(d);
-      });
-    });
+
+    async function generar() {
+      let url = `https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id=${r.cdc}`;
+      if (r.estado === "aprobado") {
+        try {
+          const { qrUrl } = await apiFetch(`/api/remisiones/${r.id}/qr-sifen`);
+          if (qrUrl) url = qrUrl;
+        } catch {
+          // se sigue con el QR de respaldo
+        }
+      }
+      if (cancelado) return;
+      const QRCode = await import("qrcode");
+      const dataUrl = await QRCode.toDataURL(url, { margin: 0, width: 240, errorCorrectionLevel: "M" });
+      if (!cancelado) setQr(dataUrl);
+    }
+    generar();
+
     return () => {
       cancelado = true;
     };
-  }, [r?.cdc]);
+  }, [r?.cdc, r?.estado, r?.id]);
 
   if (error) return <main className="p-6 text-sm text-red-600">{error}</main>;
   if (!r || !emp) return <main className="p-6 text-slate-500">Cargando…</main>;

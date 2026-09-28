@@ -6,6 +6,7 @@ import {
     resolverReceptor as resolverReceptorConector,
     consultarDocumento as consultarDocumentoConector,
     descargarKude as descargarKudeConector,
+    consultarQr as consultarQrConector,
     ErrorConector,
 } from '../services/conectorSifen.js';
 import { resolverVehiculo, resolverChofer, resolverTransportista } from './flotaController.js';
@@ -476,4 +477,19 @@ export async function descargarKudeRemision(req, res) {
     const pdf = await descargarKudeConector(rem.cdc);
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdf);
+}
+
+// QR oficial (con el hash de seguridad del CSC) - ver comentario en
+// conectorSifen.js/consultarQr sobre por que un QR armado solo con el CDC
+// (como el que arma el frontend de toda la vida) nunca es valido ante SIFEN.
+export async function obtenerQrSifenRemision(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const r = await consultaDeEmpresa(empresaId, `SELECT estado, cdc FROM remisiones WHERE id = $1`, [id]);
+    const rem = r.rows[0];
+    if (!rem || !rem.cdc || rem.estado !== 'aprobado') {
+        return res.status(404).json({ error: 'QR oficial no disponible para este documento' });
+    }
+    const { qrUrl } = await consultarQrConector(rem.cdc);
+    res.json({ qrUrl });
 }

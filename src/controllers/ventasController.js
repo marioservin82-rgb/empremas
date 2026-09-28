@@ -8,6 +8,7 @@ import {
     emitirFactura as emitirFacturaConector,
     descargarKude as descargarKudeConector,
     consultarDocumento as consultarDocumentoConector,
+    consultarQr as consultarQrConector,
     cancelarDocumento as cancelarDocumentoConector,
     mapearVentaAConector,
     resolverReceptor as resolverReceptorConector,
@@ -1163,6 +1164,33 @@ export async function descargarKudeVenta(req, res) {
         : await descargarKude({ apiKey: fila.sifen_api_key, cdc: fila.cdc });
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdf);
+}
+
+// QR oficial (con el hash de seguridad del CSC) para el ticket termico de
+// mostrador - ver comentario en conectorSifen.js/consultarQr sobre por que
+// un QR armado solo con el CDC nunca es valido. Solo disponible via
+// conector (Sifende, en camino a dejar de usarse, no expone el XML
+// firmado) - si no aplica, el frontend se cae al QR "de solo CDC" de
+// siempre (mejor un QR que no verifica a nada que mostrar un error acá).
+export async function obtenerQrSifenVenta(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const datos = await consultaDeEmpresa(
+        empresaId,
+        `SELECT de.estado, de.cdc, e.sifen_estado, e.sifen_conector_tenant_id
+         FROM documentos_electronicos de
+         JOIN empresas e ON e.id = de.empresa_id
+         WHERE de.venta_id = $1`,
+        [id]
+    );
+    const fila = datos.rows[0];
+    const viaConector = fila?.sifen_estado === 'produccion' && !!fila?.sifen_conector_tenant_id;
+    if (!fila || !fila.cdc || fila.estado !== 'aprobado' || !viaConector) {
+        return res.status(404).json({ error: 'QR oficial no disponible para este documento' });
+    }
+    const { qrUrl } = await consultarQrConector(fila.cdc);
+    res.json({ qrUrl });
 }
 
 export async function listarVentas(req, res) {

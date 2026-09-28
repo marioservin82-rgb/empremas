@@ -677,19 +677,38 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
       .finally(() => setLogoListo(true));
   }, []);
 
+  // El QR de este ticket (copia de mostrador) tiene que ser el OFICIAL (con
+  // el hash de seguridad del CSC) para que escanearlo realmente lleve a la
+  // consulta pública en e-Kuatia - un QR armado solo con el CDC siempre da
+  // "Código QR inválido" en SIFEN, aunque el documento esté aprobado. Recién
+  // está disponible una vez aprobado (se pide al conector); antes de eso, o
+  // si por lo que sea no se puede traer, se cae al de siempre (mejor un QR
+  // que no verifica a que no haya nada que escanear).
   useEffect(() => {
     if (!venta.de_cdc) return;
     let cancelado = false;
-    import("qrcode").then((QRCode) => {
-      const url = `https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id=${venta.de_cdc}`;
-      QRCode.toDataURL(url, { margin: 1, width: 160 }).then((dataUrl) => {
-        if (!cancelado) setQr(dataUrl);
-      });
-    });
+
+    async function generar() {
+      let url = `https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id=${venta.de_cdc}`;
+      if (venta.de_estado === "aprobado") {
+        try {
+          const { qrUrl } = await apiFetch(`/api/ventas/${venta.id}/qr-sifen`);
+          if (qrUrl) url = qrUrl;
+        } catch {
+          // se sigue con el QR de respaldo
+        }
+      }
+      if (cancelado) return;
+      const QRCode = await import("qrcode");
+      const dataUrl = await QRCode.toDataURL(url, { margin: 1, width: 160 });
+      if (!cancelado) setQr(dataUrl);
+    }
+    generar();
+
     return () => {
       cancelado = true;
     };
-  }, [venta.de_cdc]);
+  }, [venta.de_cdc, venta.de_estado, venta.id]);
 
   // Se imprime sola apenas se puede - una sola vez por venta, para que un
   // cambio de estado por el polling de mas arriba no dispare un segundo
