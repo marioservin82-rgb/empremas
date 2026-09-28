@@ -374,6 +374,13 @@ export default function Panel() {
           seccionReportes.push({ nombre: "Ventas de hoy", icono: "📊", href: "/ventas/resumen-dia" });
           seccionReportes.push({ nombre: "Crédito cobrado hoy", icono: "💵", href: "/clientes/cobros-dia" });
         }
+        // Mismo permiso que ya exige el backend en /api/empresas/reporte-saldos
+        // (ver_reportes, dueño/encargado) - junta lo que te deben y lo que
+        // debés en un solo lugar, en vez de tener que entrar por separado a
+        // Clientes y a Proveedores.
+        if (yo?.rol === "dueno" || yo?.rol === "encargado") {
+          seccionReportes.push({ nombre: "Cuentas por cobrar y pagar", icono: "💰", href: "/reportes/saldos" });
+        }
 
         // Traslados/pedidos entre sucursales: sin sentido con una sola
         // sucursal. Mismo criterio de rol que Ajuste de Inventario
