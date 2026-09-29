@@ -59,6 +59,7 @@ export default function AdminEmpresaDetalle() {
   const [contadorId, setContadorId] = useState("");
   const [slug, setSlug] = useState("");
   const [guardandoSlug, setGuardandoSlug] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   const [monto, setMonto] = useState("");
   const [periodoDesde, setPeriodoDesde] = useState("");
@@ -150,6 +151,12 @@ export default function AdminEmpresaDetalle() {
     } finally {
       setGuardandoSlug(false);
     }
+  }
+
+  async function copiarLinkReservas() {
+    await navigator.clipboard.writeText(`https://empremas.com.py/turnos/${empresa.slug}`);
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
   }
 
   // Combos de módulos por rubro común - solo PRENDE los que corresponden
@@ -402,9 +409,21 @@ export default function AdminEmpresaDetalle() {
                     </button>
                   </div>
                   {empresa.slug && (
-                    <p className="mt-2 text-xs text-slate-400">
-                      URL actual: empremas.com.py/turnos/{empresa.slug}
-                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        readOnly
+                        value={`https://empremas.com.py/turnos/${empresa.slug}`}
+                        onFocus={(e) => e.target.select()}
+                        className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={copiarLinkReservas}
+                        className="rounded-xl bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-2"
+                      >
+                        {linkCopiado ? "Copiado ✓" : "Copiar link"}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
