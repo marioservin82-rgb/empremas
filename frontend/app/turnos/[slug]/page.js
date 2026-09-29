@@ -198,12 +198,12 @@ export default function ReservaPublica() {
                       setServicioElegido(s);
                       setPaso(2);
                     }}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-brand hover:bg-brand/5"
+                    className="overflow-hidden rounded-xl border border-slate-200 text-left hover:border-brand hover:bg-brand/5"
                   >
                     {s.fotos?.[0] && (
-                      <img src={s.fotos[0]} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                      <img src={s.fotos[0]} alt="" className="h-40 w-full object-cover" />
                     )}
-                    <div className="flex-1">
+                    <div className="p-3">
                       <p className="font-semibold text-slate-800">{s.nombre}</p>
                       <p className="text-sm text-slate-500">
                         Gs {formatoGs.format(s.precio_contado)}
