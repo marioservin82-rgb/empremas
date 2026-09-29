@@ -14,6 +14,8 @@ import {
     actualizarLogo,
     actualizarFotoPortada,
     eliminarFotoPortada,
+    obtenerHorarioAtencion,
+    actualizarHorarioAtencion,
     obtenerPresetRemision,
     actualizarPresetRemision,
 } from '../controllers/empresasController.js';
@@ -34,6 +36,8 @@ router.get('/logo', asyncHandler(obtenerLogo));
 router.patch('/logo', permitirRoles('dueno'), asyncHandler(actualizarLogo));
 router.post('/foto-portada', permitirRoles('dueno'), subidaFotoPortada.single('foto'), asyncHandler(actualizarFotoPortada));
 router.delete('/foto-portada', permitirRoles('dueno'), asyncHandler(eliminarFotoPortada));
+router.get('/horario-atencion', asyncHandler(obtenerHorarioAtencion));
+router.put('/horario-atencion', permitirRoles('dueno'), asyncHandler(actualizarHorarioAtencion));
 router.get('/preset-remision', asyncHandler(obtenerPresetRemision));
 router.put('/preset-remision', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(actualizarPresetRemision));
 

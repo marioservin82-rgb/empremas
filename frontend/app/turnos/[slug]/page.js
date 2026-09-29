@@ -12,17 +12,40 @@ const playfair = Playfair_Display({ subsets: ["latin"], weight: ["600", "700"] }
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const formatoGs = new Intl.NumberFormat("es-PY");
 
-// Franja fija de 8 a 19hs, cada 30 min - no existe hoy un "horario de
-// atención" configurable por salón (ver plan, "Fuera de alcance").
-function generarHorariosCandidatos() {
+// Mismo criterio que src/utils/horarioAtencion.js del backend - duplicado
+// acá porque no hay import compartido entre backend y frontend en este repo.
+const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+const DIAS_SEMANA_PLURAL = {
+  domingo: "domingos",
+  lunes: "lunes",
+  martes: "martes",
+  miercoles: "miércoles",
+  jueves: "jueves",
+  viernes: "viernes",
+  sabado: "sábados",
+};
+
+// Mediodia (no medianoche) evita cualquier corrimiento de dia por huso
+// horario - que dia calendario es una fecha no depende del huso horario.
+function diaSemanaDe(fechaISO) {
+  return DIAS_SEMANA[new Date(`${fechaISO}T12:00:00`).getDay()];
+}
+
+// Candidatos cada 30 min entre desde y hasta (ej. "08:00" a "19:00").
+function generarHorariosCandidatos(desde, hasta) {
   const horarios = [];
-  for (let h = 8; h < 19; h++) {
-    horarios.push(`${String(h).padStart(2, "0")}:00`);
-    horarios.push(`${String(h).padStart(2, "0")}:30`);
+  let [h, m] = desde.split(":").map(Number);
+  const [hFin, mFin] = hasta.split(":").map(Number);
+  while (h < hFin || (h === hFin && m < mFin)) {
+    horarios.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    m += 30;
+    if (m >= 60) {
+      m = 0;
+      h += 1;
+    }
   }
   return horarios;
 }
-const HORARIOS_CANDIDATOS = generarHorariosCandidatos();
 
 function fechaHoyISO() {
   return new Date().toISOString().slice(0, 10);
@@ -82,6 +105,12 @@ export default function ReservaPublica() {
       .catch(() => {});
   }, [salon, slug]);
 
+  const horarioDelDia = useMemo(() => {
+    if (!salon?.horarioAtencion) return null;
+    return salon.horarioAtencion[diaSemanaDe(fecha)] || null;
+  }, [salon, fecha]);
+  const salonAbiertoEseDia = !horarioDelDia || horarioDelDia.abierto;
+
   async function cargarDisponibilidad() {
     setCargandoHorarios(true);
     setSlotElegido(null);
@@ -105,19 +134,24 @@ export default function ReservaPublica() {
   }
 
   useEffect(() => {
-    if (paso === 3 && profesionales.length > 0) cargarDisponibilidad();
+    if (paso === 3 && profesionales.length > 0 && salonAbiertoEseDia) cargarDisponibilidad();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paso, fecha, profesionalElegidoId, profesionales.length]);
+  }, [paso, fecha, profesionalElegidoId, profesionales.length, salonAbiertoEseDia]);
 
   const duracionMinutos = servicioElegido?.duracion_minutos || 30;
 
   // Para cada horario candidato, el primer profesional libre (o el elegido
   // puntual, si no dejó "Cualquiera disponible") en ese horario.
+  const horariosCandidatos = useMemo(() => {
+    if (!salonAbiertoEseDia) return [];
+    return generarHorariosCandidatos(horarioDelDia?.desde || "08:00", horarioDelDia?.hasta || "19:00");
+  }, [horarioDelDia, salonAbiertoEseDia]);
+
   const slotsDisponibles = useMemo(() => {
     const candidatos = profesionalElegidoId
       ? profesionales.filter((p) => p.id === profesionalElegidoId)
       : profesionales;
-    return HORARIOS_CANDIDATOS.map((hora) => {
+    return horariosCandidatos.map((hora) => {
       const inicio = new Date(`${fecha}T${hora}:00`);
       const fin = new Date(inicio.getTime() + duracionMinutos * 60000);
       const libre = candidatos.find((p) => {
@@ -130,7 +164,7 @@ export default function ReservaPublica() {
       });
       return { hora, profesionalId: libre?.id || null, fechaHoraInicio: inicio.toISOString() };
     });
-  }, [fecha, duracionMinutos, ocupadasPorProfesional, profesionalElegidoId, profesionales]);
+  }, [fecha, duracionMinutos, ocupadasPorProfesional, profesionalElegidoId, profesionales, horariosCandidatos]);
 
   async function confirmarReserva() {
     setEnviando(true);
@@ -146,6 +180,9 @@ export default function ReservaPublica() {
           servicioId: servicioElegido.id,
           profesionalId: slotElegido.profesionalId,
           fechaHoraInicio: slotElegido.fechaHoraInicio,
+          fecha,
+          hora: slotElegido.hora,
+          duracionMinutos,
         }),
       });
       const datos = await resp.json().catch(() => ({}));
@@ -302,7 +339,11 @@ export default function ReservaPublica() {
               onChange={(e) => setFecha(e.target.value)}
               className="mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
             />
-            {cargandoHorarios ? (
+            {!salonAbiertoEseDia ? (
+              <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                El salón no atiende los {DIAS_SEMANA_PLURAL[diaSemanaDe(fecha)]}. Elegí otro día.
+              </p>
+            ) : cargandoHorarios ? (
               <p className="text-sm text-slate-400">Buscando horarios libres...</p>
             ) : (
               <div className="grid grid-cols-3 gap-2">

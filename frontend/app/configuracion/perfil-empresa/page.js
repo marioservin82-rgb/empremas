@@ -10,6 +10,18 @@ import { OPCIONES_ACCESO_RAPIDO } from "@/lib/accesoRapido";
 const campo = "mb-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
 const etiqueta = "mb-1 block text-sm font-medium text-slate-700";
 
+// Orden natural de la semana para mostrar (el JSON interno usa las mismas
+// claves, ver src/utils/horarioAtencion.js).
+const DIAS_ORDEN = [
+  ["lunes", "Lunes"],
+  ["martes", "Martes"],
+  ["miercoles", "Miércoles"],
+  ["jueves", "Jueves"],
+  ["viernes", "Viernes"],
+  ["sabado", "Sábado"],
+  ["domingo", "Domingo"],
+];
+
 // Mismo patrón de tarjeta que ya usa Admin para activar/desactivar
 // módulos (admin/empresas/[id]/page.js) - acá sin el switch, porque
 // activar o desactivar un módulo lo gestiona EMPREMAS, no el dueño.
@@ -63,6 +75,11 @@ export default function PerfilEmpresa() {
   const [subiendoPortada, setSubiendoPortada] = useState(false);
   const [errorPortada, setErrorPortada] = useState("");
 
+  const [horario, setHorario] = useState(null);
+  const [guardandoHorario, setGuardandoHorario] = useState(false);
+  const [errorHorario, setErrorHorario] = useState("");
+  const [exitoHorario, setExitoHorario] = useState(false);
+
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -114,6 +131,9 @@ export default function PerfilEmpresa() {
       .catch(() => {});
     apiFetch("/api/empresas/logo")
       .then((r) => setLogo(r.logo))
+      .catch(() => {});
+    apiFetch("/api/empresas/horario-atencion")
+      .then((r) => setHorario(r.horario))
       .catch(() => {});
   }, [router]);
 
@@ -199,6 +219,37 @@ export default function PerfilEmpresa() {
       setFotoPortada(null);
     } catch (err) {
       setErrorPortada(err.message);
+    }
+  }
+
+  function cambiarDiaHorario(dia, cambios) {
+    setHorario((actual) => {
+      const actualDia = actual[dia];
+      // Si se prende un día que nunca tuvo horario cargado, arranca con
+      // valores razonables en vez de dejar los inputs vacíos.
+      const base =
+        cambios.abierto && !actualDia.desde
+          ? { ...actualDia, desde: "08:00", hasta: "19:00" }
+          : actualDia;
+      return { ...actual, [dia]: { ...base, ...cambios } };
+    });
+  }
+
+  async function guardarHorario() {
+    setErrorHorario("");
+    setExitoHorario(false);
+    setGuardandoHorario(true);
+    try {
+      const respuesta = await apiFetch("/api/empresas/horario-atencion", {
+        method: "PUT",
+        body: JSON.stringify({ horario }),
+      });
+      setHorario(respuesta.horario);
+      setExitoHorario(true);
+    } catch (err) {
+      setErrorHorario(err.message);
+    } finally {
+      setGuardandoHorario(false);
     }
   }
 
@@ -765,6 +816,67 @@ export default function PerfilEmpresa() {
                 Quitar
               </button>
             )}
+          </div>
+        )}
+
+        {empresa?.citas_habilitadas && horario && (
+          <div id="seccion-horario" className="mt-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <h2 className="mb-1 text-lg font-bold text-slate-800">Horario de atención</h2>
+            <p className="mb-4 text-sm text-slate-500">
+              Define qué días y en qué horario tu salón atiende reservas online. Un día apagado no ofrece horarios
+              para reservar en tu página pública (ej. si no trabajás los domingos, apagalo acá).
+            </p>
+
+            <div className="mb-4 flex flex-col gap-2">
+              {DIAS_ORDEN.map(([clave, etiquetaDia]) => {
+                const dia = horario[clave];
+                return (
+                  <div key={clave} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 p-3">
+                    <label className="flex w-28 items-center gap-2 font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={dia.abierto}
+                        onChange={(e) => cambiarDiaHorario(clave, { abierto: e.target.checked })}
+                        className="h-5 w-5"
+                      />
+                      {etiquetaDia}
+                    </label>
+                    {dia.abierto ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={dia.desde}
+                          onChange={(e) => cambiarDiaHorario(clave, { desde: e.target.value })}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        />
+                        <span className="text-slate-400">a</span>
+                        <input
+                          type="time"
+                          value={dia.hasta}
+                          onChange={(e) => cambiarDiaHorario(clave, { hasta: e.target.value })}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">Cerrado</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {errorHorario && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorHorario}</p>}
+            {exitoHorario && (
+              <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Horario guardado.</p>
+            )}
+
+            <button
+              onClick={guardarHorario}
+              disabled={guardandoHorario}
+              className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
+            >
+              {guardandoHorario ? "Guardando..." : "Guardar horario"}
+            </button>
           </div>
         )}
       </div>

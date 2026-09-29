@@ -7,6 +7,7 @@
 import { consulta, consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { celularNormalizado } from '../utils/celularNormalizado.js';
+import { estaDentroDeHorario } from '../utils/horarioAtencion.js';
 import { crearCitaCore } from './citasController.js';
 
 // empresas no tiene RLS (tabla raíz, se necesita poder leerla antes de que
@@ -15,7 +16,8 @@ import { crearCitaCore } from './citasController.js';
 async function resolverSalon(slug) {
     if (!slug) return null;
     const resultado = await consulta(
-        `SELECT id, razon_social, nombre_fantasia, logo, foto_portada, reservas_publicas_habilitadas, citas_habilitadas
+        `SELECT id, razon_social, nombre_fantasia, logo, foto_portada, horario_atencion,
+                reservas_publicas_habilitadas, citas_habilitadas
          FROM empresas WHERE slug = $1`,
         [slug]
     );
@@ -33,6 +35,7 @@ export async function obtenerSalonPublico(req, res) {
         nombre: empresa.nombre_fantasia || empresa.razon_social,
         logo: empresa.logo,
         fotoPortada: empresa.foto_portada,
+        horarioAtencion: empresa.horario_atencion,
     });
 }
 
@@ -102,7 +105,10 @@ export async function crearCitaPublica(req, res) {
     const empresa = await resolverSalon(req.params.slug);
     if (!empresa) return res.status(404).json({ error: 'Página no encontrada' });
 
-    const { nombreCliente, celular, consentimiento, servicioId, profesionalId, fechaHoraInicio } = req.body;
+    const {
+        nombreCliente, celular, consentimiento, servicioId, profesionalId, fechaHoraInicio,
+        fecha, hora, duracionMinutos,
+    } = req.body;
 
     if (!consentimiento) {
         return res.status(400).json({ error: 'Hace falta aceptar el uso de tus datos para poder reservar' });
@@ -113,6 +119,11 @@ export async function crearCitaPublica(req, res) {
     const celularNormal = celularNormalizado(celular);
     if (!celularNormal) {
         return res.status(400).json({ error: 'Falta tu celular' });
+    }
+    // fecha/hora viajan explícitos (no se re-derivan de fechaHoraInicio, que
+    // viaja en UTC) para no correr riesgo de corrimiento de día/hora acá.
+    if (!estaDentroDeHorario(empresa.horario_atencion, fecha, hora, duracionMinutos)) {
+        return res.status(400).json({ error: 'El salón no atiende en ese día u horario' });
     }
 
     try {

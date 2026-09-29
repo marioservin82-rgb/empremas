@@ -2269,3 +2269,18 @@ CREATE INDEX idx_servicio_fotos_producto ON servicio_fotos (producto_id) WHERE a
 -- que es chico y va en el ticket) - opcional, si no la carga el comercio
 -- la página pública usa el diseño de respaldo (logo + fondo de color).
 ALTER TABLE empresas ADD COLUMN foto_portada TEXT;
+
+-- Horario de atención del salón, solo para la página pública de Reservas
+-- (la Agenda interna no lo valida - el personal carga una cita a mano a
+-- cualquier hora, con su propio criterio). El default reproduce el
+-- comportamiento fijo previo (8 a 19, todos los días).
+ALTER TABLE empresas ADD COLUMN horario_atencion JSONB NOT NULL DEFAULT
+'{
+  "lunes":     {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "martes":    {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "miercoles": {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "jueves":    {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "viernes":   {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "sabado":    {"abierto": true, "desde": "08:00", "hasta": "19:00"},
+  "domingo":   {"abierto": true, "desde": "08:00", "hasta": "19:00"}
+}'::jsonb;

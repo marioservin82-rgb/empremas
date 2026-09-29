@@ -2,6 +2,7 @@ import pool, { transaccionDeEmpresa } from '../config/db.js';
 import { efectivoDisponibleActual } from './turnosController.js';
 import { actualizarTenant as actualizarTenantConector } from '../services/conectorSifen.js';
 import { subirImagen, ErrorImagen } from '../services/imagenesService.js';
+import { validarHorario } from '../utils/horarioAtencion.js';
 
 // Debe coincidir con las claves de OPCIONES_ACCESO_RAPIDO en
 // frontend/lib/accesoRapido.js - el valor guardado es una clave lógica,
@@ -113,6 +114,27 @@ export async function actualizarPresetRemision(req, res) {
 
     await pool.query(`UPDATE empresas SET preset_remision = $2 WHERE id = $1`, [empresaId, JSON.stringify(preset)]);
     res.json({ preset });
+}
+
+// Horario de atencion del salon, solo para Reservas publicas - mismo
+// patron que preset_remision (endpoint propio, separado del enorme
+// actualizarConfiguracion).
+export async function obtenerHorarioAtencion(req, res) {
+    const { empresaId } = req.usuario;
+    const r = await pool.query(`SELECT horario_atencion FROM empresas WHERE id = $1`, [empresaId]);
+    res.json({ horario: r.rows[0]?.horario_atencion ?? null });
+}
+
+export async function actualizarHorarioAtencion(req, res) {
+    const { empresaId } = req.usuario;
+    const horario = req.body?.horario;
+    try {
+        validarHorario(horario);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    await pool.query(`UPDATE empresas SET horario_atencion = $2 WHERE id = $1`, [empresaId, JSON.stringify(horario)]);
+    res.json({ horario });
 }
 
 export async function actualizarLogo(req, res) {
