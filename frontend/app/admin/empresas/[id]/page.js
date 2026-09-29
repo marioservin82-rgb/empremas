@@ -153,8 +153,12 @@ export default function AdminEmpresaDetalle() {
     }
   }
 
+  function linkReservas() {
+    return `${window.location.origin}/turnos/${empresa.slug}`;
+  }
+
   async function copiarLinkReservas() {
-    await navigator.clipboard.writeText(`https://empremas.com.py/turnos/${empresa.slug}`);
+    await navigator.clipboard.writeText(linkReservas());
     setLinkCopiado(true);
     setTimeout(() => setLinkCopiado(false), 2000);
   }
@@ -412,7 +416,7 @@ export default function AdminEmpresaDetalle() {
                     <div className="mt-2 flex gap-2">
                       <input
                         readOnly
-                        value={`https://empremas.com.py/turnos/${empresa.slug}`}
+                        value={linkReservas()}
                         onFocus={(e) => e.target.select()}
                         className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
                       />
