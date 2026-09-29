@@ -2264,3 +2264,8 @@ CREATE TABLE servicio_fotos (
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_servicio_fotos_producto ON servicio_fotos (producto_id) WHERE activo = true;
+
+-- Foto de portada de la página pública de Reservas (distinta del logo,
+-- que es chico y va en el ticket) - opcional, si no la carga el comercio
+-- la página pública usa el diseño de respaldo (logo + fondo de color).
+ALTER TABLE empresas ADD COLUMN foto_portada TEXT;

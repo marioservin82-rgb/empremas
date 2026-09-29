@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, BASE_URL } from "@/lib/api";
 import { TEXTO_LEGAL_POR_DEFECTO } from "@/lib/reparaciones";
 import { OPCIONES_ACCESO_RAPIDO } from "@/lib/accesoRapido";
 
@@ -59,6 +59,10 @@ export default function PerfilEmpresa() {
   const [exitoLogo, setExitoLogo] = useState(false);
   const [guardandoLogo, setGuardandoLogo] = useState(false);
 
+  const [fotoPortada, setFotoPortada] = useState(null);
+  const [subiendoPortada, setSubiendoPortada] = useState(false);
+  const [errorPortada, setErrorPortada] = useState("");
+
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -102,6 +106,7 @@ export default function PerfilEmpresa() {
         setReparacionesNotaLegal(e.reparaciones_nota_legal || "");
         setMetaGananciaMensual(e.meta_ganancia_mensual != null ? String(e.meta_ganancia_mensual) : "");
         setAccesoRapidoFavorito(e.acceso_rapido_favorito || "");
+        setFotoPortada(e.foto_portada || null);
       })
       .catch((err) => setError(err.message));
     apiFetch("/api/sucursales")
@@ -156,6 +161,44 @@ export default function PerfilEmpresa() {
       setErrorLogo(err.message);
     } finally {
       setGuardandoLogo(false);
+    }
+  }
+
+  // Multipart, no JSON - apiFetch fuerza Content-Type: application/json,
+  // asi que esta sube el archivo con fetch directo (mismo patron que
+  // stock/[id]/editar para las fotos de servicio).
+  async function subirFotoPortada(e) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setErrorPortada("");
+    setSubiendoPortada(true);
+    try {
+      const cuerpo = new FormData();
+      cuerpo.append("foto", archivo);
+      const token = localStorage.getItem("empremas_token");
+      const resp = await fetch(`${BASE_URL}/api/empresas/foto-portada`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: cuerpo,
+      });
+      const datos = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(datos.error || "No se pudo subir la foto");
+      setFotoPortada(datos.fotoPortada);
+    } catch (err) {
+      setErrorPortada(err.message);
+    } finally {
+      setSubiendoPortada(false);
+      e.target.value = "";
+    }
+  }
+
+  async function quitarFotoPortada() {
+    setErrorPortada("");
+    try {
+      await apiFetch("/api/empresas/foto-portada", { method: "DELETE" });
+      setFotoPortada(null);
+    } catch (err) {
+      setErrorPortada(err.message);
     }
   }
 
@@ -693,6 +736,37 @@ export default function PerfilEmpresa() {
             )}
           </div>
         </div>
+
+        {empresa?.citas_habilitadas && (
+          <div id="seccion-foto-portada" className="mt-6 scroll-mt-4 rounded-2xl bg-white p-6 shadow shadow-slate-200">
+            <h2 className="mb-1 text-lg font-bold text-slate-800">Foto de portada (Reservas online)</h2>
+            <p className="mb-4 text-sm text-slate-500">
+              Aparece grande, arriba de todo, en tu página pública de reservas. Una foto del local o de un trabajo
+              terminado queda mejor que el logo solo — si no cargás ninguna, la página usa el logo y un fondo de color.
+            </p>
+
+            {fotoPortada && (
+              <img
+                src={fotoPortada}
+                alt="Foto de portada"
+                className="mb-4 h-40 w-full rounded-xl border border-slate-200 object-cover"
+              />
+            )}
+
+            <input type="file" accept="image/*" onChange={subirFotoPortada} disabled={subiendoPortada} className={campo} />
+            {subiendoPortada && <p className="mb-2 text-sm text-slate-400">Subiendo...</p>}
+            {errorPortada && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorPortada}</p>}
+
+            {fotoPortada && (
+              <button
+                onClick={quitarFotoPortada}
+                className="rounded-xl bg-red-50 px-4 py-3 font-semibold text-red-600 hover:bg-red-100"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

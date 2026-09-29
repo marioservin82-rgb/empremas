@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { Playfair_Display } from "next/font/google";
+
+// Tipografia editorial solo para esta pagina publica (nombre del salon en
+// el hero) - el resto de EMPREMAS sigue con Sora/Inter, definidas en
+// app/layout.js.
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["600", "700"] });
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -172,8 +178,8 @@ export default function ReservaPublica() {
   }
 
   return (
-    <main className="relative flex min-h-screen flex-1 flex-col items-center overflow-hidden bg-cream p-6">
-      {salon.logo && (
+    <main className={`relative flex min-h-screen flex-1 flex-col items-center overflow-hidden bg-cream ${salon.fotoPortada ? "" : "p-6"}`}>
+      {!salon.fotoPortada && salon.logo && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-15"
@@ -185,18 +191,39 @@ export default function ReservaPublica() {
           }}
         />
       )}
-      <div className="relative w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center text-center">
-          {salon.logo && (
-            <img
-              src={salon.logo}
-              alt={salon.nombre}
-              className="mb-3 h-32 w-32 rounded-full object-cover shadow-lg ring-4 ring-white"
-            />
-          )}
-          <h1 className="text-2xl font-bold text-navy">{salon.nombre}</h1>
-          <p className="text-sm text-slate-500">Reservá tu turno online</p>
+
+      {salon.fotoPortada && (
+        <div className="relative flex h-[52vh] min-h-[320px] w-full items-end justify-center overflow-hidden">
+          <img src={salon.fotoPortada} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/5" />
+          <div className="relative z-10 flex flex-col items-center px-6 pb-8 text-center text-white">
+            {salon.logo && (
+              <img
+                src={salon.logo}
+                alt=""
+                className="mb-3 h-16 w-16 rounded-full border-2 border-white/90 object-cover shadow-lg"
+              />
+            )}
+            <h1 className={`${playfair.className} text-4xl font-bold drop-shadow-sm`}>{salon.nombre}</h1>
+            <p className="mt-1 text-sm text-white/85">Reservá tu turno online</p>
+          </div>
         </div>
+      )}
+
+      <div className={`relative w-full max-w-md ${salon.fotoPortada ? "p-6" : ""}`}>
+        {!salon.fotoPortada && (
+          <div className="mb-6 flex flex-col items-center text-center">
+            {salon.logo && (
+              <img
+                src={salon.logo}
+                alt={salon.nombre}
+                className="mb-3 h-32 w-32 rounded-full object-cover shadow-lg ring-4 ring-white"
+              />
+            )}
+            <h1 className="text-2xl font-bold text-navy">{salon.nombre}</h1>
+            <p className="text-sm text-slate-500">Reservá tu turno online</p>
+          </div>
+        )}
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

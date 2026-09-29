@@ -15,7 +15,7 @@ import { crearCitaCore } from './citasController.js';
 async function resolverSalon(slug) {
     if (!slug) return null;
     const resultado = await consulta(
-        `SELECT id, razon_social, nombre_fantasia, logo, reservas_publicas_habilitadas, citas_habilitadas
+        `SELECT id, razon_social, nombre_fantasia, logo, foto_portada, reservas_publicas_habilitadas, citas_habilitadas
          FROM empresas WHERE slug = $1`,
         [slug]
     );
@@ -32,6 +32,7 @@ export async function obtenerSalonPublico(req, res) {
     res.json({
         nombre: empresa.nombre_fantasia || empresa.razon_social,
         logo: empresa.logo,
+        fotoPortada: empresa.foto_portada,
     });
 }
 

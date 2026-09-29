@@ -1,6 +1,7 @@
 import pool, { transaccionDeEmpresa } from '../config/db.js';
 import { efectivoDisponibleActual } from './turnosController.js';
 import { actualizarTenant as actualizarTenantConector } from '../services/conectorSifen.js';
+import { subirImagen, ErrorImagen } from '../services/imagenesService.js';
 
 // Debe coincidir con las claves de OPCIONES_ACCESO_RAPIDO en
 // frontend/lib/accesoRapido.js - el valor guardado es una clave lógica,
@@ -24,7 +25,7 @@ export async function obtenerEmpresaActual(req, res) {
                 recomendacion_margen_habilitada, meta_ganancia_mensual, acceso_rapido_favorito,
                 limite_sucursales, vence_en, ticket_escala,
                 email, direccion_atencion, sifen_cert_vencimiento, sifen_cert_nota,
-                datos_fiscales_modificado_en, impresora_agente_nombre,
+                datos_fiscales_modificado_en, impresora_agente_nombre, foto_portada,
                 recordatorio_dias_aviso_previo, recordatorio_dias_mora_prolongada,
                 recordatorio_incluir_ruc, recordatorio_incluir_telefono,
                 recordatorio_mensaje_previo, recordatorio_mensaje_hoy,
@@ -144,6 +145,37 @@ export async function actualizarLogo(req, res) {
             console.error('[SIFEN] no se pudo sincronizar el logo al conector', error);
         }
     }
+}
+
+// Foto de portada de la pagina publica de Reservas - a diferencia del
+// logo (chico, se guarda como data URI para el ticket), esta va por
+// Cloudinary igual que servicio_fotos: puede ser una foto de buen tamaño
+// (interior del local) sin hinchar la fila de empresas.
+export async function actualizarFotoPortada(req, res) {
+    const { empresaId } = req.usuario;
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Falta el archivo de la foto' });
+    }
+
+    let urlImagen;
+    try {
+        urlImagen = await subirImagen(req.file.buffer, 'empremas/portadas');
+    } catch (err) {
+        if (err instanceof ErrorImagen) {
+            return res.status(400).json({ error: err.message });
+        }
+        throw err;
+    }
+
+    await pool.query(`UPDATE empresas SET foto_portada = $2 WHERE id = $1`, [empresaId, urlImagen]);
+    res.json({ fotoPortada: urlImagen });
+}
+
+export async function eliminarFotoPortada(req, res) {
+    const { empresaId } = req.usuario;
+    await pool.query(`UPDATE empresas SET foto_portada = NULL WHERE id = $1`, [empresaId]);
+    res.json({ ok: true });
 }
 
 // Config de facturacion electronica (SIFEN via Sifende). La API key
