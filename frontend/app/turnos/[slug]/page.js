@@ -172,11 +172,27 @@ export default function ReservaPublica() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-cream p-6">
-      <div className="w-full max-w-md">
+    <main className="relative flex min-h-screen flex-1 flex-col items-center overflow-hidden bg-cream p-6">
+      {salon.logo && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-15"
+          style={{
+            backgroundImage: `url(${salon.logo})`,
+            backgroundSize: "160%",
+            backgroundPosition: "center",
+            filter: "blur(60px)",
+          }}
+        />
+      )}
+      <div className="relative w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
           {salon.logo && (
-            <img src={salon.logo} alt={salon.nombre} className="mb-3 h-20 w-20 rounded-full object-cover shadow" />
+            <img
+              src={salon.logo}
+              alt={salon.nombre}
+              className="mb-3 h-32 w-32 rounded-full object-cover shadow-lg ring-4 ring-white"
+            />
           )}
           <h1 className="text-2xl font-bold text-navy">{salon.nombre}</h1>
           <p className="text-sm text-slate-500">Reservá tu turno online</p>
