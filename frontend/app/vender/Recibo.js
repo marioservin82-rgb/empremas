@@ -9,6 +9,7 @@ import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
 import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 import { logoParaTicket } from "@/lib/logoEmpresa";
 import { montoEnLetras } from "@/lib/numeroALetras";
+import { pdfAImagen } from "@/lib/pdfAImagen";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -83,6 +84,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
   const [reintentando, setReintentando] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
+  const [descargandoImagen, setDescargandoImagen] = useState(false);
   // El KuDE real de Sifende es un solo PDF (pensado para A4). Para poder
   // imprimir tambien en el rollo termico de 80mm, se arma una version
   // propia en base a los mismos datos (numero de factura/CDC incluidos) -
@@ -112,6 +114,23 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
       setError(err.message);
     } finally {
       setDescargando(false);
+    }
+  }
+
+  // El KuDE es un PDF, no HTML, asi que no se puede capturar con
+  // html2canvas como el resto de los comprobantes - se rasteriza el PDF
+  // en el navegador (ver lib/pdfAImagen.js) para compartirlo por celular.
+  async function descargarKudeImagen() {
+    setDescargandoImagen(true);
+    setError("");
+    try {
+      const url = await pedirKude();
+      const numero = (venta?.de_numero_formateado || ventaId).toString().replace(/[^\w-]+/g, "-");
+      await pdfAImagen(url, `factura-${numero}.png`);
+    } catch (err) {
+      setError(err.message || "No se pudo generar la imagen");
+    } finally {
+      setDescargandoImagen(false);
     }
   }
 
@@ -274,6 +293,13 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
                     className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
                   >
                     {imprimiendo ? "Abriendo..." : "Imprimir factura"}
+                  </button>
+                  <button
+                    onClick={descargarKudeImagen}
+                    disabled={descargandoImagen}
+                    className="rounded-xl bg-navy px-5 py-3 font-semibold text-white hover:bg-navy-2 disabled:opacity-60"
+                  >
+                    {descargandoImagen ? "Generando imagen..." : "Descargar como imagen"}
                   </button>
                   <button
                     onClick={descargarKude}
