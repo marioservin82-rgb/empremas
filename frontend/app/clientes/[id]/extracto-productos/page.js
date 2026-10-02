@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { nombresEmpresa } from "@/lib/encabezadoEmpresa";
@@ -9,18 +9,9 @@ import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
-const ETIQUETA_TIPO_PAGO = {
-  contado: "Contado",
-  credito: "Crédito",
-  mayorista: "Mayorista",
-};
-
 function fecha(f) {
-  // Un string "YYYY-MM-DD" suelto (desde/hasta) se interpreta como UTC
-  // medianoche si se lo pasa directo a Date - en un huso horario negativo
-  // (America/Asuncion) eso muestra el día anterior. Forzando hora local
-  // evita ese corrimiento; los timestamps completos que ya vienen del
-  // backend (creado_en) siguen el camino normal, sin tocar.
+  // Un "YYYY-MM-DD" suelto se interpreta como UTC medianoche - en
+  // America/Asuncion eso muestra el día anterior; forzar hora local lo evita.
   const esSoloFecha = typeof f === "string" && /^\d{4}-\d{2}-\d{2}$/.test(f);
   const d = esSoloFecha ? new Date(`${f}T00:00:00`) : new Date(f);
   return d.toLocaleDateString("es-PY");
@@ -35,17 +26,29 @@ function primerDiaDelMes() {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 }
 
-export default function ExtractoCliente() {
+// useSearchParams() exige un limite de Suspense arriba, mismo criterio
+// ya usado en citas/nueva.
+export default function ExtractoProductosCliente() {
+  return (
+    <Suspense fallback={null}>
+      <ExtractoProductosContenido />
+    </Suspense>
+  );
+}
+
+function ExtractoProductosContenido() {
   const router = useRouter();
   const { id } = useParams();
+  const searchParams = useSearchParams();
   const recuadroRef = useRef(null);
 
   const [datos, setDatos] = useState(null);
   const [empresa, setEmpresa] = useState(null);
   const [error, setError] = useState("");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [desde, setDesde] = useState(searchParams.get("desde") || "");
+  const [hasta, setHasta] = useState(searchParams.get("hasta") || "");
   const [periodoActivo, setPeriodoActivo] = useState("");
+  const [vista, setVista] = useState("resumen");
 
   const cargar = useCallback(
     async (params) => {
@@ -55,7 +58,7 @@ export default function ExtractoCliente() {
         if (params.desde) query.set("desde", params.desde);
         if (params.hasta) query.set("hasta", params.hasta);
         const qs = query.toString();
-        setDatos(await apiFetch(`/api/clientes/${id}/extracto${qs ? `?${qs}` : ""}`));
+        setDatos(await apiFetch(`/api/clientes/${id}/extracto-productos${qs ? `?${qs}` : ""}`));
       } catch (err) {
         setError(err.message);
       }
@@ -68,8 +71,9 @@ export default function ExtractoCliente() {
       router.push("/");
       return;
     }
-    cargar({});
+    cargar({ desde: searchParams.get("desde") || "", hasta: searchParams.get("hasta") || "" });
     apiFetch("/api/empresas/actual").then(setEmpresa).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargar, router]);
 
   function elegirPeriodo(nombre) {
@@ -99,7 +103,7 @@ export default function ExtractoCliente() {
     const html2canvas = (await import("html2canvas-pro")).default;
     const canvas = await html2canvas(recuadroRef.current, { backgroundColor: "#ffffff", scale: 2 });
     const enlace = document.createElement("a");
-    enlace.download = `extracto-${datos.cliente.nombre.replace(/\s+/g, "-").toLowerCase()}.png`;
+    enlace.download = `productos-${datos.cliente.nombre.replace(/\s+/g, "-").toLowerCase()}.png`;
     enlace.href = canvas.toDataURL("image/png");
     enlace.click();
   }
@@ -118,42 +122,29 @@ export default function ExtractoCliente() {
     );
   }
 
-  const { cliente, ventas, cobros, ajustesSaldo } = datos;
-  const queryPeriodo = new URLSearchParams({ ...(desde && { desde }), ...(hasta && { hasta }) }).toString();
+  const { cliente, resumen, detalle } = datos;
   const textoPeriodo = hayFiltros
     ? `Período: ${desde ? fecha(desde) : "…"} – ${hasta ? fecha(hasta) : "…"}`
     : "Historial completo";
+  const totalGeneral = (vista === "resumen" ? resumen : detalle).reduce(
+    (suma, fila) => suma + Number(vista === "resumen" ? fila.total_gastado : fila.subtotal),
+    0
+  );
 
   return (
     <main className="flex flex-1 flex-col items-center p-6">
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between py-6">
           <div>
-            <Link href="/clientes" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-              ← Volver
+            <Link
+              href={`/clientes/${id}/extracto`}
+              className="text-sm font-medium text-slate-500 hover:text-slate-700"
+            >
+              ← Volver al extracto
             </Link>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-navy">
-              Extracto de {cliente.nombre}
-              {cliente.categoriaCliente && (
-                <span className="rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
-                  {cliente.categoriaCliente.nombre}
-                </span>
-              )}
-            </h1>
+            <h1 className="text-2xl font-bold text-navy">Productos de {cliente.nombre}</h1>
           </div>
           <div className="flex gap-2">
-            <Link
-              href={`/clientes/${id}/ajustar-saldo`}
-              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
-            >
-              Ajustar saldo
-            </Link>
-            <Link
-              href={`/clientes/${id}/extracto-productos${queryPeriodo ? `?${queryPeriodo}` : ""}`}
-              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
-            >
-              Extracto de productos
-            </Link>
             <button
               onClick={() => window.print()}
               className="rounded-xl bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-light"
@@ -170,6 +161,24 @@ export default function ExtractoCliente() {
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-5 shadow shadow-slate-200 print:hidden">
+          <p className="mb-2 text-sm font-medium text-slate-500">Qué mostrar</p>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            {[
+              { valor: "resumen", etiqueta: "Resumen por producto" },
+              { valor: "detalle", etiqueta: "Detalle por compra" },
+            ].map((v) => (
+              <button
+                key={v.valor}
+                onClick={() => setVista(v.valor)}
+                className={`rounded-xl py-2 font-semibold transition ${
+                  vista === v.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {v.etiqueta}
+              </button>
+            ))}
+          </div>
+
           <p className="mb-2 text-sm font-medium text-slate-500">Período</p>
           <div className="mb-3 grid grid-cols-3 gap-2">
             {[
@@ -245,97 +254,57 @@ export default function ExtractoCliente() {
                 <p className="text-sm text-slate-500">RUC {empresa.ruc}</p>
               </>
             )}
-            <p className="mt-2 text-xl font-bold">Extracto de {cliente.nombre}</p>
+            <p className="mt-2 text-xl font-bold">
+              Productos comprados por {cliente.nombre} {vista === "detalle" ? "(detalle)" : "(resumen)"}
+            </p>
             <p className="mb-4 text-sm text-slate-500">
               {textoPeriodo} · Emitido el {fecha(new Date())}
             </p>
           </div>
 
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-slate-50 p-5 text-center">
-              <p className="text-sm text-slate-400">Debe hoy</p>
-              <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.saldo)}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-5 text-center">
-              <p className="text-sm text-slate-400">Crédito disponible</p>
-              <p className="text-2xl font-extrabold text-ink">
-                Gs {formatoGs.format(cliente.saldo_disponible)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-5 text-center">
-              <p className="text-sm text-slate-400">Volumen este mes</p>
-              <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.volumenMes)}</p>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <h2 className="mb-3 font-semibold text-slate-700">Ventas</h2>
-            {ventas.length === 0 ? (
-              <p className="text-sm text-slate-400">Sin ventas en este período.</p>
+          {vista === "resumen" ? (
+            resumen.length === 0 ? (
+              <p className="text-sm text-slate-400">Sin compras en este período.</p>
             ) : (
               <div className="flex flex-col divide-y divide-slate-100">
-                {ventas.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between py-2 text-sm">
+                {resumen.map((p) => (
+                  <div key={p.producto_id} className="flex items-center justify-between py-2 text-sm">
                     <div>
-                      <span className="font-medium text-slate-700">{fecha(v.creado_en)}</span>{" "}
+                      <span className="font-medium text-slate-700">{p.producto_nombre}</span>{" "}
                       <span className="text-slate-400">
-                        · {v.de_numero_formateado ? `Factura ${v.de_numero_formateado}` : `Ticket N° ${v.numero_ticket}`} ·{" "}
-                        {ETIQUETA_TIPO_PAGO[v.tipo_pago]}
+                        · {formatoGs.format(p.cantidad_total)} {p.unidad_medida} · {p.veces_comprado}{" "}
+                        {Number(p.veces_comprado) === 1 ? "compra" : "compras"}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-slate-800">Gs {formatoGs.format(v.total)}</p>
-                      {v.tipo_pago === "credito" && Number(v.saldo_pendiente) > 0 && (
-                        <p className="text-xs font-semibold text-ink-muted">pendiente Gs {formatoGs.format(v.saldo_pendiente)}</p>
-                      )}
-                    </div>
+                    <p className="font-semibold text-slate-800">Gs {formatoGs.format(p.total_gastado)}</p>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <h2 className="mb-3 font-semibold text-slate-700">Cobros</h2>
-            {cobros.length === 0 ? (
-              <p className="text-sm text-slate-400">Sin cobros en este período.</p>
-            ) : (
-              <div className="flex flex-col divide-y divide-slate-100">
-                {cobros.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-slate-500">
-                      Recibo N° {c.numero_recibo} · {fecha(c.creado_en)}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-ink">Gs {formatoGs.format(c.monto)}</span>
-                      <Link href={`/clientes/${id}/cobro/${c.id}`} className="font-semibold text-navy hover:text-brand">
-                        Reimprimir
-                      </Link>
-                    </div>
+            )
+          ) : detalle.length === 0 ? (
+            <p className="text-sm text-slate-400">Sin compras en este período.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100">
+              {detalle.map((it) => (
+                <div key={it.id} className="flex items-center justify-between py-2 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-700">{it.producto_nombre}</p>
+                    <p className="text-xs text-slate-400">
+                      {fecha(it.creado_en)} ·{" "}
+                      {it.de_numero_formateado ? `Factura ${it.de_numero_formateado}` : `Ticket N° ${it.numero_ticket}`} ·{" "}
+                      {formatoGs.format(it.cantidad)} {it.unidad_medida} × Gs {formatoGs.format(it.precio_unitario)}
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {ajustesSaldo && ajustesSaldo.length > 0 && (
-            <div>
-              <h2 className="mb-3 font-semibold text-slate-700">Ajustes de saldo</h2>
-              <div className="flex flex-col divide-y divide-slate-100">
-                {ajustesSaldo.map((a) => (
-                  <div key={a.id} className="py-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">{fecha(a.creado_en)}</span>
-                      <span className="font-semibold text-slate-700">
-                        Gs {formatoGs.format(a.saldo_anterior)} → Gs {formatoGs.format(a.saldo_nuevo)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">{a.motivo}</p>
-                  </div>
-                ))}
-              </div>
+                  <p className="font-semibold text-slate-800">Gs {formatoGs.format(it.subtotal)}</p>
+                </div>
+              ))}
             </div>
           )}
+
+          <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
+            <span className="font-semibold text-slate-700">Total</span>
+            <span className="text-lg font-extrabold text-ink">Gs {formatoGs.format(totalGeneral)}</span>
+          </div>
 
           <PiePublicidadEmpremas />
         </div>

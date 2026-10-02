@@ -8,6 +8,7 @@ import {
     crearCliente,
     actualizarCliente,
     extractoCliente,
+    extractoProductosCliente,
     importarClientes,
     ajustarSaldo,
     historialAjustesSaldo,
@@ -48,6 +49,7 @@ router.get('/:id/facturas-pendientes', asyncHandler(facturasPendientes));
 router.get('/:id/cobros', asyncHandler(listarCobros));
 router.get('/:id/cobros/:cobroId', asyncHandler(obtenerCobro));
 router.get('/:id/extracto', asyncHandler(extractoCliente));
+router.get('/:id/extracto-productos', asyncHandler(extractoProductosCliente));
 router.get('/:id/productos-frecuentes', asyncHandler(productosFrecuentesDeCliente));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_clientes'), asyncHandler(historialAjustesSaldo));
 

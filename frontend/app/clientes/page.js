@@ -227,6 +227,12 @@ export default function Clientes() {
                         Extracto
                       </Link>
                       <Link
+                        href={`/clientes/${c.id}/extracto-productos`}
+                        className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+                      >
+                        Productos
+                      </Link>
+                      <Link
                         href={`/clientes/${c.id}/editar`}
                         className="text-sm font-semibold text-navy hover:text-brand"
                       >

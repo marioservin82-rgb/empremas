@@ -145,8 +145,29 @@ export async function obtenerCliente(req, res) {
     res.json(conSaldoDisponibleYCategoria({ ...resultado.rows[0], volumen_mes: volumenMes }, categoria));
 }
 
+// hasta es inclusive: hasta el final de ese dia (mismo criterio que
+// listarVentas). El primer parametro libre es $2 ($1 es siempre el cliente).
+function filtroDeFechas(desde, hasta) {
+    const condicionesFecha = [];
+    const valoresFecha = [];
+    if (desde) {
+        valoresFecha.push(desde);
+        condicionesFecha.push(`creado_en >= $${valoresFecha.length + 1}::date`);
+    }
+    if (hasta) {
+        valoresFecha.push(hasta);
+        condicionesFecha.push(`creado_en < ($${valoresFecha.length + 1}::date + INTERVAL '1 day')`);
+    }
+    const whereFecha = condicionesFecha.length > 0 ? `AND ${condicionesFecha.join(' AND ')}` : '';
+    // Misma condicion pero con el alias "v", necesario por el JOIN con
+    // documentos_electronicos (que tambien tiene su propio creado_en).
+    const whereFechaVenta = whereFecha.replace(/creado_en/g, 'v.creado_en');
+    return { whereFecha, whereFechaVenta, valoresFecha };
+}
+
 // Extracto de cliente (estado de cuenta): historial de ventas + cobros y
-// saldo actual, simetrico al extracto de proveedor.
+// saldo actual, simetrico al extracto de proveedor. Los productos
+// comprados NO van aca: se piden aparte (extractoProductosCliente).
 export async function extractoCliente(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
@@ -163,22 +184,7 @@ export async function extractoCliente(req, res) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    // hasta es inclusive: hasta el final de ese dia (mismo criterio que
-    // listarVentas).
-    const condicionesFecha = [];
-    const valoresFecha = [];
-    if (desde) {
-        valoresFecha.push(desde);
-        condicionesFecha.push(`creado_en >= $${valoresFecha.length + 1}::date`);
-    }
-    if (hasta) {
-        valoresFecha.push(hasta);
-        condicionesFecha.push(`creado_en < ($${valoresFecha.length + 1}::date + INTERVAL '1 day')`);
-    }
-    const whereFecha = condicionesFecha.length > 0 ? `AND ${condicionesFecha.join(' AND ')}` : '';
-    // Misma condicion pero con el alias "v", necesario abajo por el JOIN
-    // con documentos_electronicos (que tambien tiene su propio creado_en).
-    const whereFechaVenta = whereFecha.replace(/creado_en/g, 'v.creado_en');
+    const { whereFecha, whereFechaVenta, valoresFecha } = filtroDeFechas(desde, hasta);
 
     const ventas = await consultaDeEmpresa(
         empresaId,
@@ -203,10 +209,41 @@ export async function extractoCliente(req, res) {
         [id, ...valoresFecha]
     );
 
-    // Agregado por producto (no por venta): responde directo "que compro
-    // este cliente en tal periodo" - anulada=false porque una venta
-    // anulada se devolvio, no cuenta como compra real.
-    const productos = await consultaDeEmpresa(
+    const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
+        (sql, params) => consultaDeEmpresa(empresaId, sql, params),
+        empresaId,
+        id
+    );
+
+    res.json({
+        cliente: conSaldoDisponibleYCategoria({ ...cliente.rows[0], volumen_mes: volumenMes }, categoria),
+        ventas: ventas.rows,
+        cobros: cobros.rows,
+        ajustesSaldo: ajustesSaldo.rows,
+    });
+}
+
+// Extracto de productos comprados: aparte del extracto de credito, solo
+// cuando el cliente lo pide. Devuelve resumen (por producto) y detalle (por
+// item) - el frontend elige cual mostrar/imprimir. anulada=false porque una
+// venta anulada se devolvio, no cuenta como compra real.
+export async function extractoProductosCliente(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const { desde, hasta } = req.query;
+
+    const cliente = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, nombre FROM clientes WHERE id = $1`,
+        [id]
+    );
+    if (!cliente.rows[0]) {
+        return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const { whereFechaVenta, valoresFecha } = filtroDeFechas(desde, hasta);
+
+    const resumen = await consultaDeEmpresa(
         empresaId,
         `SELECT vi.producto_id, p.nombre AS producto_nombre, p.unidad_medida,
                 SUM(vi.cantidad) AS cantidad_total,
@@ -221,19 +258,21 @@ export async function extractoCliente(req, res) {
         [id, ...valoresFecha]
     );
 
-    const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
-        (sql, params) => consultaDeEmpresa(empresaId, sql, params),
+    const detalle = await consultaDeEmpresa(
         empresaId,
-        id
+        `SELECT vi.id, v.creado_en, v.numero_ticket, de.numero_formateado AS de_numero_formateado,
+                p.nombre AS producto_nombre, p.unidad_medida,
+                vi.cantidad, vi.precio_unitario, vi.subtotal
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id AND v.cliente_id = $1 AND v.anulada = false ${whereFechaVenta}
+         JOIN productos p ON p.id = vi.producto_id
+         LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
+         ORDER BY v.creado_en DESC, vi.id
+         LIMIT 1000`,
+        [id, ...valoresFecha]
     );
 
-    res.json({
-        cliente: conSaldoDisponibleYCategoria({ ...cliente.rows[0], volumen_mes: volumenMes }, categoria),
-        ventas: ventas.rows,
-        cobros: cobros.rows,
-        ajustesSaldo: ajustesSaldo.rows,
-        productos: productos.rows,
-    });
+    res.json({ cliente: cliente.rows[0], resumen: resumen.rows, detalle: detalle.rows });
 }
 
 const CLASIFICACIONES_SIFEN = ['auto', 'b2b', 'b2c', 'b2g', 'b2f'];
