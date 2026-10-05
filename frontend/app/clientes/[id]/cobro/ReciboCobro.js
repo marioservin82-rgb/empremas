@@ -64,7 +64,8 @@ function lineasReciboCobro(empresa, cliente, cobro, fecha, emisorNombre, qrDataU
     { texto: "Gracias por su confianza.", alineacion: "centro" },
     { texto: "Contamos con usted.", alineacion: "centro" },
     SEPARADOR,
-    { texto: "Comprobante interno — no es factura electrónica", alineacion: "centro" },
+    { texto: "Este es su comprobante de pago", alineacion: "centro" },
+    { texto: "Le recomendamos archivarlo", alineacion: "centro" },
     SEPARADOR,
     // Espacio en blanco amplio antes del sello, a proposito, para que no
     // quede apretado ni se pise con el corte del papel (mismo criterio
@@ -247,7 +248,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           </div>
 
           <div className="my-4 border-t border-slate-200" />
-          <p className="text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
+          <p className="text-center text-xs text-slate-400">Este es su comprobante de pago — le recomendamos archivarlo</p>
 
           <div className="my-4 border-t border-slate-200" />
           <p className="text-sm">Emitido por: {emisorNombre}</p>
@@ -320,7 +321,7 @@ export default function ReciboCobro({ empresa, cobro, cliente, emisorNombre, onN
           </div>
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
-          <p className="mt-2 text-center text-xs text-slate-400">Comprobante interno — no es factura electrónica</p>
+          <p className="mt-2 text-center text-xs text-slate-400">Este es su comprobante de pago — le recomendamos archivarlo</p>
 
           <div className="my-2 border-t-2 border-dashed border-slate-300" />
           <p className="text-sm">Emitido por: {emisorNombre}</p>
