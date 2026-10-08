@@ -158,32 +158,45 @@ export async function crearVehiculo(req, res) {
     }
 }
 
+// Edicion de un registro de flota (corregir un dato mal escrito, activar/
+// desactivar, marcar predeterminado). Solo cambia lo que viene en el body; un
+// campo de texto que viene vacio se rechaza en vez de borrarse. Lo ya enviado
+// a SIFEN no cambia (el XML esta firmado) - solo lo que se vuelve a mostrar o
+// imprimir de remisiones viejas, que lee estos datos en vivo.
+function textoEditado(valor, actual, etiqueta, minimo = 1) {
+    if (valor === undefined) return actual;
+    const limpio = String(valor).trim();
+    if (limpio.length < minimo) {
+        throw new ErrorNegocio(
+            minimo > 1 ? `El campo ${etiqueta} necesita al menos ${minimo} letras` : `Completá el campo ${etiqueta}`
+        );
+    }
+    return limpio;
+}
+
 export async function actualizarVehiculo(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
     const b = req.body || {};
     try {
         const veh = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const actual = (await cliente.query(`SELECT * FROM remision_vehiculos WHERE id = $1`, [id])).rows[0];
+            if (!actual) throw new ErrorNegocio('Vehículo no encontrado');
+            const tipo = textoEditado(b.tipo, actual.tipo, 'tipo').toUpperCase().slice(0, 10);
+            const marca = textoEditado(b.marca, actual.marca, 'marca').slice(0, 10);
+            const chapa = textoEditado(b.chapa, actual.chapa, 'chapa');
             const r = await cliente.query(
-                `UPDATE remision_vehiculos SET
-                    tipo = COALESCE($2, tipo), marca = COALESCE($3, marca), chapa = COALESCE($4, chapa),
-                    activo = COALESCE($5, activo)
+                `UPDATE remision_vehiculos SET tipo = $2, marca = $3, chapa = $4, activo = COALESCE($5, activo)
                  WHERE id = $1 RETURNING *`,
-                [
-                    id,
-                    b.tipo ? String(b.tipo).trim().toUpperCase().slice(0, 10) : null,
-                    b.marca ? String(b.marca).trim().slice(0, 10) : null,
-                    b.chapa ? String(b.chapa).trim() : null,
-                    b.activo === undefined ? null : !!b.activo,
-                ]
+                [id, tipo, marca, chapa, b.activo === undefined ? null : !!b.activo]
             );
-            if (!r.rows[0]) throw new ErrorNegocio('Vehículo no encontrado');
             if (b.predeterminado) await marcarUnicoPredeterminado(cliente, 'remision_vehiculos', empresaId, id);
             return r.rows[0];
         });
         res.json(veh);
     } catch (e) {
         if (e instanceof ErrorNegocio) return res.status(400).json({ error: e.message });
+        if (e.code === '23505') return res.status(400).json({ error: 'Ya hay otro vehículo cargado con esa chapa' });
         throw e;
     }
 }
@@ -209,26 +222,24 @@ export async function actualizarChofer(req, res) {
     const b = req.body || {};
     try {
         const chof = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const actual = (await cliente.query(`SELECT * FROM remision_choferes WHERE id = $1`, [id])).rows[0];
+            if (!actual) throw new ErrorNegocio('Chofer no encontrado');
+            const nombre = textoEditado(b.nombre, actual.nombre, 'nombre', 4);
+            const direccion = textoEditado(b.direccion, actual.direccion, 'dirección', 4);
+            const documento = b.documentoNumero === undefined ? actual.documento_numero : soloDigitos(b.documentoNumero);
+            if (!documento) throw new ErrorNegocio('Completá el campo cédula');
             const r = await cliente.query(
-                `UPDATE remision_choferes SET
-                    nombre = COALESCE($2, nombre), documento_numero = COALESCE($3, documento_numero),
-                    direccion = COALESCE($4, direccion), activo = COALESCE($5, activo)
+                `UPDATE remision_choferes SET nombre = $2, documento_numero = $3, direccion = $4, activo = COALESCE($5, activo)
                  WHERE id = $1 RETURNING *`,
-                [
-                    id,
-                    b.nombre ? String(b.nombre).trim() : null,
-                    b.documentoNumero ? soloDigitos(b.documentoNumero) : null,
-                    b.direccion ? String(b.direccion).trim() : null,
-                    b.activo === undefined ? null : !!b.activo,
-                ]
+                [id, nombre, documento, direccion, b.activo === undefined ? null : !!b.activo]
             );
-            if (!r.rows[0]) throw new ErrorNegocio('Chofer no encontrado');
             if (b.predeterminado) await marcarUnicoPredeterminado(cliente, 'remision_choferes', empresaId, id);
             return r.rows[0];
         });
         res.json(chof);
     } catch (e) {
         if (e instanceof ErrorNegocio) return res.status(400).json({ error: e.message });
+        if (e.code === '23505') return res.status(400).json({ error: 'Ya hay otro chofer cargado con esa cédula' });
         throw e;
     }
 }
@@ -251,27 +262,40 @@ export async function actualizarTransportista(req, res) {
     const { id } = req.params;
     const b = req.body || {};
     try {
-        const r = await consultaDeEmpresa(
-            empresaId,
-            `UPDATE remision_transportistas SET
-                contribuyente = COALESCE($2, contribuyente), nombre = COALESCE($3, nombre),
-                ruc = COALESCE($4, ruc), documento_tipo = COALESCE($5, documento_tipo),
-                documento_numero = COALESCE($6, documento_numero), direccion = COALESCE($7, direccion),
-                activo = COALESCE($8, activo)
-             WHERE id = $1 RETURNING *`,
-            [
-                id,
-                b.contribuyente === undefined ? null : !!b.contribuyente,
-                b.nombre ? String(b.nombre).trim() : null,
-                b.ruc !== undefined ? String(b.ruc).trim() || null : null,
-                b.documentoTipo ? Number(b.documentoTipo) : null,
-                b.documentoNumero !== undefined ? soloDigitos(b.documentoNumero) || null : null,
-                b.direccion ? String(b.direccion).trim() : null,
-                b.activo === undefined ? null : !!b.activo,
-            ]
-        );
-        if (!r.rows[0]) return res.status(404).json({ error: 'Transportista no encontrado' });
-        res.json(r.rows[0]);
+        const t = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const actual = (await cliente.query(`SELECT * FROM remision_transportistas WHERE id = $1`, [id])).rows[0];
+            if (!actual) throw new ErrorNegocio('Transportista no encontrado');
+            const contribuyente = b.contribuyente === undefined ? actual.contribuyente : !!b.contribuyente;
+            const nombre = textoEditado(b.nombre, actual.nombre, 'nombre');
+            const direccion = textoEditado(b.direccion, actual.direccion, 'dirección');
+            // Un transportista tiene RUC o cédula, nunca los dos: al cambiar de
+            // uno a otro se limpia el que ya no corresponde.
+            const ruc = contribuyente ? textoEditado(b.ruc, actual.ruc || '', 'RUC') : null;
+            const documentoNumero = contribuyente
+                ? null
+                : b.documentoNumero === undefined
+                  ? actual.documento_numero
+                  : soloDigitos(b.documentoNumero);
+            if (!contribuyente && !documentoNumero) throw new ErrorNegocio('Completá el campo cédula');
+            const r = await cliente.query(
+                `UPDATE remision_transportistas SET
+                    contribuyente = $2, nombre = $3, ruc = $4, documento_numero = $5, direccion = $6,
+                    documento_tipo = COALESCE($7, documento_tipo), activo = COALESCE($8, activo)
+                 WHERE id = $1 RETURNING *`,
+                [
+                    id,
+                    contribuyente,
+                    nombre,
+                    ruc,
+                    documentoNumero,
+                    direccion,
+                    b.documentoTipo ? Number(b.documentoTipo) : null,
+                    b.activo === undefined ? null : !!b.activo,
+                ]
+            );
+            return r.rows[0];
+        });
+        res.json(t);
     } catch (e) {
         if (e instanceof ErrorNegocio) return res.status(400).json({ error: e.message });
         throw e;

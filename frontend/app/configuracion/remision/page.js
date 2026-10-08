@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import EditorFlota from "@/app/documentos/remision/EditorFlota";
 
 const inputMini = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-navy";
 
@@ -11,6 +12,8 @@ export default function Flota() {
   const router = useRouter();
   const [flota, setFlota] = useState(null);
   const [error, setError] = useState("");
+  // "vehiculos:<id>" / "choferes:<id>" / "transportistas:<id>" del registro que se está corrigiendo.
+  const [editando, setEditando] = useState(null);
 
   const cargar = () => apiFetch("/api/flota").then(setFlota).catch((e) => setError(e.message));
 
@@ -64,7 +67,19 @@ export default function Flota() {
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <Seccion titulo="Vehículos">
-          {flota.vehiculos.map((v) => (
+          {flota.vehiculos.map((v) =>
+            editando === `vehiculos:${v.id}` ? (
+              <EditorFlota
+                key={v.id}
+                tipo="vehiculos"
+                item={v}
+                onGuardado={() => {
+                  setEditando(null);
+                  cargar();
+                }}
+                onCancelar={() => setEditando(null)}
+              />
+            ) : (
             <Fila key={v.id} activo>
               <span className="flex-1">
                 {v.tipo} {v.marca} · <b>{v.chapa}</b>
@@ -78,6 +93,9 @@ export default function Flota() {
                   usar por defecto
                 </button>
               )}
+              <button onClick={() => setEditando(`vehiculos:${v.id}`)} className="text-xs text-navy">
+                editar
+              </button>
               <button
                 onClick={() => guardar(`/api/flota/vehiculos/${v.id}`, { activo: false }, "PATCH")}
                 className="text-xs text-red-500"
@@ -85,12 +103,25 @@ export default function Flota() {
                 quitar
               </button>
             </Fila>
-          ))}
+            )
+          )}
           <AltaVehiculo onGuardar={(c) => guardar("/api/flota/vehiculos", c)} />
         </Seccion>
 
         <Seccion titulo="Choferes">
-          {flota.choferes.map((c) => (
+          {flota.choferes.map((c) =>
+            editando === `choferes:${c.id}` ? (
+              <EditorFlota
+                key={c.id}
+                tipo="choferes"
+                item={c}
+                onGuardado={() => {
+                  setEditando(null);
+                  cargar();
+                }}
+                onCancelar={() => setEditando(null)}
+              />
+            ) : (
             <Fila key={c.id} activo>
               <span className="flex-1">
                 {c.nombre} · {c.documento_numero}
@@ -104,6 +135,9 @@ export default function Flota() {
                   usar por defecto
                 </button>
               )}
+              <button onClick={() => setEditando(`choferes:${c.id}`)} className="text-xs text-navy">
+                editar
+              </button>
               <button
                 onClick={() => guardar(`/api/flota/choferes/${c.id}`, { activo: false }, "PATCH")}
                 className="text-xs text-red-500"
@@ -111,16 +145,32 @@ export default function Flota() {
                 quitar
               </button>
             </Fila>
-          ))}
+            )
+          )}
           <AltaChofer onGuardar={(c) => guardar("/api/flota/choferes", c)} />
         </Seccion>
 
         <Seccion titulo="Fleteros (transportistas externos)">
-          {flota.transportistas.map((t) => (
+          {flota.transportistas.map((t) =>
+            editando === `transportistas:${t.id}` ? (
+              <EditorFlota
+                key={t.id}
+                tipo="transportistas"
+                item={t}
+                onGuardado={() => {
+                  setEditando(null);
+                  cargar();
+                }}
+                onCancelar={() => setEditando(null)}
+              />
+            ) : (
             <Fila key={t.id} activo>
               <span className="flex-1">
                 {t.nombre} · {t.ruc || t.documento_numero}
               </span>
+              <button onClick={() => setEditando(`transportistas:${t.id}`)} className="text-xs text-navy">
+                editar
+              </button>
               <button
                 onClick={() => guardar(`/api/flota/transportistas/${t.id}`, { activo: false }, "PATCH")}
                 className="text-xs text-red-500"
@@ -128,7 +178,8 @@ export default function Flota() {
                 quitar
               </button>
             </Fila>
-          ))}
+            )
+          )}
           <AltaTransportista onGuardar={(c) => guardar("/api/flota/transportistas", c)} />
         </Seccion>
       </div>

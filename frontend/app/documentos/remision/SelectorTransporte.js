@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import EditorFlota from "./EditorFlota";
 
 const campo =
   "mb-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-navy focus:ring-2 focus:ring-navy/20";
@@ -28,6 +29,8 @@ export default function SelectorTransporte({ onChange }) {
 
   const [modo, setModo] = useState("propio");
   const [quienPaga, setQuienPaga] = useState("nosotros");
+  // Qué registro de la lista se está corrigiendo: "vehiculos" | "choferes" | "transportistas" | null.
+  const [editando, setEditando] = useState(null);
 
   const [vehiculoId, setVehiculoId] = useState("");
   const [vehiculoNuevo, setVehiculoNuevo] = useState({ tipo: "", marca: "", chapa: "" });
@@ -71,6 +74,25 @@ export default function SelectorTransporte({ onChange }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modo, quienPaga, vehiculoId, vehiculoNuevo, choferId, choferNuevo, transportistaId, transportistaNuevo]);
 
+  // Después de corregir un registro: se vuelve a traer la lista (con el dato
+  // ya corregido) y se deja elegido el mismo registro.
+  function recargarFlota() {
+    apiFetch("/api/flota")
+      .then(setFlota)
+      .catch(() => {});
+    setEditando(null);
+  }
+
+  const botonCorregir = (clave) => (
+    <button
+      type="button"
+      onClick={() => setEditando(editando === clave ? null : clave)}
+      className="-mt-2 mb-3 text-xs font-semibold text-navy"
+    >
+      ✏️ Corregir este dato
+    </button>
+  );
+
   const inputMini = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-navy";
 
   return (
@@ -102,6 +124,18 @@ export default function SelectorTransporte({ onChange }) {
         ))}
         <option value={NUEVO}>➕ Otro vehículo…</option>
       </select>
+      {vehiculoId !== NUEVO && vehiculoId && botonCorregir("vehiculos")}
+      {editando === "vehiculos" && vehiculoId !== NUEVO && flota.vehiculos.some((x) => x.id === vehiculoId) && (
+        <div className="mb-3">
+          <EditorFlota
+            key={vehiculoId}
+            tipo="vehiculos"
+            item={flota.vehiculos.find((x) => x.id === vehiculoId)}
+            onGuardado={recargarFlota}
+            onCancelar={() => setEditando(null)}
+          />
+        </div>
+      )}
       {vehiculoId === NUEVO && (
         <div className="mb-3 grid grid-cols-3 gap-2">
           <input
@@ -137,6 +171,18 @@ export default function SelectorTransporte({ onChange }) {
         ))}
         <option value={NUEVO}>➕ Otro chofer…</option>
       </select>
+      {choferId !== NUEVO && choferId && botonCorregir("choferes")}
+      {editando === "choferes" && choferId !== NUEVO && flota.choferes.some((x) => x.id === choferId) && (
+        <div className="mb-3">
+          <EditorFlota
+            key={choferId}
+            tipo="choferes"
+            item={flota.choferes.find((x) => x.id === choferId)}
+            onGuardado={recargarFlota}
+            onCancelar={() => setEditando(null)}
+          />
+        </div>
+      )}
       {choferId === NUEVO && (
         <div className="mb-3 flex flex-col gap-2">
           <input
@@ -178,6 +224,18 @@ export default function SelectorTransporte({ onChange }) {
             ))}
             <option value={NUEVO}>➕ Otro transportista…</option>
           </select>
+          {transportistaId !== NUEVO && transportistaId && botonCorregir("transportistas")}
+          {editando === "transportistas" && transportistaId !== NUEVO && flota.transportistas.some((x) => x.id === transportistaId) && (
+            <div className="mb-3">
+              <EditorFlota
+                key={transportistaId}
+                tipo="transportistas"
+                item={flota.transportistas.find((x) => x.id === transportistaId)}
+                onGuardado={recargarFlota}
+                onCancelar={() => setEditando(null)}
+              />
+            </div>
+          )}
           {transportistaId === NUEVO && (
             <div className="mb-3 flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm text-slate-600">
