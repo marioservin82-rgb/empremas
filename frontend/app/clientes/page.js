@@ -197,8 +197,10 @@ export default function Clientes() {
                         <span className="font-semibold">Gs {formatoGs.format(linea)}</span>
                       </span>
                       <span>
-                        <span className="text-slate-400">Debe hoy </span>
-                        <span className="font-semibold">Gs {formatoGs.format(c.saldo)}</span>
+                        <span className="text-slate-400">Deuda actual </span>
+                        <span className={`font-semibold ${Number(c.saldo) > 0 ? "text-red-600" : ""}`}>
+                          Gs {formatoGs.format(c.saldo)}
+                        </span>
                       </span>
                     </div>
                     <div className="flex gap-4">
