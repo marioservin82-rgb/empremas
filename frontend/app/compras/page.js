@@ -26,6 +26,7 @@ function primerDiaDelMes() {
 export default function Compras() {
   const router = useRouter();
   const [compras, setCompras] = useState([]);
+  const [resumen, setResumen] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -42,7 +43,12 @@ export default function Compras() {
       if (params.desde) query.set("desde", params.desde);
       if (params.hasta) query.set("hasta", params.hasta);
       const qs = query.toString();
-      setCompras(await apiFetch(`/api/compras${qs ? `?${qs}` : ""}`));
+      const [lista, totales] = await Promise.all([
+        apiFetch(`/api/compras${qs ? `?${qs}` : ""}`),
+        apiFetch(`/api/compras/resumen${qs ? `?${qs}` : ""}`),
+      ]);
+      setCompras(lista);
+      setResumen(totales);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -77,6 +83,11 @@ export default function Compras() {
       d = h = fecha(0);
     } else if (nombre === "ayer") {
       d = h = fecha(-1);
+    } else if (nombre === "semana") {
+      // Desde el lunes de esta semana hasta hoy.
+      const diasDesdeLunes = (new Date().getDay() + 6) % 7;
+      d = fecha(-diasDesdeLunes);
+      h = fecha(0);
     } else if (nombre === "mes") {
       d = primerDiaDelMes();
       h = fecha(0);
@@ -133,10 +144,11 @@ export default function Compras() {
           </form>
 
           <p className="mb-2 text-sm font-medium text-slate-500">Período</p>
-          <div className="mb-3 grid grid-cols-3 gap-2">
+          <div className="mb-3 grid grid-cols-4 gap-2">
             {[
               { valor: "hoy", etiqueta: "Hoy" },
               { valor: "ayer", etiqueta: "Ayer" },
+              { valor: "semana", etiqueta: "Semana" },
               { valor: "mes", etiqueta: "Mes" },
             ].map((p) => (
               <button
@@ -194,6 +206,29 @@ export default function Compras() {
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {resumen && (
+          <div className="mb-6 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-400">Contado</p>
+                <p className="text-xl font-extrabold text-ink">Gs {formatoGs.format(resumen.contado)}</p>
+                <p className="text-xs text-slate-400">{resumen.cantidad_contado} compra(s)</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-400">Crédito</p>
+                <p className="text-xl font-extrabold text-ink">Gs {formatoGs.format(resumen.credito)}</p>
+                <p className="text-xs text-slate-400">{resumen.cantidad_credito} compra(s)</p>
+              </div>
+              <div className="rounded-2xl bg-navy/5 p-4">
+                <p className="text-sm text-slate-400">Total comprado</p>
+                <p className="text-xl font-extrabold text-navy">Gs {formatoGs.format(resumen.total)}</p>
+                <p className="text-xs text-slate-400">{resumen.cantidad_compras} compra(s)</p>
+              </div>
+            </div>
+            <p className="mt-3 text-center text-xs text-slate-400">No incluye compras anuladas.</p>
+          </div>
+        )}
 
         {cargando ? (
           <p className="text-slate-500">Cargando...</p>

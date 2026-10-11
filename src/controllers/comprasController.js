@@ -257,10 +257,9 @@ export async function crearCompra(req, res) {
     }
 }
 
-export async function listarCompras(req, res) {
-    const { empresaId } = req.usuario;
-    const { q, desde, hasta } = req.query;
-
+// Mismos filtros para el listado y para el resumen, asi lo que suma el
+// resumen siempre coincide con lo que se ve en la lista.
+function filtroCompras({ q, desde, hasta }) {
     const condiciones = [];
     const valores = [];
     if (q) {
@@ -275,6 +274,38 @@ export async function listarCompras(req, res) {
         valores.push(hasta);
         condiciones.push(`c.creado_en < ($${valores.length}::date + INTERVAL '1 day')`);
     }
+    return { condiciones, valores };
+}
+
+// Total comprado en el periodo, separado en contado y credito. Se calcula
+// en el servidor (la lista esta limitada a 200 y trae anuladas): una compra
+// anulada se devolvio, no cuenta como compra real.
+export async function resumenCompras(req, res) {
+    const { empresaId } = req.usuario;
+    const { condiciones, valores } = filtroCompras(req.query);
+    const where = ['c.anulada = false', ...condiciones].join(' AND ');
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT
+            COALESCE(SUM(c.total) FILTER (WHERE c.tipo_pago = 'contado'), 0) AS contado,
+            COALESCE(SUM(c.total) FILTER (WHERE c.tipo_pago = 'credito'), 0) AS credito,
+            COALESCE(SUM(c.total), 0) AS total,
+            COUNT(*) AS cantidad_compras,
+            COUNT(*) FILTER (WHERE c.tipo_pago = 'contado') AS cantidad_contado,
+            COUNT(*) FILTER (WHERE c.tipo_pago = 'credito') AS cantidad_credito
+         FROM compras c
+         JOIN proveedores p ON p.id = c.proveedor_id
+         WHERE ${where}`,
+        valores
+    );
+
+    res.json(resultado.rows[0]);
+}
+
+export async function listarCompras(req, res) {
+    const { empresaId } = req.usuario;
+    const { condiciones, valores } = filtroCompras(req.query);
     const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     const resultado = await consultaDeEmpresa(
