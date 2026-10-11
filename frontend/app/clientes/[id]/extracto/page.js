@@ -253,8 +253,10 @@ export default function ExtractoCliente() {
 
           <div className="mb-4 grid grid-cols-3 gap-3">
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
-              <p className="text-sm text-slate-400">Debe hoy</p>
-              <p className="text-2xl font-extrabold text-ink">Gs {formatoGs.format(cliente.saldo)}</p>
+              <p className="text-sm text-slate-400">Deuda actual</p>
+              <p className={`text-2xl font-extrabold ${Number(cliente.saldo) > 0 ? "text-red-600" : "text-ink"}`}>
+                Gs {formatoGs.format(cliente.saldo)}
+              </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-5 text-center">
               <p className="text-sm text-slate-400">Crédito disponible</p>
