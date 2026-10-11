@@ -8,6 +8,7 @@ import {
     crearProveedor,
     actualizarProveedor,
     extractoProveedor,
+    comprasProveedorPeriodo,
     listaPedido,
     importarProveedores,
     pagarProveedor,
@@ -26,6 +27,7 @@ router.get('/consultar-ruc', permitirRolesOPermiso(['dueno', 'encargado'], 'gest
 router.get('/', asyncHandler(listarProveedores));
 router.get('/:id', asyncHandler(obtenerProveedor));
 router.get('/:id/extracto', asyncHandler(extractoProveedor));
+router.get('/:id/compras-periodo', asyncHandler(comprasProveedorPeriodo));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(historialAjustesSaldo));
 router.get('/:id/lista-pedido', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(listaPedido));
 

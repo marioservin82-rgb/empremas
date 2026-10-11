@@ -346,6 +346,64 @@ export async function extractoProveedor(req, res) {
     });
 }
 
+// Cuanto le compramos a este proveedor en un periodo, con los productos
+// unificados (cantidades sumadas de todas las compras). Es un reporte
+// aparte del extracto para no alterar su formato. Filtra por fecha_compra
+// (la fecha real de la compra, puede cargarse dias despues) - el extracto
+// filtra por creado_en, asi que una compra cargada con atraso puede caer en
+// otro periodo entre las dos pantallas. Las compras anuladas no cuentan.
+export async function comprasProveedorPeriodo(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+    const { desde, hasta } = req.query;
+
+    const proveedor = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, nombre FROM proveedores WHERE id = $1`,
+        [id]
+    );
+    if (!proveedor.rows[0]) {
+        return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const condiciones = [];
+    const valores = [];
+    if (desde) {
+        valores.push(desde);
+        condiciones.push(`c.fecha_compra >= $${valores.length + 1}::date`);
+    }
+    if (hasta) {
+        valores.push(hasta);
+        condiciones.push(`c.fecha_compra <= $${valores.length + 1}::date`);
+    }
+    const whereFecha = condiciones.length > 0 ? `AND ${condiciones.join(' AND ')}` : '';
+
+    const resumen = await consultaDeEmpresa(
+        empresaId,
+        `SELECT COALESCE(SUM(c.total), 0) AS total_comprado, COUNT(*) AS cantidad_compras
+         FROM compras c WHERE c.proveedor_id = $1 AND c.anulada = false ${whereFecha}`,
+        [id, ...valores]
+    );
+
+    const productos = await consultaDeEmpresa(
+        empresaId,
+        `SELECT ci.producto_id, p.nombre AS producto_nombre, p.unidad_medida,
+                SUM(ci.cantidad) AS cantidad_total,
+                SUM(ci.subtotal) AS total_gastado,
+                COUNT(DISTINCT ci.compra_id) AS veces_comprado,
+                CASE WHEN SUM(ci.cantidad) > 0 THEN SUM(ci.subtotal) / SUM(ci.cantidad) ELSE 0 END AS costo_promedio
+         FROM compra_items ci
+         JOIN compras c ON c.id = ci.compra_id AND c.proveedor_id = $1 AND c.anulada = false ${whereFecha}
+         JOIN productos p ON p.id = ci.producto_id
+         GROUP BY ci.producto_id, p.nombre, p.unidad_medida
+         ORDER BY total_gastado DESC
+         LIMIT 500`,
+        [id, ...valores]
+    );
+
+    res.json({ proveedor: proveedor.rows[0], resumen: resumen.rows[0], productos: productos.rows });
+}
+
 // Lista de pedido inteligente: que productos pedirle a este proveedor,
 // priorizando lo que menos stock tiene, con el punto de pedido (stock_
 // minimo, ya existia en productos pero no lo usaba ninguna pantalla) y

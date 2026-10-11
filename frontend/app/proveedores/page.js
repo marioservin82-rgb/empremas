@@ -143,6 +143,12 @@ export default function Proveedores() {
                     Extracto
                   </Link>
                   <Link
+                    href={`/proveedores/${p.id}/compras-periodo`}
+                    className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+                  >
+                    Compras
+                  </Link>
+                  <Link
                     href={`/proveedores/${p.id}/editar`}
                     className="text-sm font-semibold text-navy hover:text-brand"
                   >

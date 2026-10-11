@@ -147,6 +147,12 @@ export default function ExtractoProveedor() {
               Pedido inteligente
             </Link>
             <Link
+              href={`/proveedores/${id}/compras-periodo${hayFiltros ? `?${new URLSearchParams({ ...(desde && { desde }), ...(hasta && { hasta }) })}` : ""}`}
+              className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
+            >
+              Compras del período
+            </Link>
+            <Link
               href={`/proveedores/${id}/ajustar-saldo`}
               className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200 print:hidden"
             >
