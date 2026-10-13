@@ -1,5 +1,6 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { redondearGs } from '../utils/redondeo.js';
 
 const LISTAS_PRECIO = ['contado', 'credito', 'mayorista'];
 
@@ -30,7 +31,7 @@ export async function crearPresupuesto(req, res) {
                 if (!resultado.rows[0]) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
                 }
-                const subtotal = precioUnitario * cantidad;
+                const subtotal = redondearGs(precioUnitario * cantidad);
                 total += subtotal;
                 itemsCalculados.push({ productoId, cantidad, precioUnitario, subtotal });
             }
@@ -129,7 +130,7 @@ export async function actualizarPresupuesto(req, res) {
                 if (!productoResultado.rows[0]) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
                 }
-                const subtotal = precioUnitario * cantidad;
+                const subtotal = redondearGs(precioUnitario * cantidad);
                 total += subtotal;
                 itemsCalculados.push({ productoId, cantidad, precioUnitario, subtotal });
             }

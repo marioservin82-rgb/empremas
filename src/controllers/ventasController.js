@@ -3,6 +3,7 @@ import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { tienePermiso } from '../utils/permisos.js';
+import { redondearGs } from '../utils/redondeo.js';
 import { emitirFacturaElectronica, descargarKude, ErrorSifen } from '../services/sifenService.js';
 import {
     emitirFactura as emitirFacturaConector,
@@ -412,12 +413,16 @@ export async function crearVenta(req, res) {
             // descuentan el mismo stock dos veces sin verlo.
             for (const {
                 productoId,
-                cantidad,
+                cantidad: cantidadRecibida,
                 precioUnitario: precioDelPresupuesto,
                 esMayorista,
                 descuentoMonto,
                 descuentoMotivo,
             } of items) {
+                // La base guarda la cantidad con 3 decimales (NUMERIC(14,3)): se
+                // normaliza acá para que el subtotal, lo guardado y lo que se
+                // manda a SIFEN usen exactamente la misma cantidad.
+                const cantidad = Math.round(Number(cantidadRecibida) * 1000) / 1000;
                 if (!(cantidad > 0)) {
                     throw new ErrorNegocio('La cantidad debe ser mayor a cero');
                 }
@@ -522,7 +527,10 @@ export async function crearVenta(req, res) {
                 // en el momento, no un beneficio que corre solo. Nunca puede
                 // superar el valor de la linea (evita un subtotal negativo).
                 const descuentoAplicado = Math.min(Number(descuentoMonto) || 0, subtotalBruto);
-                const subtotal = subtotalBruto - descuentoAplicado;
+                // Guarani sin centavos: cada linea se redondea a entero (misma
+                // regla que el conector SIFEN, ver utils/redondeo.js) y el total
+                // es la suma de lineas enteras.
+                const subtotal = redondearGs(subtotalBruto - descuentoAplicado);
                 total += subtotal;
 
                 // Comision congelada de esta linea (ver venta_items.comision_monto):
@@ -946,7 +954,7 @@ export async function resolverDocumentoDeVenta(empresaId, ventaId) {
 
     const items = await consultaDeEmpresa(
         empresaId,
-        `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", p.nombre, p.tasa_iva
+        `SELECT vi.producto_id, vi.cantidad, vi.precio_unitario AS "precioUnitario", vi.subtotal, p.nombre, p.tasa_iva
          FROM venta_items vi JOIN productos p ON p.id = vi.producto_id WHERE vi.venta_id = $1`,
         [ventaId]
     );

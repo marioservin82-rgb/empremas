@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
 import Recibo from "./Recibo";
 
@@ -75,8 +76,11 @@ function precioDe(item, tipoPago, beneficios) {
 // cita/presupuesto), es una decisión puntual del cajero/dueño, no un
 // beneficio que corre solo. Nunca queda negativo.
 function subtotalDe(item, tipoPago, beneficios) {
-  const bruto = precioDe(item, tipoPago, beneficios) * item.cantidad;
-  return Math.max(bruto - (Number(item.descuentoMonto) || 0), 0);
+  // La cantidad se guarda con 3 decimales (igual que el servidor).
+  const bruto = precioDe(item, tipoPago, beneficios) * (Math.round(item.cantidad * 1000) / 1000);
+  // Guaraní sin centavos: cada línea se redondea a entero, igual que el
+  // servidor (ver lib/redondeo.js), para que el total mostrado sea el que se guarda.
+  return redondearGs(Math.max(bruto - (Number(item.descuentoMonto) || 0), 0));
 }
 
 export default function Vender() {

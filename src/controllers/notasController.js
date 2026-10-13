@@ -1,5 +1,6 @@
 import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { redondearGs } from '../utils/redondeo.js';
 import {
     emitirNota as emitirNotaConector,
     resolverReceptor as resolverReceptorConector,
@@ -186,7 +187,10 @@ export async function crearNota(req, res) {
             }
             if (items.length === 0) throw new ErrorNegocio('La nota necesita al menos un ítem');
 
-            const total = items.reduce((a, it) => a + it.precioUnitario * it.cantidad, 0);
+            // Guarani sin centavos: cada linea se redondea a entero (igual que
+            // las ventas y que el conector SIFEN), asi el saldo del cliente no
+            // queda con centavos tras una nota de credito.
+            const total = items.reduce((a, it) => a + redondearGs(it.precioUnitario * it.cantidad), 0);
             const esTotalReal = Math.round(total) >= Math.round(Number(venta.total)) - 1;
             // Si la venta YA fue anulada (el cajero la anuló antes), el stock y el
             // saldo del cliente ya se revirtieron ahí — la NC es sólo el documento
@@ -211,7 +215,7 @@ export async function crearNota(req, res) {
                 await cliente.query(
                     `INSERT INTO nota_items (empresa_id, nota_id, producto_id, cantidad, precio_unitario, tasa_iva, subtotal)
                      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-                    [empresaId, id, it.productoId, it.cantidad, it.precioUnitario, it.tasaIva, it.precioUnitario * it.cantidad]
+                    [empresaId, id, it.productoId, it.cantidad, it.precioUnitario, it.tasaIva, redondearGs(it.precioUnitario * it.cantidad)]
                 );
                 if (reingresaStock) {
                     await cliente.query(

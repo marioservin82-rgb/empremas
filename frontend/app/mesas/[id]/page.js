@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -211,7 +212,7 @@ export default function DetalleMesa() {
     }
   }
 
-  const total = (pedido?.items || []).reduce((acumulado, i) => acumulado + Number(i.precio_unitario) * Number(i.cantidad), 0);
+  const total = (pedido?.items || []).reduce((acumulado, i) => acumulado + redondearGs(Number(i.precio_unitario) * Number(i.cantidad)), 0);
 
   function abrirCierre() {
     setMostrarCierre(true);
@@ -462,7 +463,7 @@ export default function DetalleMesa() {
                         </span>
                       </div>
                       <span className="font-semibold text-slate-800">
-                        Gs {formatoGs.format(i.precio_unitario * i.cantidad)}
+                        Gs {formatoGs.format(redondearGs(i.precio_unitario * i.cantidad))}
                       </span>
                     </div>
                   ))}

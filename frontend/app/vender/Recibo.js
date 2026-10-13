@@ -10,6 +10,7 @@ import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 import { logoParaTicket } from "@/lib/logoEmpresa";
 import { montoEnLetras } from "@/lib/numeroALetras";
 import { pdfAImagen } from "@/lib/pdfAImagen";
+import { redondearGs } from "@/lib/redondeo";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Sin esto, una cantidad entera como 1 sale del backend como "1.000" (la
@@ -533,7 +534,7 @@ function lineasTicketFacturaLegal(empresa, cliente, venta, items, qrDataUrl, log
   lineas.push(SEPARADOR);
   for (const i of items ?? []) {
     const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
-    const bruto = i.precioUnitario * i.cantidad;
+    const bruto = redondearGs(i.precioUnitario * i.cantidad);
     const descuento = Number(i.descuentoMonto) || 0;
     lineas.push(
       { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
@@ -597,7 +598,7 @@ function lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numer
   lineas.push(SEPARADOR);
   for (const i of items) {
     const marcaMayorista = i.esMayorista ? " (mayorista)" : "";
-    const bruto = i.precioUnitario * i.cantidad;
+    const bruto = redondearGs(i.precioUnitario * i.cantidad);
     const descuento = Number(i.descuentoMonto) || 0;
     lineas.push(
       { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidadMedida ?? ""} x ${i.nombre}${marcaMayorista}`.replace(/\s+/g, " ") },
@@ -818,7 +819,7 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
             </p>
             <div className="flex justify-between text-sm">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
-              <span>Gs {formatoGs.format(i.precioUnitario * i.cantidad)}</span>
+              <span>Gs {formatoGs.format(redondearGs(i.precioUnitario * i.cantidad))}</span>
             </div>
             {Number(i.descuentoMonto) > 0 && (
               <div className="flex justify-between text-sm text-brand">
@@ -1042,7 +1043,7 @@ export default function Recibo({
             <div className="flex justify-between text-sm text-slate-600">
               <span>Gs {formatoGs.format(i.precioUnitario)} c/u</span>
               <span className="font-semibold text-slate-800">
-                Gs {formatoGs.format(i.precioUnitario * i.cantidad)}
+                Gs {formatoGs.format(redondearGs(i.precioUnitario * i.cantidad))}
               </span>
             </div>
             {Number(i.descuentoMonto) > 0 && (

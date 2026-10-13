@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
+import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -156,7 +157,7 @@ export default function EditarPresupuesto() {
     setCarrito((actual) => actual.filter((i) => i.productoId !== productoId));
   }
 
-  const total = carrito.reduce((acumulado, i) => acumulado + i.precioUnitario * i.cantidad, 0);
+  const total = carrito.reduce((acumulado, i) => acumulado + redondearGs(i.precioUnitario * i.cantidad), 0);
 
   async function guardarCambios() {
     setError("");
@@ -349,7 +350,7 @@ export default function EditarPresupuesto() {
                     title="Precio unitario"
                   />
                   <p className="w-28 text-right font-bold text-slate-800">
-                    Gs {formatoGs.format(i.precioUnitario * i.cantidad)}
+                    Gs {formatoGs.format(redondearGs(i.precioUnitario * i.cantidad))}
                   </p>
                   <button onClick={() => quitarDelCarrito(i.productoId)} className="text-red-500 hover:text-red-700">
                     ✕

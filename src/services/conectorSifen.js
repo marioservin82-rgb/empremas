@@ -355,8 +355,15 @@ export function mapearVentaAConector({ venta, items, cliente, receptor }) {
         // EFECTIVO (subtotal / cantidad) en vez del de catalogo, para que
         // la Factura Electrónica refleje lo que realmente se cobró sin
         // depender de un campo "descuento" aparte en el conector.
+        // Sin descuento (el subtotal ya redondeado coincide con precio x
+        // cantidad) se manda el precio de catalogo tal cual: SIFEN calcula
+        // exactamente el mismo subtotal que EMPREMAS. Dividir el subtotal
+        // entero por la cantidad podia correr el precio +-1-2 Gs en
+        // cantidades chicas (ej. 0,25 kg).
         precioUnitario:
-            it.subtotal != null && Number(it.cantidad) > 0
+            it.subtotal != null &&
+            Number(it.cantidad) > 0 &&
+            Math.round(Number(it.precioUnitario) * Number(it.cantidad)) !== Number(it.subtotal)
                 ? Math.round(Number(it.subtotal) / Number(it.cantidad))
                 : Math.round(Number(it.precioUnitario)),
         ivaTasa: [0, 5, 10].includes(Number(it.tasa_iva)) ? Number(it.tasa_iva) : 10,

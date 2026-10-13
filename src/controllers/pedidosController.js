@@ -2,6 +2,7 @@ import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoCompartidoDeSucursal } from './turnosController.js';
 import { calcularVuelto } from './ventasController.js';
+import { redondearGs } from '../utils/redondeo.js';
 
 // Crea un pedido nuevo: siempre empieza por el cliente (obligatorio, a
 // diferencia de Vender donde es opcional) y siempre vende contra el turno
@@ -317,8 +318,10 @@ export async function cerrarCuentaPedido(req, res) {
                 throw new ErrorNegocio('El pedido no tiene ningún ítem cargado todavía');
             }
 
+            // Guarani sin centavos: cada linea se redondea a entero (igual que
+            // crearVenta y que el conector SIFEN).
             const total = itemsResultado.rows.reduce(
-                (acumulado, item) => acumulado + Number(item.precio_unitario) * Number(item.cantidad),
+                (acumulado, item) => acumulado + redondearGs(Number(item.precio_unitario) * Number(item.cantidad)),
                 0
             );
             const vuelto = calcularVuelto(pagos, total);
@@ -384,7 +387,7 @@ export async function cerrarCuentaPedido(req, res) {
             }
 
             for (const item of itemsResultado.rows) {
-                const subtotal = Number(item.precio_unitario) * Number(item.cantidad);
+                const subtotal = redondearGs(Number(item.precio_unitario) * Number(item.cantidad));
                 let comisionMonto = 0;
                 if (vendedorId) {
                     const fija = mapaComisionFija.get(item.producto_id);
