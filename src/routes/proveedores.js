@@ -9,6 +9,7 @@ import {
     actualizarProveedor,
     extractoProveedor,
     comprasProveedorPeriodo,
+    comprasPendientes,
     listaPedido,
     importarProveedores,
     pagarProveedor,
@@ -28,6 +29,7 @@ router.get('/', asyncHandler(listarProveedores));
 router.get('/:id', asyncHandler(obtenerProveedor));
 router.get('/:id/extracto', asyncHandler(extractoProveedor));
 router.get('/:id/compras-periodo', asyncHandler(comprasProveedorPeriodo));
+router.get('/:id/compras-pendientes', asyncHandler(comprasPendientes));
 router.get('/:id/ajustes-saldo', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(historialAjustesSaldo));
 router.get('/:id/lista-pedido', permitirRolesOPermiso(['dueno', 'encargado'], 'gestionar_compras'), asyncHandler(listaPedido));
 

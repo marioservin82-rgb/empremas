@@ -285,11 +285,34 @@ export async function actualizarProveedor(req, res) {
 export async function extractoProveedor(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
-    const { desde, hasta } = req.query;
+    const { desde, hasta, soloPendientes } = req.query;
 
     const proveedor = await consultaDeEmpresa(empresaId, `SELECT * FROM proveedores WHERE id = $1`, [id]);
     if (!proveedor.rows[0]) {
         return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    // Vista consolidada: solo lo que todavia se debe. Ignora el periodo (una
+    // compra vieja sigue pendiente) y no trae pagos ni ajustes.
+    if (soloPendientes === '1') {
+        const pendientes = await consultaDeEmpresa(
+            empresaId,
+            `SELECT id, tipo_pago, total, saldo_pendiente, numero_factura, fecha_compra, creado_en
+             FROM compras
+             WHERE proveedor_id = $1 AND tipo_pago = 'credito' AND anulada = false AND saldo_pendiente > 0
+             ORDER BY fecha_compra ASC, creado_en ASC`,
+            [id]
+        );
+        const totalPendiente = pendientes.rows.reduce((suma, c) => suma + Number(c.saldo_pendiente), 0);
+        return res.json({
+            proveedor: proveedor.rows[0],
+            compras: pendientes.rows,
+            pagos: [],
+            ajustesSaldo: [],
+            soloPendientes: true,
+            totalPendiente,
+            sinFactura: Math.max(0, Number(proveedor.rows[0].saldo) - totalPendiente),
+        });
     }
 
     // hasta es inclusive: hasta el final de ese dia (mismo criterio que
@@ -321,7 +344,7 @@ export async function extractoProveedor(req, res) {
 
     const compras = await consultaDeEmpresa(
         empresaId,
-        `SELECT id, tipo_pago, total, creado_en, anulada FROM compras WHERE proveedor_id = $1 ${whereCompras} ORDER BY creado_en DESC LIMIT 200`,
+        `SELECT id, tipo_pago, total, saldo_pendiente, numero_factura, creado_en, anulada FROM compras WHERE proveedor_id = $1 ${whereCompras} ORDER BY creado_en DESC LIMIT 200`,
         [id, ...valoresCompras]
     );
 
@@ -524,11 +547,15 @@ export async function listaPedido(req, res) {
 }
 
 // Pago a proveedor, admite pagos parciales (no hace falta cancelar toda
-// la deuda de una vez).
+// la deuda de una vez). Se aplica a las compras a credito que el usuario
+// elige (mismo modelo que crearCobro con facturaIds): reparte el monto en
+// orden de fecha y baja saldo_pendiente de cada compra. Lo que sobre (o el
+// pago "sin compra asociada") solo baja el saldo general del proveedor.
 export async function pagarProveedor(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { id } = req.params;
-    const { monto, formaPago, fechaPago, numeroRecibo } = req.body;
+    const { monto, formaPago, fechaPago, numeroRecibo, incluirSaldoSinFactura } = req.body;
+    const compraIds = Array.isArray(req.body.compraIds) ? req.body.compraIds : [];
 
     if (!(Number(monto) > 0)) {
         return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
@@ -550,7 +577,34 @@ export async function pagarProveedor(req, res) {
                 );
             }
 
-            await cliente.query(`UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`, [id, monto]);
+            // Compras elegidas por el usuario (nunca todas las pendientes sin
+            // preguntar).
+            let compras = { rows: [] };
+            if (compraIds.length > 0) {
+                compras = await cliente.query(
+                    `SELECT c.id, c.saldo_pendiente, c.numero_factura, c.fecha_compra
+                     FROM compras c
+                     WHERE c.id = ANY($1::uuid[]) AND c.proveedor_id = $2 AND c.tipo_pago = 'credito'
+                       AND c.anulada = false AND c.saldo_pendiente > 0
+                     ORDER BY c.fecha_compra ASC, c.creado_en ASC
+                     FOR UPDATE OF c`,
+                    [compraIds, id]
+                );
+                if (compras.rows.length !== compraIds.length) {
+                    throw new ErrorNegocio('Una de las compras elegidas ya no está pendiente — actualizá la pantalla e intentá de nuevo');
+                }
+            } else if (!incluirSaldoSinFactura) {
+                // Sin elegir compras solo es valido si el proveedor no tiene
+                // ninguna compra pendiente (saldo inicial/ajustado sin compras
+                // asociadas) - si tiene alguna, hay que elegir que se paga.
+                const pendientes = await cliente.query(
+                    `SELECT 1 FROM compras WHERE proveedor_id = $1 AND tipo_pago = 'credito' AND anulada = false AND saldo_pendiente > 0 LIMIT 1`,
+                    [id]
+                );
+                if (pendientes.rows.length > 0) {
+                    throw new ErrorNegocio('Elegí a qué compra(s) corresponde este pago');
+                }
+            }
 
             const turnoId = await turnoAbiertoDe(cliente, usuarioId);
             const pagoInsertado = await cliente.query(
@@ -559,9 +613,33 @@ export async function pagarProveedor(req, res) {
                  RETURNING id, creado_en, fecha_pago`,
                 [empresaId, id, usuarioId, turnoId, formaPago, monto, fechaPago || null, numeroRecibo || null]
             );
+            const pagoId = pagoInsertado.rows[0].id;
+
+            let restante = Number(monto);
+            const aplicaciones = [];
+            for (const compra of compras.rows) {
+                if (restante <= 0) break;
+                const aplicado = Math.min(restante, Number(compra.saldo_pendiente));
+                await cliente.query(`UPDATE compras SET saldo_pendiente = saldo_pendiente - $2 WHERE id = $1`, [
+                    compra.id,
+                    aplicado,
+                ]);
+                await cliente.query(
+                    `INSERT INTO pago_proveedor_aplicaciones (empresa_id, pago_id, compra_id, monto_aplicado) VALUES ($1, $2, $3, $4)`,
+                    [empresaId, pagoId, compra.id, aplicado]
+                );
+                aplicaciones.push({
+                    compraId: compra.id,
+                    numeroFactura: compra.numero_factura,
+                    montoAplicado: aplicado,
+                });
+                restante -= aplicado;
+            }
+
+            await cliente.query(`UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`, [id, monto]);
 
             return {
-                id: pagoInsertado.rows[0].id,
+                id: pagoId,
                 creadoEn: pagoInsertado.rows[0].creado_en,
                 fechaPago: pagoInsertado.rows[0].fecha_pago,
                 numeroRecibo: numeroRecibo || null,
@@ -569,6 +647,7 @@ export async function pagarProveedor(req, res) {
                 formaPago,
                 monto: Number(monto),
                 saldoRestante: Number(proveedor.saldo) - Number(monto),
+                aplicaciones,
             };
         });
 
@@ -579,4 +658,22 @@ export async function pagarProveedor(req, res) {
         }
         throw error;
     }
+}
+
+// Compras a credito de un proveedor con saldo pendiente: lo que alimenta el
+// selector de "que estoy pagando" (simetrico a facturasPendientes de cobros).
+export async function comprasPendientes(req, res) {
+    const { empresaId } = req.usuario;
+    const { id } = req.params;
+
+    const resultado = await consultaDeEmpresa(
+        empresaId,
+        `SELECT id, total, saldo_pendiente, numero_factura, fecha_compra, creado_en
+         FROM compras
+         WHERE proveedor_id = $1 AND tipo_pago = 'credito' AND anulada = false AND saldo_pendiente > 0
+         ORDER BY fecha_compra ASC, creado_en ASC`,
+        [id]
+    );
+
+    res.json(resultado.rows);
 }

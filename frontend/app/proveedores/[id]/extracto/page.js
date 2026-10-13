@@ -52,6 +52,10 @@ export default function ExtractoProveedor() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [periodoActivo, setPeriodoActivo] = useState("");
+  const [vista, setVista] = useState("completo");
+  // La vista vive tambien en un ref para que cargar() (que se llama desde
+  // varios lugares con solo desde/hasta) siempre pida la vista elegida.
+  const vistaRef = useRef("completo");
 
   const cargar = useCallback(
     async (params) => {
@@ -60,6 +64,7 @@ export default function ExtractoProveedor() {
         const query = new URLSearchParams();
         if (params.desde) query.set("desde", params.desde);
         if (params.hasta) query.set("hasta", params.hasta);
+        if (vistaRef.current === "pendientes") query.set("soloPendientes", "1");
         const qs = query.toString();
         setDatos(await apiFetch(`/api/proveedores/${id}/extracto${qs ? `?${qs}` : ""}`));
       } catch (err) {
@@ -94,6 +99,12 @@ export default function ExtractoProveedor() {
     cargar({ desde: d, hasta: h });
   }
 
+  function elegirVista(nueva) {
+    vistaRef.current = nueva;
+    setVista(nueva);
+    cargar({ desde, hasta });
+  }
+
   function limpiarFiltros() {
     setDesde("");
     setHasta("");
@@ -125,9 +136,12 @@ export default function ExtractoProveedor() {
   }
 
   const { proveedor, compras, pagos, ajustesSaldo } = datos;
-  const textoPeriodo = hayFiltros
-    ? `Período: ${desde ? fecha(desde) : "…"} – ${hasta ? fecha(hasta) : "…"}`
-    : "Historial completo";
+  const soloPendientes = !!datos.soloPendientes;
+  const textoPeriodo = soloPendientes
+    ? "Solo pendientes de pago"
+    : hayFiltros
+      ? `Período: ${desde ? fecha(desde) : "…"} – ${hasta ? fecha(hasta) : "…"}`
+      : "Historial completo";
 
   return (
     <main className="flex flex-1 flex-col items-center p-6">
@@ -174,6 +188,31 @@ export default function ExtractoProveedor() {
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-5 shadow shadow-slate-200 print:hidden">
+          <p className="mb-2 text-sm font-medium text-slate-500">Qué mostrar</p>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            {[
+              { valor: "completo", etiqueta: "Completo" },
+              { valor: "pendientes", etiqueta: "Solo pendientes" },
+            ].map((v) => (
+              <button
+                key={v.valor}
+                onClick={() => elegirVista(v.valor)}
+                className={`rounded-xl py-2 font-semibold transition ${
+                  vista === v.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {v.etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {vista === "pendientes" && (
+            <p className="text-sm text-slate-500">
+              Muestra todo lo que todavía se debe, sin importar el período.
+            </p>
+          )}
+
+          <div className={vista === "pendientes" ? "hidden" : ""}>
           <p className="mb-2 text-sm font-medium text-slate-500">Período</p>
           <div className="mb-3 grid grid-cols-3 gap-2">
             {[
@@ -233,9 +272,10 @@ export default function ExtractoProveedor() {
               Ver historial completo
             </button>
           )}
+          </div>
         </div>
 
-        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error &&<p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <div ref={recuadroRef} className="reporte-imprimible rounded-xl bg-white p-6 shadow">
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
@@ -261,9 +301,13 @@ export default function ExtractoProveedor() {
           </div>
 
           <div className="mb-4">
-            <h2 className="mb-3 font-semibold text-slate-700">Compras</h2>
+            <h2 className="mb-3 font-semibold text-slate-700">
+              {soloPendientes ? "Compras pendientes de pago" : "Compras"}
+            </h2>
             {compras.length === 0 ? (
-              <p className="text-sm text-slate-400">Sin compras en este período.</p>
+              <p className="text-sm text-slate-400">
+                {soloPendientes ? "No hay compras pendientes de pago." : "Sin compras en este período."}
+              </p>
             ) : (
               <div className="flex flex-col divide-y divide-slate-100">
                 {compras.map((c) => (
@@ -273,19 +317,43 @@ export default function ExtractoProveedor() {
                     className={`flex items-center justify-between py-2 text-sm hover:bg-slate-50 ${c.anulada ? "opacity-50" : ""}`}
                   >
                     <div>
-                      <span className="font-medium text-slate-700">{fecha(c.creado_en)}</span>{" "}
+                      <span className="font-medium text-slate-700">{fecha(c.fecha_compra || c.creado_en)}</span>{" "}
                       <span className="text-slate-400">· {ETIQUETA_TIPO_PAGO[c.tipo_pago]}</span>
+                      {c.numero_factura && <span className="text-slate-400"> · Factura {c.numero_factura}</span>}
                       {c.anulada && <span className="ml-1 font-bold text-red-500">ANULADA</span>}
                     </div>
-                    <span className={`font-semibold text-slate-800 ${c.anulada ? "line-through" : ""}`}>
-                      Gs {formatoGs.format(c.total)}
-                    </span>
+                    <div className="text-right">
+                      <p className={`font-semibold text-slate-800 ${c.anulada ? "line-through" : ""}`}>
+                        Gs {formatoGs.format(c.total)}
+                      </p>
+                      {c.tipo_pago === "credito" && !c.anulada && Number(c.saldo_pendiente) > 0 && (
+                        <p className="text-xs font-semibold text-red-600">
+                          pendiente Gs {formatoGs.format(c.saldo_pendiente)}
+                        </p>
+                      )}
+                    </div>
                   </Link>
                 ))}
               </div>
             )}
           </div>
 
+          {soloPendientes && (
+            <div className="mb-4 rounded-2xl bg-slate-50 p-4">
+              {Number(datos.sinFactura) > 0.01 && (
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Deuda sin compra asociada (saldo inicial o corregido)</span>
+                  <span className="font-semibold text-slate-800">Gs {formatoGs.format(datos.sinFactura)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-700">Total pendiente</span>
+                <span className="text-xl font-extrabold text-red-600">Gs {formatoGs.format(proveedor.saldo)}</span>
+              </div>
+            </div>
+          )}
+
+          {!soloPendientes && (
           <div className="mb-4">
             <h2 className="mb-3 font-semibold text-slate-700">Pagos</h2>
             {pagos.length === 0 ? (
@@ -305,6 +373,7 @@ export default function ExtractoProveedor() {
               </div>
             )}
           </div>
+          )}
 
           {ajustesSaldo && ajustesSaldo.length > 0 && (
             <div>

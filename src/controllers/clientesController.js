@@ -172,6 +172,9 @@ export async function extractoCliente(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
     const { desde, hasta } = req.query;
+    // Vista consolidada: solo lo que todavia se debe. Ignora el periodo (una
+    // deuda vieja sigue pendiente) y no trae cobros ni ajustes.
+    const soloPend = req.query.soloPendientes === '1';
 
     const cliente = await consultaDeEmpresa(
         empresaId,
@@ -192,22 +195,30 @@ export async function extractoCliente(req, res) {
                 v.numero_ticket, de.numero_formateado AS de_numero_formateado
          FROM ventas v
          LEFT JOIN documentos_electronicos de ON de.venta_id = v.id AND de.estado = 'aprobado'
-         WHERE v.cliente_id = $1 ${whereFechaVenta} ORDER BY v.creado_en DESC LIMIT 200`,
-        [id, ...valoresFecha]
+         WHERE v.cliente_id = $1 ${
+             soloPend
+                 ? `AND v.tipo_pago = 'credito' AND v.saldo_pendiente > 0 ORDER BY v.vencimiento ASC, v.creado_en ASC`
+                 : `${whereFechaVenta} ORDER BY v.creado_en DESC LIMIT 200`
+         }`,
+        soloPend ? [id] : [id, ...valoresFecha]
     );
 
-    const cobros = await consultaDeEmpresa(
-        empresaId,
-        `SELECT id, numero_recibo, monto, creado_en FROM cobros WHERE cliente_id = $1 ${whereFecha} ORDER BY creado_en DESC LIMIT 200`,
-        [id, ...valoresFecha]
-    );
+    const cobros = soloPend
+        ? { rows: [] }
+        : await consultaDeEmpresa(
+              empresaId,
+              `SELECT id, numero_recibo, monto, creado_en FROM cobros WHERE cliente_id = $1 ${whereFecha} ORDER BY creado_en DESC LIMIT 200`,
+              [id, ...valoresFecha]
+          );
 
-    const ajustesSaldo = await consultaDeEmpresa(
-        empresaId,
-        `SELECT id, saldo_anterior, saldo_nuevo, diferencia, motivo, creado_en
-         FROM ajustes_saldo_cliente WHERE cliente_id = $1 ${whereFecha} ORDER BY creado_en DESC LIMIT 200`,
-        [id, ...valoresFecha]
-    );
+    const ajustesSaldo = soloPend
+        ? { rows: [] }
+        : await consultaDeEmpresa(
+              empresaId,
+              `SELECT id, saldo_anterior, saldo_nuevo, diferencia, motivo, creado_en
+               FROM ajustes_saldo_cliente WHERE cliente_id = $1 ${whereFecha} ORDER BY creado_en DESC LIMIT 200`,
+              [id, ...valoresFecha]
+          );
 
     const { categoria, volumenMes } = await categoriaYVolumenDeCliente(
         (sql, params) => consultaDeEmpresa(empresaId, sql, params),
@@ -220,6 +231,14 @@ export async function extractoCliente(req, res) {
         ventas: ventas.rows,
         cobros: cobros.rows,
         ajustesSaldo: ajustesSaldo.rows,
+        ...(soloPend && (() => {
+            const totalPendiente = ventas.rows.reduce((suma, v) => suma + Number(v.saldo_pendiente), 0);
+            return {
+                soloPendientes: true,
+                totalPendiente,
+                sinFactura: Math.max(0, Number(cliente.rows[0].saldo) - totalPendiente),
+            };
+        })()),
     });
 }
 

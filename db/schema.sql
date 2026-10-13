@@ -2284,3 +2284,24 @@ ALTER TABLE empresas ADD COLUMN horario_atencion JSONB NOT NULL DEFAULT
   "sabado":    {"abierto": true, "desde": "08:00", "hasta": "19:00"},
   "domingo":   {"abierto": true, "desde": "08:00", "hasta": "19:00"}
 }'::jsonb;
+
+-- Pago a proveedor aplicado a compras concretas (mismo modelo que ventas:
+-- saldo_pendiente por documento + aplicaciones del pago). Ver
+-- db/migracion-pagos-proveedor-aplicados.sql (incluye el backfill de las
+-- compras a credito historicas).
+ALTER TABLE compras ADD COLUMN saldo_pendiente NUMERIC(14,2) NOT NULL DEFAULT 0;
+
+CREATE TABLE pago_proveedor_aplicaciones (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id      UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    pago_id         UUID NOT NULL REFERENCES pagos_proveedor(id) ON DELETE CASCADE,
+    compra_id       UUID NOT NULL REFERENCES compras(id),
+    monto_aplicado  NUMERIC(14,2) NOT NULL CHECK (monto_aplicado > 0)
+);
+CREATE INDEX idx_pago_prov_aplic_empresa ON pago_proveedor_aplicaciones (empresa_id);
+CREATE INDEX idx_pago_prov_aplic_pago ON pago_proveedor_aplicaciones (pago_id);
+CREATE INDEX idx_pago_prov_aplic_compra ON pago_proveedor_aplicaciones (compra_id);
+ALTER TABLE pago_proveedor_aplicaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pago_proveedor_aplicaciones FORCE ROW LEVEL SECURITY;
+CREATE POLICY pago_proveedor_aplicaciones_aislamiento ON pago_proveedor_aplicaciones
+    USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);

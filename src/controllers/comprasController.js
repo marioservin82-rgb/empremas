@@ -174,10 +174,10 @@ export async function crearCompra(req, res) {
             const proveedorNombre = proveedorResultado.rows[0].nombre;
 
             const compraInsertada = await cliente.query(
-                `INSERT INTO compras (empresa_id, proveedor_id, usuario_id, sucursal_id, tipo_pago, numero_factura, timbrado, fecha_compra, total)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, CURRENT_DATE), $9)
+                `INSERT INTO compras (empresa_id, proveedor_id, usuario_id, sucursal_id, tipo_pago, numero_factura, timbrado, fecha_compra, total, saldo_pendiente)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, CURRENT_DATE), $9, $10)
                  RETURNING id, creado_en, fecha_compra`,
-                [empresaId, proveedorId, usuarioId, sucursalId, tipoPago, numeroFactura || null, timbrado || null, fechaCompra || null, total]
+                [empresaId, proveedorId, usuarioId, sucursalId, tipoPago, numeroFactura || null, timbrado || null, fechaCompra || null, total, tipoPago === 'credito' ? total : 0]
             );
             const compraId = compraInsertada.rows[0].id;
 
@@ -368,13 +368,18 @@ export async function anularCompra(req, res) {
     try {
         const resultado = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const compraRes = await cliente.query(
-                `SELECT id, tipo_pago, total, proveedor_id, sucursal_id, usuario_id, anulada
+                `SELECT id, tipo_pago, total, saldo_pendiente, proveedor_id, sucursal_id, usuario_id, anulada
                  FROM compras WHERE id = $1 FOR UPDATE`,
                 [id]
             );
             const compra = compraRes.rows[0];
             if (!compra) throw new ErrorNegocio('Compra no encontrada');
             if (compra.anulada) throw new ErrorNegocio('Esta compra ya está anulada');
+            // Igual que anularVenta: con pagos ya aplicados no se puede anular a
+            // ciegas (el saldo del proveedor quedaría desajustado).
+            if (compra.tipo_pago === 'credito' && Number(compra.saldo_pendiente) < Number(compra.total)) {
+                throw new ErrorNegocio('Esta compra ya tiene pagos aplicados: no se puede anular. Si hace falta corregir la deuda, usá "Ajustar saldo" del proveedor.');
+            }
 
             // Sucursal donde entró el stock (las viejas sin sucursal_id: la del
             // usuario que la cargó).
@@ -407,7 +412,7 @@ export async function anularCompra(req, res) {
 
             await cliente.query(
                 `UPDATE compras
-                    SET anulada = true, anulada_en = now(), anulada_por = $2, motivo_anulacion = $3
+                    SET anulada = true, anulada_en = now(), anulada_por = $2, motivo_anulacion = $3, saldo_pendiente = 0
                   WHERE id = $1`,
                 [id, usuarioId, motivo]
             );
@@ -437,7 +442,7 @@ export async function editarCompra(req, res) {
     try {
         const compra = await transaccionDeEmpresa(empresaId, async (cliente) => {
             const actualRes = await cliente.query(
-                `SELECT c.id, c.tipo_pago, c.total, c.proveedor_id, c.anulada, p.nombre AS proveedor_nombre
+                `SELECT c.id, c.tipo_pago, c.total, c.saldo_pendiente, c.proveedor_id, c.anulada, p.nombre AS proveedor_nombre
                  FROM compras c JOIN proveedores p ON p.id = c.proveedor_id
                  WHERE c.id = $1 FOR UPDATE OF c`,
                 [id]
@@ -452,8 +457,13 @@ export async function editarCompra(req, res) {
             }
 
             // Cambio de forma de pago -> ajustar saldo del proveedor y pagos.
+            let nuevoSaldoPendiente = Number(actual.saldo_pendiente);
             if (nuevoTipo !== actual.tipo_pago) {
                 if (nuevoTipo === 'contado') {
+                    if (Number(actual.saldo_pendiente) < Number(actual.total)) {
+                        throw new ErrorNegocio('Esta compra ya tiene pagos aplicados: no se puede pasar a contado. Si hace falta corregir la deuda, usá "Ajustar saldo" del proveedor.');
+                    }
+                    nuevoSaldoPendiente = 0;
                     validarPagos(b.pagos, Number(actual.total));
                     await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
                     for (const p of b.pagos) {
@@ -475,6 +485,7 @@ export async function editarCompra(req, res) {
                     // Era crédito: se le saca del saldo lo que se le había cargado.
                     await cliente.query(`UPDATE proveedores SET saldo = saldo - $2 WHERE id = $1`, [actual.proveedor_id, actual.total]);
                 } else {
+                    nuevoSaldoPendiente = Number(actual.total);
                     // Pasa a crédito: se elimina el detalle de pagos y se cargan al saldo;
                     // se revierten los retiros de caja que hubiera generado.
                     await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
@@ -488,7 +499,8 @@ export async function editarCompra(req, res) {
                     tipo_pago = $2,
                     fecha_compra = COALESCE($3, fecha_compra),
                     numero_factura = CASE WHEN $4::boolean THEN $5 ELSE numero_factura END,
-                    timbrado       = CASE WHEN $6::boolean THEN $7 ELSE timbrado END
+                    timbrado       = CASE WHEN $6::boolean THEN $7 ELSE timbrado END,
+                    saldo_pendiente = $8
                  WHERE id = $1`,
                 [
                     id,
@@ -498,6 +510,7 @@ export async function editarCompra(req, res) {
                     b.numeroFactura || null,
                     b.timbrado !== undefined,
                     b.timbrado || null,
+                    nuevoSaldoPendiente,
                 ]
             );
 
