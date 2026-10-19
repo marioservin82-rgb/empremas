@@ -609,7 +609,9 @@ export default function Vender() {
 
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
-    setNuevoPagoMonto(String(Math.max(restante, 0)));
+    // En credito la entrega inicial arranca vacia: precargar el total dejaba
+    // la venta "a credito" pero pagada completa sin que el cajero lo notara.
+    setNuevoPagoMonto(tipoPago === "credito" ? "" : String(Math.max(restante, 0)));
   }
 
   const excedeNoEfectivo =
@@ -644,6 +646,31 @@ export default function Vender() {
     if (!forzarSinNombre && tipoComprobante === "factura_legal" && !cliente) {
       setAvisoSinNombre(pagosParaEnviar);
       return;
+    }
+    // Venta a credito: confirmar antes de cerrar, sobre todo si lo cargado
+    // como entrega cubre todo el total (queda pagada, no fiada).
+    if (tipoPago === "credito") {
+      const entrega = pagosParaEnviar.reduce((suma, p) => suma + Number(p.monto), 0);
+      const nombre = cliente?.nombre || "el cliente";
+      const mensaje =
+        entrega >= total && total > 0
+          ? `ATENCIÓN: elegiste venta a CRÉDITO pero cargaste pagos por el total (Gs ${formatoGs.format(entrega)}).
+
+La venta quedará PAGADA y ${nombre} NO quedará debiendo nada.
+
+Si querías fiarla, tocá Cancelar y quitá el pago.
+
+¿Confirmás que ya pagó todo?`
+          : entrega > 0
+            ? `Venta a crédito de Gs ${formatoGs.format(total)}.
+Entrega ahora: Gs ${formatoGs.format(entrega)}.
+Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
+
+¿Confirmás?`
+            : `Venta a crédito: se fía TODO, Gs ${formatoGs.format(total)}, a ${nombre}.
+
+¿Confirmás?`;
+      if (!window.confirm(mensaje)) return;
     }
     setError("");
     setEnviando(true);
