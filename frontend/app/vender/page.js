@@ -102,6 +102,12 @@ export default function Vender() {
   // Stop antes de emitir una Factura Legal sin cliente: guarda los pagos
   // pendientes hasta que el cajero decida (agregar cliente o emitir igual).
   const [avisoSinNombre, setAvisoSinNombre] = useState(null);
+  // Sorteo con cupones (modulo por empresa): campana activa, sobrante
+  // acumulado del cliente elegido, y la ventana que pide nombre y celular
+  // cuando la compra suma cupones y el cliente no esta identificado.
+  const [sorteoInfo, setSorteoInfo] = useState({ sorteo: null, pendiente: 0 });
+  const [modalSorteo, setModalSorteo] = useState(null);
+  const [datosSorteo, setDatosSorteo] = useState({ nombre: "", celular: "" });
   // Productos mas comprados historicamente por el cliente elegido - capa
   // aparte de la sugerencia de venta cruzada (esa es sobre el producto,
   // esta es sobre la persona).
@@ -162,6 +168,13 @@ export default function Vender() {
   useEffect(() => {
     setDiasCreditoOverride("");
   }, [cliente?.id]);
+
+  useEffect(() => {
+    if (!localStorage.getItem("empremas_token")) return;
+    apiFetch(`/api/sorteos/actual${cliente?.id ? `?clienteId=${cliente.id}` : ""}`)
+      .then((d) => setSorteoInfo({ sorteo: d.sorteo, pendiente: d.pendiente || 0 }))
+      .catch(() => setSorteoInfo({ sorteo: null, pendiente: 0 }));
+  }, [cliente?.id, recibo]);
 
   useEffect(() => {
     if (!localStorage.getItem("empremas_token")) {
@@ -607,6 +620,12 @@ export default function Vender() {
   const totalPagado = pagos.reduce((acumulado, p) => acumulado + Number(p.monto), 0);
   const restante = total - totalPagado;
 
+  // Cupones del sorteo que sumaria esta compra (solo contado, campana vigente).
+  const sorteoVigente = tipoPago === "contado" && sorteoInfo.sorteo?.vigenteHoy ? sorteoInfo.sorteo : null;
+  const cuponesProyectados = sorteoVigente
+    ? Math.floor(((cliente ? sorteoInfo.pendiente : 0) + total) / sorteoVigente.montoPorCupon)
+    : 0;
+
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
     // En credito la entrega inicial arranca vacia: precargar el total dejaba
@@ -639,12 +658,19 @@ export default function Vender() {
   // efectivo y confirma en el mismo gesto - si confirmarVenta leyera el
   // estado, todavia veria los pagos de antes de ese agregado (setState
   // es asincrono, no se refleja en el mismo tick).
-  async function confirmarVenta(pagosParaEnviar = pagos, forzarSinNombre = false) {
+  async function confirmarVenta(pagosParaEnviar = pagos, forzarSinNombre = false, opcionesSorteo = null) {
     // Stop: una Factura Legal sin cliente sale a "Consumidor Final" y no se
     // le puede hacer Nota de Crédito después. Se frena para que el cajero
     // decida en vez de emitirla sin querer.
     if (!forzarSinNombre && tipoComprobante === "factura_legal" && !cliente) {
       setAvisoSinNombre(pagosParaEnviar);
+      return;
+    }
+    // Sorteo: si esta compra suma cupones y no hay cliente con celular, se
+    // piden nombre y celular (o se marca que no participa) antes de cerrar.
+    if (cuponesProyectados > 0 && !opcionesSorteo && (!cliente || !cliente.celular)) {
+      setDatosSorteo({ nombre: cliente?.nombre || "", celular: "" });
+      setModalSorteo({ pagos: pagosParaEnviar });
       return;
     }
     // Venta a credito: confirmar antes de cerrar, sobre todo si lo cargado
@@ -686,6 +712,8 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           internacionId,
           remisionId,
           clienteId: cliente?.id,
+          clienteSorteo: opcionesSorteo?.clienteSorteo,
+          sinCupones: opcionesSorteo?.sinCupones || undefined,
           vendedorId: cliente?.vendedorAsignado?.id || vendedorId || null,
           pagos: pagosParaEnviar,
           pin: pinDescuento || undefined,
@@ -706,7 +734,9 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
         formato: tipoComprobante,
         cliente: cliente
           ? { nombre: cliente.nombre, documento: cliente.documento, celular: cliente.celular, direccion: cliente.direccion }
-          : { nombre: "Consumidor Final" },
+          : venta.clienteNombre
+            ? { nombre: venta.clienteNombre, celular: venta.clienteCelular }
+            : { nombre: "Consumidor Final" },
         items: carrito.map((i) => ({
           productoId: i.productoId,
           nombre: i.nombre,
@@ -1634,6 +1664,19 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                   <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
                 </div>
 
+                {sorteoVigente && (
+                  <p
+                    className={`mt-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                      cuponesProyectados > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"
+                    }`}
+                  >
+                    🎟 {sorteoVigente.nombre}:{" "}
+                    {cuponesProyectados > 0
+                      ? `esta compra suma ${cuponesProyectados} ${cuponesProyectados === 1 ? "cupón" : "cupones"}`
+                      : `cada Gs ${formatoGs.format(sorteoVigente.montoPorCupon)} de compras al contado = 1 cupón`}
+                  </p>
+                )}
+
                 {carrito.some((i) => i.descuentoMonto > 0) && yo?.rol === "cajero" && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <label className="mb-1 block text-sm font-medium text-slate-500">
@@ -1684,6 +1727,71 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           </div>
         )}
       </div>
+
+      {modalSorteo !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <p className="text-lg font-bold text-navy">
+              🎟 Esta compra suma {cuponesProyectados} {cuponesProyectados === 1 ? "cupón" : "cupones"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Cargá el nombre y el celular del cliente: van impresos en el cupón para llamarlo si gana.
+            </p>
+            <label className="mb-1 mt-4 block text-sm font-medium text-slate-700">Nombre</label>
+            <input
+              value={datosSorteo.nombre}
+              disabled={!!cliente}
+              onChange={(e) => setDatosSorteo({ ...datosSorteo, nombre: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20 disabled:bg-slate-100"
+              placeholder="Nombre y apellido"
+              autoFocus={!cliente}
+            />
+            <label className="mb-1 mt-3 block text-sm font-medium text-slate-700">Celular</label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              value={datosSorteo.celular}
+              onChange={(e) => setDatosSorteo({ ...datosSorteo, celular: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+              placeholder="0981 123 456"
+              autoFocus={!!cliente}
+            />
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                disabled={
+                  !datosSorteo.nombre.trim() || datosSorteo.celular.replace(/\D/g, "").length < 9 || enviando
+                }
+                onClick={() => {
+                  const pagosPend = modalSorteo.pagos;
+                  setModalSorteo(null);
+                  confirmarVenta(pagosPend, true, {
+                    clienteSorteo: { nombre: datosSorteo.nombre.trim(), celular: datosSorteo.celular.trim() },
+                  });
+                }}
+                className="rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Confirmar venta y emitir cupones
+              </button>
+              <button
+                onClick={() => {
+                  const pagosPend = modalSorteo.pagos;
+                  setModalSorteo(null);
+                  confirmarVenta(pagosPend, true, { sinCupones: true });
+                }}
+                className="rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                El cliente no participa
+              </button>
+              <button
+                onClick={() => setModalSorteo(null)}
+                className="py-1 text-sm font-medium text-slate-400 hover:text-slate-600"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {avisoSinNombre !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">

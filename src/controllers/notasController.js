@@ -1,6 +1,7 @@
 import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { redondearGs } from '../utils/redondeo.js';
+import { anularCuponesDeVenta } from '../utils/cuponesSorteo.js';
 import {
     emitirNota as emitirNotaConector,
     resolverReceptor as resolverReceptorConector,
@@ -240,6 +241,8 @@ export async function crearNota(req, res) {
                      WHERE id = $1`,
                     [venta.id, usuarioId]
                 );
+                // Una venta anulada por NC total deja de participar del sorteo.
+                await anularCuponesDeVenta(cliente, venta.id);
             }
             return id;
         });

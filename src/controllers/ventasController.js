@@ -16,6 +16,14 @@ import {
     ErrorConector,
 } from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
+import {
+    sorteoVigente,
+    clienteParaSorteo,
+    calcularCupones,
+    pendienteDeCliente,
+    emitirCuponesDeVenta,
+    anularCuponesDeVenta,
+} from '../utils/cuponesSorteo.js';
 
 // Deriva "EST-PUN-NNNNNNN" del CDC de SIFEN
 // (44 díg.: iTiDE[2] RUC[8] DV[1] est[3] pun[3] num[7] ...).
@@ -216,7 +224,7 @@ export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
-        reparacionId, internacionId, pin, diasCredito,
+        reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -314,7 +322,27 @@ export async function crearVenta(req, res) {
             // porque los beneficios de categoria de fidelizacion, calculados
             // acá mismo, tienen que estar listos antes de calcular el precio
             // de cada item.
-            let clienteIdFinal = clienteId;
+            // Sorteo con cupones (modulo por empresa): solo compras al contado.
+            // El participante se resuelve antes (puede crear/completar un
+            // cliente) para que la venta quede a su nombre.
+            let sorteoActivo = null;
+            let participante = null;
+            if (tipoPago === 'contado' && !sinCupones) {
+                sorteoActivo = await sorteoVigente(cliente, empresaId);
+                if (sorteoActivo) {
+                    if (clienteSorteo && (clienteSorteo.nombre || clienteSorteo.celular)) {
+                        participante = await clienteParaSorteo(cliente, empresaId, clienteId, clienteSorteo);
+                    } else if (clienteId) {
+                        const fila = await cliente.query(
+                            `SELECT id, nombre, celular, es_generico FROM clientes WHERE id = $1`,
+                            [clienteId]
+                        );
+                        if (fila.rows[0] && !fila.rows[0].es_generico) participante = fila.rows[0];
+                    }
+                }
+            }
+
+            let clienteIdFinal = clienteId || participante?.id;
             if (!clienteIdFinal) {
                 const generico = await cliente.query(
                     `SELECT id FROM clientes WHERE empresa_id = $1 AND es_generico = true LIMIT 1`,
@@ -696,6 +724,40 @@ export async function crearVenta(req, res) {
             );
             const ventaId = ventaInsertada.rows[0].id;
 
+            // Cupones del sorteo. Sin participante identificado la venta no
+            // suma; si igual le tocaria algun cupon (total >= monto por cupon)
+            // se frena para pedir nombre y celular en vez de perderlo.
+            let cuponesEmitidos = [];
+            let cuponPendiente = null;
+            if (sorteoActivo) {
+                if (!participante) {
+                    if (calcularCupones(0, total, sorteoActivo.monto_por_cupon).cupones > 0) {
+                        throw new ErrorNegocio(
+                            'Esta compra suma cupones para el sorteo: cargá nombre y celular del cliente (o marcá que no participa)'
+                        );
+                    }
+                } else {
+                    const proyectado = calcularCupones(
+                        await pendienteDeCliente(cliente, sorteoActivo.id, participante.id),
+                        total,
+                        sorteoActivo.monto_por_cupon
+                    );
+                    if (proyectado.cupones > 0 && !participante.celular) {
+                        throw new ErrorNegocio('Para entregar cupones del sorteo cargá el celular del cliente');
+                    }
+                    const emision = await emitirCuponesDeVenta(cliente, {
+                        empresaId,
+                        sorteo: sorteoActivo,
+                        ventaId,
+                        cliente: participante,
+                        total,
+                    });
+                    cuponesEmitidos = emision.cupones;
+                    cuponPendiente = emision.pendiente;
+                    await cliente.query(`UPDATE ventas SET sorteo_id = $2 WHERE id = $1`, [ventaId, sorteoActivo.id]);
+                }
+            }
+
             // Se guardan tambien en credito si hubo entrega inicial (ver
             // arriba) - sin esto, esa plata no aparecia en la reconciliacion
             // de caja (efectivoEsperadoDeTurno suma venta_pagos).
@@ -821,11 +883,19 @@ export async function crearVenta(req, res) {
                 tipoComprobante: comprobante,
                 pagos: pagos || [],
                 clienteId: clienteIdFinal,
+                // Cliente resuelto por el sorteo (para mostrarlo en el ticket).
+                clienteNombre: participante?.nombre || null,
+                clienteCelular: participante?.celular || null,
                 vuelto,
                 vencimiento,
                 saldoPendiente: montoFiado,
                 total,
                 items: itemsCalculados,
+                cupones: cuponesEmitidos,
+                cuponPendiente,
+                sorteo: sorteoActivo
+                    ? { nombre: sorteoActivo.nombre, fechaSorteo: sorteoActivo.fecha_sorteo_texto, premios: sorteoActivo.premios }
+                    : null,
                 ...infoCredito,
             };
         });
@@ -1462,7 +1532,16 @@ export async function obtenerVenta(req, res) {
               }
             : null;
 
-    res.json({ ...f, items: items.rows, pagos: pagos.rows, intentos, desglose_iva: desgloseIva });
+    // Cupones del sorteo (para reimprimir): mismos numeros, no se emiten nuevos.
+    const cupones = await consultaDeEmpresa(
+        empresaId,
+        `SELECT c.numero, c.cliente_nombre, c.cliente_celular, c.anulado, s.nombre AS sorteo_nombre,
+                to_char(s.fecha_sorteo, 'YYYY-MM-DD') AS fecha_sorteo, s.premios
+           FROM sorteo_cupones c JOIN sorteos s ON s.id = c.sorteo_id
+          WHERE c.venta_id = $1 ORDER BY c.numero`,
+        [id]
+    );
+    res.json({ ...f, items: items.rows, pagos: pagos.rows, intentos, desglose_iva: desgloseIva, cupones: cupones.rows });
 }
 
 // Anula una venta: revierte el stock vendido y, si era fiado, el saldo que
@@ -1556,6 +1635,8 @@ export async function anularVenta(req, res) {
                  WHERE id = $1`,
                 [id, autorizadaPor, motivo.trim()]
             );
+            // Si participaba del sorteo, sus cupones dejan de valer.
+            await anularCuponesDeVenta(cliente, id);
 
             return { id, anuladaPor: autorizadaPor };
         });

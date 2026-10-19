@@ -109,7 +109,7 @@ export async function obtenerEmpresa(req, res) {
                 e.monto_plan_mensual, e.contador_id, c.nombre AS contador_nombre,
                 e.produccion_habilitada, e.lomiteria_habilitada, e.comisiones_habilitadas, e.citas_habilitadas,
                 e.reparaciones_habilitadas, e.mascotas_habilitadas, e.recomendacion_margen_habilitada,
-                e.reservas_publicas_habilitadas, e.slug,
+                e.reservas_publicas_habilitadas, e.sorteos_habilitado, e.slug,
                 (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id AND u.activo = true) AS usuarios_activos
          FROM empresas e
          LEFT JOIN contadores_aliados c ON c.id = e.contador_id
@@ -140,7 +140,7 @@ export async function actualizarEmpresa(req, res) {
     const {
         plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual, contadorId,
         produccionHabilitada, lomiteriaHabilitada, citasHabilitada, reparacionesHabilitada, mascotasHabilitada,
-        recomendacionMargenHabilitada, reservasPublicasHabilitada, slug,
+        recomendacionMargenHabilitada, reservasPublicasHabilitada, sorteosHabilitado, slug,
     } = req.body;
 
     if (estado !== undefined && !ESTADOS_VALIDOS.includes(estado)) {
@@ -192,12 +192,13 @@ export async function actualizarEmpresa(req, res) {
             mascotas_habilitadas = COALESCE($14, mascotas_habilitadas),
             recomendacion_margen_habilitada = COALESCE($15, recomendacion_margen_habilitada),
             reservas_publicas_habilitadas = COALESCE($16, reservas_publicas_habilitadas),
-            slug = COALESCE($17, slug)
+            slug = COALESCE($17, slug),
+            sorteos_habilitado = COALESCE($18, sorteos_habilitado)
          WHERE id = $1
          RETURNING id, razon_social, plan, estado, limite_usuarios, limite_sucursales, vence_en,
                    monto_plan_mensual, contador_id, produccion_habilitada, lomiteria_habilitada,
                    comisiones_habilitadas, citas_habilitadas, reparaciones_habilitadas, mascotas_habilitadas,
-                   recomendacion_margen_habilitada, reservas_publicas_habilitadas, slug`,
+                   recomendacion_margen_habilitada, reservas_publicas_habilitadas, slug, sorteos_habilitado`,
             [
                 id, plan, estado, limiteUsuarios, limiteSucursales, venceEn, montoPlanMensual,
                 contadorId !== undefined, contadorId,
@@ -209,6 +210,7 @@ export async function actualizarEmpresa(req, res) {
                 recomendacionMargenHabilitada === undefined ? null : recomendacionMargenHabilitada,
                 reservasPublicasHabilitada === undefined ? null : reservasPublicasHabilitada,
                 slug || null,
+                sorteosHabilitado === undefined ? null : sorteosHabilitado,
             ]
         );
     } catch (err) {

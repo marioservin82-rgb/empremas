@@ -104,6 +104,9 @@ export default function DetalleVenta() {
     // atrás (ver comentario igual en Recibo.js, TicketFacturaLegal).
     creadoEn: venta.de_creado_en || venta.creado_en,
     numeroTicket: venta.numero_ticket,
+    // Cupones del sorteo (reimprimir = mismos numeros, no se emiten nuevos).
+    cupones: venta.cupones,
+    de_numero_formateado: venta.de_numero_formateado,
     total: Number(venta.total),
     vuelto: Number(venta.vuelto || 0),
     tipoPago: venta.tipo_pago,

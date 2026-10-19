@@ -10,6 +10,8 @@ import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 import { logoParaTicket } from "@/lib/logoEmpresa";
 import { montoEnLetras } from "@/lib/numeroALetras";
 import { pdfAImagen } from "@/lib/pdfAImagen";
+import { imprimirCupones } from "@/lib/cuponesSorteo";
+import CuponesSorteo from "./CuponesSorteo";
 import { redondearGs } from "@/lib/redondeo";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -327,6 +329,7 @@ function EstadoFacturaLegal({ ventaId, onNuevaVenta, empresa, cliente, items, au
             autoImprimir={autoImprimir}
           />
         )}
+        <CuponesSorteo empresa={empresa} venta={venta} />
       </div>
     );
   }
@@ -756,14 +759,14 @@ function TicketFacturaLegal({ empresa, venta, cliente, items, autoImprimir }) {
         yaImprimio.current = true;
         imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
           window.print()
-        );
+        ).then(() => imprimirCupones(empresa, venta));
       }, 3000);
       return () => clearTimeout(limite);
     }
     yaImprimio.current = true;
     imprimirTicket(empresa?.impresora_agente_nombre, lineasTicketFacturaLegal(empresa, cliente, venta, items, qr, logoTicket), () =>
       window.print()
-    );
+    ).then(() => imprimirCupones(empresa, venta));
   }, [autoImprimir, qr, logoListo]);
 
   return (
@@ -969,17 +972,19 @@ export default function Recibo({
   // criterio ya usado en TicketFacturaLegal (arriba) para el QR+logo.
   useEffect(() => {
     if (!autoImprimir || yaImprimio.current) return;
-    const imprimir = () => {
+    const imprimir = async () => {
       yaImprimio.current = true;
       if (esA4) {
         window.print();
       } else {
-        imprimirTicket(
+        await imprimirTicket(
           empresa.impresora_agente_nombre,
           lineasTicketComun(empresa, cliente, venta, items, entregaInicial, numeroSoportePlataforma, logoTicket),
           () => window.print()
         );
       }
+      // Cupones del sorteo: salen justo despues del ticket.
+      await imprimirCupones(empresa, venta);
     };
     if (!logoListo) {
       const limite = setTimeout(() => {
@@ -1128,6 +1133,8 @@ export default function Recibo({
         </button>
         {accionesExtra}
       </div>
+
+      <CuponesSorteo empresa={empresa} venta={venta} />
 
       {onNuevaVenta && (
         <button onClick={onNuevaVenta} className="text-sm font-semibold text-navy hover:text-brand">

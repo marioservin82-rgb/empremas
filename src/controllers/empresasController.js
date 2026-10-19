@@ -21,7 +21,7 @@ export async function obtenerEmpresaActual(req, res) {
                 sifen_timbrado_fin, sifen_cert_desde, sifen_cert_vence, sifen_cert_vencimiento,
                 permitir_venta_sin_stock, produccion_habilitada, sugerencias_venta_habilitadas,
                 comisiones_habilitadas, politica_clientes_vendedor_inactivo,
-                lomiteria_habilitada, citas_habilitadas,
+                lomiteria_habilitada, citas_habilitadas, sorteos_habilitado,
                 reparaciones_habilitadas, reparaciones_nota_legal, mascotas_habilitadas,
                 recomendacion_margen_habilitada, meta_ganancia_mensual, acceso_rapido_favorito,
                 limite_sucursales, vence_en, ticket_escala,

@@ -46,6 +46,7 @@ export default function Panel() {
   const [citasHabilitada, setCitasHabilitada] = useState(false);
   const [reparacionesHabilitada, setReparacionesHabilitada] = useState(false);
   const [mascotasHabilitadas, setMascotasHabilitadas] = useState(false);
+  const [sorteosHabilitado, setSorteosHabilitado] = useState(false);
   const [accesoRapidoFavorito, setAccesoRapidoFavorito] = useState("");
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
@@ -70,6 +71,7 @@ export default function Panel() {
         setCitasHabilitada(!!e.citas_habilitadas);
         setReparacionesHabilitada(!!e.reparaciones_habilitadas);
         setMascotasHabilitadas(!!e.mascotas_habilitadas);
+        setSorteosHabilitado(!!e.sorteos_habilitado);
         setAccesoRapidoFavorito(e.acceso_rapido_favorito || "");
       })
       .catch(() => {});
@@ -367,6 +369,9 @@ export default function Panel() {
         }
         if (verticalPrincipal && yoManeja) {
           seccionGeneral.push({ nombre: "Pedido inteligente", icono: "📋", href: "/proveedores" });
+        }
+        if (sorteosHabilitado && yoManeja) {
+          seccionGeneral.push({ nombre: "Sorteo", icono: "🎟", href: "/sorteo" });
         }
 
         const seccionReportes = [];

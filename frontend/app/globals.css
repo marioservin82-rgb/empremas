@@ -58,10 +58,19 @@ h1, h2, h3 {
    herencia del contenedor .recibo-imprimible si no se declara asi. Sin
    @layer a proposito: asi gana por encima de utilidades de Tailwind como
    font-mono sin depender del orden de las clases en cada componente. */
+/* Cupones del sorteo: area oculta en pantalla que solo se imprime cuando
+   imprimirCupones() (lib/cuponesSorteo.js) pone data-imprimiendo="cupones"
+   en el body. Un papelito de 80mm por cupon, uno por pagina. */
+.cupones-imprimibles {
+  display: none;
+}
+
 .recibo-imprimible,
 .recibo-imprimible *,
 .reporte-imprimible,
-.reporte-imprimible * {
+.reporte-imprimible *,
+.cupones-imprimibles,
+.cupones-imprimibles * {
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -70,6 +79,24 @@ h1, h2, h3 {
 @media print {
   body * {
     visibility: hidden;
+  }
+  body[data-imprimiendo="cupones"] .recibo-imprimible,
+  body[data-imprimiendo="cupones"] .reporte-imprimible {
+    display: none !important;
+  }
+  body[data-imprimiendo="cupones"] .cupones-imprimibles {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80mm;
+  }
+  body[data-imprimiendo="cupones"] .cupones-imprimibles * {
+    visibility: visible;
+  }
+  .cupon-papel {
+    break-after: page;
+    page-break-after: always;
   }
   .recibo-imprimible,
   .recibo-imprimible * {

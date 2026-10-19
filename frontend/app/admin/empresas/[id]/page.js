@@ -451,6 +451,12 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.recomendacion_margen_habilitada}
             onCambiar={(v) => guardarModulo("recomendacionMargenHabilitada", v)}
           />
+          <ModuloToggle
+            titulo="Módulo de Sorteo con cupones"
+            descripcion="Promociones de fin de año: un cupón impreso por cada monto de compras al contado (el sobrante se acumula por cliente). El dueño configura monto, fechas y premios; el buzón y el sorteo se hacen en el local."
+            activo={!!empresa.sorteos_habilitado}
+            onCambiar={(v) => guardarModulo("sorteosHabilitado", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">
