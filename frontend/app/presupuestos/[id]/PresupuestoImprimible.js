@@ -41,6 +41,9 @@ function lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma,
     SEPARADOR,
     { texto: `Total: Gs ${formatoGs.format(presupuesto.total)}`, negrita: true },
     SEPARADOR,
+    ...(presupuesto.forma_pago ? [{ texto: `Forma de pago: ${presupuesto.forma_pago}`, negrita: true }] : []),
+    ...(presupuesto.observacion ? [{ texto: `Obs.: ${presupuesto.observacion}` }] : []),
+    ...(presupuesto.forma_pago || presupuesto.observacion ? [SEPARADOR] : []),
     {
       texto: `Presupuesto válido hasta el ${new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}`,
       alineacion: "centro",
@@ -166,6 +169,20 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
         </div>
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
+
+        {presupuesto.forma_pago && (
+          <p className="text-sm">
+            <span className="font-semibold">Forma de pago:</span> {presupuesto.forma_pago}
+          </p>
+        )}
+        {presupuesto.observacion && (
+          <p className="mt-1 whitespace-pre-line text-sm">
+            <span className="font-semibold">Observación:</span> {presupuesto.observacion}
+          </p>
+        )}
+        {(presupuesto.forma_pago || presupuesto.observacion) && (
+          <div className="my-2 border-t-2 border-dashed border-slate-300" />
+        )}
 
         <p className="text-center text-xs text-slate-400">
           Presupuesto válido hasta el {new Date(presupuesto.vencimiento).toLocaleDateString("es-PY")}

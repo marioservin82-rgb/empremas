@@ -4,9 +4,16 @@ import { redondearGs } from '../utils/redondeo.js';
 
 const LISTAS_PRECIO = ['contado', 'credito', 'mayorista'];
 
+// Texto libre opcional: vacio -> null, y con tope de largo para no guardar
+// novelas por error.
+function textoOpcional(valor, maximo) {
+    const t = String(valor ?? '').trim();
+    return t ? t.slice(0, maximo) : null;
+}
+
 export async function crearPresupuesto(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { clienteId, listaPrecio, vencimiento, items } = req.body;
+    const { clienteId, listaPrecio, vencimiento, items, formaPago, observacion } = req.body;
 
     if (!LISTAS_PRECIO.includes(listaPrecio)) {
         return res.status(400).json({ error: 'listaPrecio debe ser contado, credito o mayorista' });
@@ -55,10 +62,13 @@ export async function crearPresupuesto(req, res) {
             const numero = numeroResultado.rows[0].numero;
 
             const presupuestoInsertado = await cliente.query(
-                `INSERT INTO presupuestos (empresa_id, cliente_id, usuario_id, numero, lista_precio, vencimiento, total)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                `INSERT INTO presupuestos (empresa_id, cliente_id, usuario_id, numero, lista_precio, vencimiento, total, forma_pago, observacion)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                  RETURNING id, creado_en`,
-                [empresaId, clienteId || null, usuarioId, numero, listaPrecio, vencimiento, total]
+                [
+                    empresaId, clienteId || null, usuarioId, numero, listaPrecio, vencimiento, total,
+                    textoOpcional(formaPago, 120), textoOpcional(observacion, 1000),
+                ]
             );
             const presupuestoId = presupuestoInsertado.rows[0].id;
 
@@ -101,7 +111,7 @@ export async function crearPresupuesto(req, res) {
 export async function actualizarPresupuesto(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
-    const { clienteId, listaPrecio, vencimiento, items } = req.body;
+    const { clienteId, listaPrecio, vencimiento, items, formaPago, observacion } = req.body;
 
     if (!LISTAS_PRECIO.includes(listaPrecio)) {
         return res.status(400).json({ error: 'listaPrecio debe ser contado, credito o mayorista' });
@@ -143,8 +153,9 @@ export async function actualizarPresupuesto(req, res) {
             }
 
             await cliente.query(
-                `UPDATE presupuestos SET cliente_id = $2, lista_precio = $3, vencimiento = $4, total = $5 WHERE id = $1`,
-                [id, clienteId || null, listaPrecio, vencimiento, total]
+                `UPDATE presupuestos SET cliente_id = $2, lista_precio = $3, vencimiento = $4, total = $5,
+                        forma_pago = $6, observacion = $7 WHERE id = $1`,
+                [id, clienteId || null, listaPrecio, vencimiento, total, textoOpcional(formaPago, 120), textoOpcional(observacion, 1000)]
             );
 
             await cliente.query(`DELETE FROM presupuesto_items WHERE presupuesto_id = $1`, [id]);

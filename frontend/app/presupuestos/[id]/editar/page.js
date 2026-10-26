@@ -30,6 +30,8 @@ export default function EditarPresupuesto() {
   const [numero, setNumero] = useState(null);
   const [listaPrecio, setListaPrecio] = useState("contado");
   const [vencimiento, setVencimiento] = useState("");
+  const [formaPago, setFormaPago] = useState("");
+  const [observacion, setObservacion] = useState("");
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [resultadosCliente, setResultadosCliente] = useState([]);
@@ -52,6 +54,8 @@ export default function EditarPresupuesto() {
         setNumero(p.numero);
         setListaPrecio(p.lista_precio);
         setVencimiento(p.vencimiento.slice(0, 10));
+        setFormaPago(p.forma_pago || "");
+        setObservacion(p.observacion || "");
         setCarrito(
           p.items.map((i) => ({
             productoId: i.producto_id,
@@ -169,6 +173,8 @@ export default function EditarPresupuesto() {
           clienteId: cliente?.id,
           listaPrecio,
           vencimiento,
+          formaPago,
+          observacion,
           items: carrito.map((i) => ({
             productoId: i.productoId,
             cantidad: i.cantidad,
@@ -252,6 +258,36 @@ export default function EditarPresupuesto() {
           <p className="mt-1 text-xs text-slate-400">
             Elegí un plazo rápido o poné una fecha puntual — es la fecha límite que ve el cliente para decidir.
           </p>
+        </div>
+
+        <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+          <label className="mb-1 block text-sm font-medium text-slate-500">Forma de pago (opcional)</label>
+          <input
+            list="formas-pago-presupuesto"
+            value={formaPago}
+            onChange={(e) => setFormaPago(e.target.value)}
+            maxLength={120}
+            placeholder="Ej.: Contado, Crédito 30 días, 50% anticipo"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+          />
+          <datalist id="formas-pago-presupuesto">
+            <option value="Contado" />
+            <option value="Crédito 15 días" />
+            <option value="Crédito 30 días" />
+            <option value="Transferencia bancaria" />
+            <option value="50% anticipo y 50% contra entrega" />
+          </datalist>
+
+          <label className="mb-1 mt-4 block text-sm font-medium text-slate-500">Observación (opcional)</label>
+          <textarea
+            value={observacion}
+            onChange={(e) => setObservacion(e.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Ej.: Incluye flete. Entrega en 5 días hábiles."
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+          />
+          <p className="mt-1 text-xs text-slate-400">Ambos se imprimen en el presupuesto.</p>
         </div>
 
         <div className="mb-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">

@@ -2372,3 +2372,7 @@ CREATE POLICY sorteo_clientes_aislamiento ON sorteo_clientes
 -- Marca las ventas que aportaron al acumulador del sorteo (aunque no hayan
 -- dado ningun cupon todavia), para poder devolver el sobrante al anularlas.
 ALTER TABLE ventas ADD COLUMN sorteo_id UUID REFERENCES sorteos(id);
+
+-- Presupuesto: forma de pago y observacion (se imprimen en el presupuesto).
+ALTER TABLE presupuestos ADD COLUMN forma_pago TEXT;
+ALTER TABLE presupuestos ADD COLUMN observacion TEXT;
