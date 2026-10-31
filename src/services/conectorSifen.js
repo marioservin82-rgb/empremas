@@ -324,6 +324,12 @@ export async function resolverReceptor({ cliente, tenantId }) {
                     razonSocial: r.razonSocial || nombre || 'SIN NOMBRE',
                 });
             }
+            // Si SIFEN no contestó claramente "no existe" (error del servicio, sin
+            // permiso, código desconocido) NO se lo pasa a cédula: eso cambiaba el
+            // receptor de un día para otro y SIFEN rechazaba la remisión (2441) por
+            // no coincidir con su factura. `noExiste` solo viene en conectores nuevos;
+            // si falta, se mantiene el comportamiento de siempre.
+            if (r?.noExiste === false) return conExtras(mapearReceptor(cliente));
             // Consultado y NO existe -> es una cédula con dígito. Se manda sin el DV.
             return conExtras({
                 contribuyente: false,
