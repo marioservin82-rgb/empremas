@@ -12,7 +12,7 @@ export async function listarCuentas(req, res) {
     const soloActivas = req.query.activas === '1';
     const r = await consultaDeEmpresa(
         empresaId,
-        `SELECT id, nombre, banco, tipo, numero_cuenta, titular, es_principal, activa
+        `SELECT id, nombre, banco, tipo, numero_cuenta, alias, titular, es_principal, activa
            FROM cuentas_bancarias ${soloActivas ? 'WHERE activa = true' : ''}
           ORDER BY es_principal DESC, activa DESC, nombre`,
         []
@@ -31,7 +31,7 @@ function limpiar(body, { parcial }) {
         if (!TIPOS.includes(body.tipo)) return { error: 'Tipo de cuenta inválido' };
         out.tipo = body.tipo;
     }
-    for (const [campo, max] of [['banco', 80], ['numeroCuenta', 60], ['titular', 100]]) {
+    for (const [campo, max] of [['banco', 80], ['numeroCuenta', 60], ['alias', 80], ['titular', 100]]) {
         if (body[campo] !== undefined) out[campo] = String(body[campo] ?? '').trim().slice(0, max) || null;
     }
     return { datos: out };
@@ -45,9 +45,9 @@ export async function crearCuenta(req, res) {
     const id = await transaccionDeEmpresa(empresaId, async (cliente) => {
         const hay = await cliente.query(`SELECT 1 FROM cuentas_bancarias WHERE activa = true AND es_principal = true`);
         const r = await cliente.query(
-            `INSERT INTO cuentas_bancarias (empresa_id, nombre, banco, tipo, numero_cuenta, titular, es_principal)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-            [empresaId, datos.nombre, datos.banco ?? null, datos.tipo || 'cuenta_corriente', datos.numeroCuenta ?? null, datos.titular ?? null, hay.rows.length === 0]
+            `INSERT INTO cuentas_bancarias (empresa_id, nombre, banco, tipo, numero_cuenta, alias, titular, es_principal)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [empresaId, datos.nombre, datos.banco ?? null, datos.tipo || 'cuenta_corriente', datos.numeroCuenta ?? null, datos.alias ?? null, datos.titular ?? null, hay.rows.length === 0]
         );
         return r.rows[0].id;
     });
@@ -82,6 +82,7 @@ export async function actualizarCuenta(req, res) {
                     nombre = COALESCE($2, nombre), banco = CASE WHEN $3::boolean THEN $4 ELSE banco END,
                     tipo = COALESCE($5, tipo), numero_cuenta = CASE WHEN $6::boolean THEN $7 ELSE numero_cuenta END,
                     titular = CASE WHEN $8::boolean THEN $9 ELSE titular END,
+                    alias = CASE WHEN $12::boolean THEN $13 ELSE alias END,
                     activa = $10, es_principal = $11
                  WHERE id = $1`,
                 [
@@ -91,6 +92,7 @@ export async function actualizarCuenta(req, res) {
                     'numeroCuenta' in datos, datos.numeroCuenta ?? null,
                     'titular' in datos, datos.titular ?? null,
                     quedaActiva, quedaPrincipal,
+                    'alias' in datos, datos.alias ?? null,
                 ]
             );
 

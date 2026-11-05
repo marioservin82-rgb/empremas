@@ -16,7 +16,7 @@ const TIPOS = [
 ];
 const TEXTO_TIPO = Object.fromEntries(TIPOS.map((t) => [t.valor, t.texto]));
 
-const FORM_VACIO = { nombre: "", banco: "", tipo: "cuenta_corriente", numeroCuenta: "", titular: "" };
+const FORM_VACIO = { nombre: "", banco: "", tipo: "cuenta_corriente", numeroCuenta: "", alias: "", titular: "" };
 
 export default function CuentasPagina() {
   const router = useRouter();
@@ -50,6 +50,17 @@ export default function CuentasPagina() {
 
   const actualizar = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
+  const [copiadoId, setCopiadoId] = useState(null);
+  async function copiarAlias(c) {
+    try {
+      await navigator.clipboard.writeText(c.alias);
+      setCopiadoId(c.id);
+      setTimeout(() => setCopiadoId(null), 1500);
+    } catch {
+      // Sin permiso de portapapeles: el alias queda visible para copiarlo a mano.
+    }
+  }
+
   function abrirNueva() {
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -64,6 +75,7 @@ export default function CuentasPagina() {
       banco: c.banco || "",
       tipo: c.tipo,
       numeroCuenta: c.numero_cuenta || "",
+      alias: c.alias || "",
       titular: c.titular || "",
     });
   }
@@ -117,6 +129,9 @@ export default function CuentasPagina() {
 
       <label className={`${etiqueta} mt-3`}>Banco o billetera (opcional)</label>
       <input value={form.banco} onChange={actualizar("banco")} className={campo} placeholder="Itaú, Ueno, Tigo Money…" maxLength={80} />
+
+      <label className={`${etiqueta} mt-3`}>Alias (opcional)</label>
+      <input value={form.alias} onChange={actualizar("alias")} className={campo} placeholder="Ej.: look.studio" maxLength={80} />
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
@@ -201,6 +216,17 @@ export default function CuentasPagina() {
                     {c.banco ? ` · ${c.banco}` : ""}
                     {c.numero_cuenta ? ` · N° ${c.numero_cuenta}` : ""}
                   </p>
+                  {c.alias && (
+                    <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                      Alias: <span className="font-bold text-navy">{c.alias}</span>
+                      <button
+                        onClick={() => copiarAlias(c)}
+                        className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-200"
+                      >
+                        {copiadoId === c.id ? "¡Copiado!" : "Copiar"}
+                      </button>
+                    </p>
+                  )}
                   {c.titular && <p className="text-sm text-slate-400">Titular: {c.titular}</p>}
                   {esDueno && (
                     <div className="mt-3 flex flex-wrap gap-2 text-sm font-semibold">

@@ -2415,3 +2415,6 @@ ALTER TABLE anticipos        ADD COLUMN cuenta_id UUID REFERENCES cuentas_bancar
 ALTER TABLE anticipos        ADD COLUMN nro_operacion TEXT;
 ALTER TABLE gastos           ADD COLUMN cuenta_id UUID REFERENCES cuentas_bancarias(id);
 ALTER TABLE gastos           ADD COLUMN nro_operacion TEXT;
+
+-- Alias de la cuenta para recibir transferencias.
+ALTER TABLE cuentas_bancarias ADD COLUMN alias TEXT;
