@@ -4,6 +4,7 @@ import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
 import { tienePermiso } from '../utils/permisos.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -554,7 +555,7 @@ export async function listaPedido(req, res) {
 export async function pagarProveedor(req, res) {
     const { empresaId, usuarioId } = req.usuario;
     const { id } = req.params;
-    const { monto, formaPago, fechaPago, numeroRecibo, incluirSaldoSinFactura } = req.body;
+    const { monto, formaPago, fechaPago, numeroRecibo, incluirSaldoSinFactura, cuentaId: cuentaIdBody, nroOperacion: nroOperacionBody } = req.body;
     const compraIds = Array.isArray(req.body.compraIds) ? req.body.compraIds : [];
 
     if (!(Number(monto) > 0)) {
@@ -607,11 +608,13 @@ export async function pagarProveedor(req, res) {
             }
 
             const turnoId = await turnoAbiertoDe(cliente, usuarioId);
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
+            const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, formaPago, cuentaIdBody, nroOperacionBody);
             const pagoInsertado = await cliente.query(
-                `INSERT INTO pagos_proveedor (empresa_id, proveedor_id, usuario_id, turno_id, forma_pago, monto, fecha_pago, numero_recibo)
-                 VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_DATE), $8)
+                `INSERT INTO pagos_proveedor (empresa_id, proveedor_id, usuario_id, turno_id, forma_pago, monto, fecha_pago, numero_recibo, cuenta_id, nro_operacion)
+                 VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_DATE), $8, $9, $10)
                  RETURNING id, creado_en, fecha_pago`,
-                [empresaId, id, usuarioId, turnoId, formaPago, monto, fechaPago || null, numeroRecibo || null]
+                [empresaId, id, usuarioId, turnoId, formaPago, monto, fechaPago || null, numeroRecibo || null, cuentaId, nroOperacion]
             );
             const pagoId = pagoInsertado.rows[0].id;
 

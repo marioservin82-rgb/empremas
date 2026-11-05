@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import SelectorCuenta from "./SelectorCuenta";
+import { useCuentasPago } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -35,6 +37,9 @@ export default function AnticiposDelPedido({ origen, origenId, clienteId }) {
   const [registrando, setRegistrando] = useState(false);
   const [monto, setMonto] = useState("");
   const [formaPago, setFormaPago] = useState("efectivo");
+  const { cuentas, principalId } = useCuentasPago();
+  const [cuentaId, setCuentaId] = useState("");
+  const [nroOperacion, setNroOperacion] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   const [anulandoId, setAnulandoId] = useState(null);
@@ -61,14 +66,26 @@ export default function AnticiposDelPedido({ origen, origenId, clienteId }) {
       return;
     }
     setError("");
+    if (formaPago === "transferencia" && cuentas.length > 0 && !cuentaId) {
+      setError("Elegí a qué cuenta entró la transferencia");
+      return;
+    }
     setEnviando(true);
     try {
       await apiFetch("/api/anticipos", {
         method: "POST",
-        body: JSON.stringify({ clienteId, monto: Number(monto), formaPago, [campo]: origenId }),
+        body: JSON.stringify({
+          clienteId,
+          monto: Number(monto),
+          formaPago,
+          ...(formaPago === "transferencia" ? { cuentaId: cuentaId || undefined, nroOperacion: nroOperacion.trim() || undefined } : {}),
+          [campo]: origenId,
+        }),
       });
       setMonto("");
       setFormaPago("efectivo");
+      setCuentaId("");
+      setNroOperacion("");
       setRegistrando(false);
       cargar();
     } catch (err) {
@@ -208,7 +225,11 @@ export default function AnticiposDelPedido({ origen, origenId, clienteId }) {
               <button
                 key={f.valor}
                 type="button"
-                onClick={() => setFormaPago(f.valor)}
+                onClick={() => {
+                  setFormaPago(f.valor);
+                  setCuentaId(f.valor === "transferencia" ? principalId : "");
+                  setNroOperacion("");
+                }}
                 className={`rounded-lg py-2 text-xs font-semibold transition ${
                   formaPago === f.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
@@ -217,6 +238,18 @@ export default function AnticiposDelPedido({ origen, origenId, clienteId }) {
               </button>
             ))}
           </div>
+          {formaPago === "transferencia" && (
+            <div className="mb-2">
+              <SelectorCuenta
+                cuentas={cuentas}
+                cuentaId={cuentaId}
+                onCuentaId={setCuentaId}
+                nroOperacion={nroOperacion}
+                onNroOperacion={setNroOperacion}
+                etiqueta="¿A qué cuenta entró?"
+              />
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               type="button"

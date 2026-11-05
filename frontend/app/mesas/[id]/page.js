@@ -8,6 +8,8 @@ import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -54,6 +56,9 @@ export default function DetalleMesa() {
   // Cierre de cuenta
   const [mostrarCierre, setMostrarCierre] = useState(false);
   const [formaPagoCierre, setFormaPagoCierre] = useState("efectivo");
+  const { cuentas, principalId } = useCuentasPago();
+  const [cuentaCierre, setCuentaCierre] = useState("");
+  const [nroCierre, setNroCierre] = useState("");
   const [montoCierre, setMontoCierre] = useState("");
   const [cerrando, setCerrando] = useState(false);
   const [cierreOk, setCierreOk] = useState(null);
@@ -223,13 +228,25 @@ export default function DetalleMesa() {
   async function cerrarCuenta(e) {
     e.preventDefault();
     setError("");
+    if (formaPagoCierre === "transferencia" && cuentas.length > 0 && !cuentaCierre) {
+      setError("Elegí a qué cuenta entró la transferencia");
+      return;
+    }
     setCerrando(true);
     try {
       const resultado = await apiFetch(`/api/pedidos/${pedido.id}/cerrar-cuenta`, {
         method: "POST",
         body: JSON.stringify({
           tipoComprobante: "ticket_comun",
-          pagos: [{ formaPago: formaPagoCierre, monto: Number(montoCierre) || total }],
+          pagos: [
+            {
+              formaPago: formaPagoCierre,
+              monto: Number(montoCierre) || total,
+              ...(formaPagoCierre === "transferencia"
+                ? { cuentaId: cuentaCierre || undefined, nroOperacion: nroCierre.trim() || undefined }
+                : {}),
+            },
+          ],
         }),
       });
       setCierreOk(resultado);
@@ -484,7 +501,11 @@ export default function DetalleMesa() {
                     <button
                       key={f.valor}
                       type="button"
-                      onClick={() => setFormaPagoCierre(f.valor)}
+                      onClick={() => {
+                        setFormaPagoCierre(f.valor);
+                        setCuentaCierre(f.valor === "transferencia" ? principalId : "");
+                        setNroCierre("");
+                      }}
                       className={`rounded-xl py-2 text-sm font-semibold transition ${
                         formaPagoCierre === f.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
@@ -493,6 +514,18 @@ export default function DetalleMesa() {
                     </button>
                   ))}
                 </div>
+                {formaPagoCierre === "transferencia" && (
+                  <div className="mb-3">
+                    <SelectorCuenta
+                      cuentas={cuentas}
+                      cuentaId={cuentaCierre}
+                      onCuentaId={setCuentaCierre}
+                      nroOperacion={nroCierre}
+                      onNroOperacion={setNroCierre}
+                      etiqueta="¿A qué cuenta entró?"
+                    />
+                  </div>
+                )}
                 <label className="mb-1 block text-sm font-medium text-slate-700">Monto recibido (Gs)</label>
                 <input
                   type="number"

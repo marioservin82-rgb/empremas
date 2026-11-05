@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useCuentasPago } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 const FORMAS_PAGO = [
@@ -180,6 +181,7 @@ function EditarCompra({ compra, hayTurnoAbierto, onListo, onCancelar, setError }
       : [{ formaPago: "efectivo", monto: String(compra.total), origen: hayTurnoAbierto ? "caja" : "administracion" }],
   );
   const [guardando, setGuardando] = useState(false);
+  const { cuentas, principalId } = useCuentasPago();
   const set = (k) => (e) => setF((v) => ({ ...v, [k]: e.target.value }));
 
   const pasaAContado = f.tipoPago === "contado" && compra.tipo_pago !== "contado";
@@ -200,6 +202,9 @@ function EditarCompra({ compra, hayTurnoAbierto, onListo, onCancelar, setError }
           formaPago: p.formaPago,
           monto: Number(p.monto),
           ...(p.formaPago === "efectivo" ? { origen: p.origen } : {}),
+          ...(p.formaPago === "transferencia"
+            ? { cuentaId: p.cuentaId || (cuentas.length > 0 ? principalId : undefined), nroOperacion: (p.nroOperacion || "").trim() || undefined }
+            : {}),
         }));
       }
       await apiFetch(`/api/compras/${compra.id}`, { method: "PATCH", body: JSON.stringify(cuerpo) });
@@ -250,6 +255,26 @@ function EditarCompra({ compra, hayTurnoAbierto, onListo, onCancelar, setError }
                   <button type="button" onClick={() => setPagos((v) => v.filter((_, j) => j !== i))} className="text-slate-400">✕</button>
                 )}
               </div>
+              {p.formaPago === "transferencia" && cuentas.length > 0 && (
+                <div className="mt-1 flex gap-2">
+                  <select
+                    value={p.cuentaId || principalId}
+                    onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, cuentaId: e.target.value } : x)))}
+                    className="flex-1 rounded-lg border border-slate-300 px-2 py-2 text-xs"
+                  >
+                    {cuentas.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={p.nroOperacion || ""}
+                    onChange={(e) => setPagos((v) => v.map((x, j) => (j === i ? { ...x, nroOperacion: e.target.value } : x)))}
+                    placeholder="N° operación"
+                    maxLength={60}
+                    className="w-32 rounded-lg border border-slate-300 px-2 py-2 text-xs"
+                  />
+                </div>
+              )}
               {p.formaPago === "efectivo" && (
                 <select
                   value={p.origen}

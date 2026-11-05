@@ -8,6 +8,8 @@ import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago, nombreDeCuenta } from "@/lib/cuentasPago";
 import Recibo from "./Recibo";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -135,6 +137,10 @@ export default function Vender() {
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
   const [nuevoPagoMonto, setNuevoPagoMonto] = useState("");
+  // Cuenta (y N° de operacion) cuando la forma elegida es transferencia.
+  const { cuentas, principalId } = useCuentasPago();
+  const [nuevoPagoCuenta, setNuevoPagoCuenta] = useState("");
+  const [nuevoPagoNro, setNuevoPagoNro] = useState("");
 
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -631,16 +637,32 @@ export default function Vender() {
     // En credito la entrega inicial arranca vacia: precargar el total dejaba
     // la venta "a credito" pero pagada completa sin que el cajero lo notara.
     setNuevoPagoMonto(tipoPago === "credito" ? "" : String(Math.max(restante, 0)));
+    setNuevoPagoCuenta(valor === "transferencia" ? principalId : "");
+    setNuevoPagoNro("");
   }
+
+  // Con cuentas cargadas, una transferencia no se puede agregar sin elegir cuenta.
+  const faltaCuenta = nuevoPagoForma === "transferencia" && cuentas.length > 0 && !nuevoPagoCuenta;
 
   const excedeNoEfectivo =
     nuevoPagoForma && nuevoPagoForma !== "efectivo" && Number(nuevoPagoMonto) > restante;
 
   function agregarPago() {
-    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0) || excedeNoEfectivo) return;
-    setPagos((actual) => [...actual, { formaPago: nuevoPagoForma, monto: Number(nuevoPagoMonto) }]);
+    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0) || excedeNoEfectivo || faltaCuenta) return;
+    const esTransferencia = nuevoPagoForma === "transferencia";
+    setPagos((actual) => [
+      ...actual,
+      {
+        formaPago: nuevoPagoForma,
+        monto: Number(nuevoPagoMonto),
+        ...(esTransferencia && nuevoPagoCuenta ? { cuentaId: nuevoPagoCuenta } : {}),
+        ...(esTransferencia && nuevoPagoNro.trim() ? { nroOperacion: nuevoPagoNro.trim() } : {}),
+      },
+    ]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
+    setNuevoPagoCuenta("");
+    setNuevoPagoNro("");
   }
 
   function quitarPago(indice) {
@@ -1510,6 +1532,11 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                           >
                             <span className="flex items-center gap-2 font-semibold text-slate-700">
                               {ETIQUETA_FORMA_PAGO[p.formaPago]}
+                              {p.cuentaId && (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                  {nombreDeCuenta(cuentas, p.cuentaId)}
+                                </span>
+                              )}
                               {p.anticipoId && (
                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
                                   Anticipo
@@ -1574,6 +1601,16 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               placeholder="0"
                             />
+                            {nuevoPagoForma === "transferencia" && (
+                              <SelectorCuenta
+                                cuentas={cuentas}
+                                cuentaId={nuevoPagoCuenta}
+                                onCuentaId={setNuevoPagoCuenta}
+                                nroOperacion={nuevoPagoNro}
+                                onNroOperacion={setNuevoPagoNro}
+                                etiqueta="¿A qué cuenta entró?"
+                              />
+                            )}
                             {excedeNoEfectivo && (
                               <p className="mt-2 text-sm font-semibold text-red-600">
                                 No podés cobrar más del total con {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()} — el excedente solo se puede dar como vuelto en efectivo
@@ -1587,7 +1624,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                               )}
                             <button
                               onClick={agregarPago}
-                              disabled={!(Number(nuevoPagoMonto) > 0) || excedeNoEfectivo}
+                              disabled={!(Number(nuevoPagoMonto) > 0) || excedeNoEfectivo || faltaCuenta}
                               className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
                             >
                               Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}

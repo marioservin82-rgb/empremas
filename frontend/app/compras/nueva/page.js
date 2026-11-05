@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import CampoCantidad from "@/components/CampoCantidad";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago, nombreDeCuenta } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -77,6 +79,9 @@ export default function NuevaCompra() {
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
   const [nuevoPagoMonto, setNuevoPagoMonto] = useState("");
   const [nuevoPagoOrigen, setNuevoPagoOrigen] = useState("administracion");
+  const { cuentas, principalId } = useCuentasPago();
+  const [nuevoPagoCuenta, setNuevoPagoCuenta] = useState("");
+  const [nuevoPagoNro, setNuevoPagoNro] = useState("");
   const [hayTurnoAbierto, setHayTurnoAbierto] = useState(false);
 
   const [error, setError] = useState("");
@@ -354,15 +359,26 @@ export default function NuevaCompra() {
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
     setNuevoPagoMonto(String(Math.max(restante, 0)));
+    setNuevoPagoCuenta(valor === "transferencia" ? principalId : "");
+    setNuevoPagoNro("");
   }
 
+  // Con cuentas cargadas, una transferencia no se puede agregar sin elegir cuenta.
+  const faltaCuenta = nuevoPagoForma === "transferencia" && cuentas.length > 0 && !nuevoPagoCuenta;
+
   function agregarPago() {
-    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0)) return;
+    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0) || faltaCuenta) return;
     const pago = { formaPago: nuevoPagoForma, monto: Number(nuevoPagoMonto) };
     if (nuevoPagoForma === "efectivo") pago.origen = nuevoPagoOrigen;
+    if (nuevoPagoForma === "transferencia") {
+      if (nuevoPagoCuenta) pago.cuentaId = nuevoPagoCuenta;
+      if (nuevoPagoNro.trim()) pago.nroOperacion = nuevoPagoNro.trim();
+    }
     setPagos((actual) => [...actual, pago]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
+    setNuevoPagoCuenta("");
+    setNuevoPagoNro("");
   }
 
   function quitarPago(indice) {
@@ -878,6 +894,11 @@ export default function NuevaCompra() {
                                   · {p.origen === "caja" ? "de la caja" : "de administración"}
                                 </span>
                               )}
+                              {p.cuentaId && (
+                                <span className="ml-1 text-xs font-normal text-slate-400">
+                                  · {nombreDeCuenta(cuentas, p.cuentaId)}
+                                </span>
+                              )}
                             </span>
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-slate-700">Gs {formatoGs.format(p.monto)}</span>
@@ -960,9 +981,19 @@ export default function NuevaCompra() {
                               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                               placeholder="0"
                             />
+                            {nuevoPagoForma === "transferencia" && (
+                              <SelectorCuenta
+                                cuentas={cuentas}
+                                cuentaId={nuevoPagoCuenta}
+                                onCuentaId={setNuevoPagoCuenta}
+                                nroOperacion={nuevoPagoNro}
+                                onNroOperacion={setNuevoPagoNro}
+                                etiqueta="¿De qué cuenta salió el pago?"
+                              />
+                            )}
                             <button
                               onClick={agregarPago}
-                              disabled={!(Number(nuevoPagoMonto) > 0)}
+                              disabled={!(Number(nuevoPagoMonto) > 0) || faltaCuenta}
                               className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
                             >
                               Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}

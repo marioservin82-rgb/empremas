@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -38,6 +40,9 @@ export default function NuevoGasto() {
   const [fechaGasto, setFechaGasto] = useState("");
   const [ordenProduccionId, setOrdenProduccionId] = useState("");
   const [formaPago, setFormaPago] = useState("");
+  const { cuentas, principalId } = useCuentasPago();
+  const [cuentaId, setCuentaId] = useState("");
+  const [nroOperacion, setNroOperacion] = useState("");
   const [origen, setOrigen] = useState("administracion");
   const [hayTurnoAbierto, setHayTurnoAbierto] = useState(false);
   const [gastos, setGastos] = useState([]);
@@ -89,6 +94,10 @@ export default function NuevoGasto() {
       setError("Indicá cómo se pagó este gasto");
       return;
     }
+    if (formaPago === "transferencia" && cuentas.length > 0 && !cuentaId) {
+      setError("Elegí de qué cuenta salió la transferencia");
+      return;
+    }
     setGuardando(true);
     try {
       await apiFetch("/api/gastos", {
@@ -101,6 +110,7 @@ export default function NuevoGasto() {
           ordenProduccionId: ordenProduccionId || undefined,
           formaPago,
           origen: formaPago === "efectivo" ? origen : undefined,
+          ...(formaPago === "transferencia" ? { cuentaId: cuentaId || undefined, nroOperacion: nroOperacion.trim() || undefined } : {}),
         }),
       });
       setCategoria("");
@@ -171,7 +181,11 @@ export default function NuevoGasto() {
               <button
                 key={f.valor}
                 type="button"
-                onClick={() => setFormaPago(f.valor)}
+                onClick={() => {
+                  setFormaPago(f.valor);
+                  setCuentaId(f.valor === "transferencia" ? principalId : "");
+                  setNroOperacion("");
+                }}
                 className={`rounded-xl py-2 text-sm font-semibold transition ${
                   formaPago === f.valor ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
@@ -180,6 +194,19 @@ export default function NuevoGasto() {
               </button>
             ))}
           </div>
+
+          {formaPago === "transferencia" && (
+            <div className="mb-4">
+              <SelectorCuenta
+                cuentas={cuentas}
+                cuentaId={cuentaId}
+                onCuentaId={setCuentaId}
+                nroOperacion={nroOperacion}
+                onNroOperacion={setNroOperacion}
+                etiqueta="¿De qué cuenta salió?"
+              />
+            </div>
+          )}
 
           {formaPago === "efectivo" && (
             <div className="mb-4">

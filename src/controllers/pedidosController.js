@@ -1,5 +1,6 @@
 import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 import { turnoCompartidoDeSucursal } from './turnosController.js';
 import { calcularVuelto } from './ventasController.js';
 import { redondearGs } from '../utils/redondeo.js';
@@ -379,10 +380,12 @@ export async function cerrarCuentaPedido(req, res) {
             );
             const ventaId = ventaInsertada.rows[0].id;
 
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
             for (const p of pagos || []) {
+                const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, p.formaPago, p.cuentaId, p.nroOperacion);
                 await cliente.query(
-                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
-                    [empresaId, ventaId, p.formaPago, p.monto]
+                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto, cuenta_id, nro_operacion) VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [empresaId, ventaId, p.formaPago, p.monto, cuentaId, nroOperacion]
                 );
             }
 

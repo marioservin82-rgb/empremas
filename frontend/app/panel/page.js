@@ -370,6 +370,12 @@ export default function Panel() {
         if (verticalPrincipal && yoManeja) {
           seccionGeneral.push({ nombre: "Pedido inteligente", icono: "📋", href: "/proveedores" });
         }
+        if (yo?.rol === "dueno") {
+          seccionGeneral.push({ nombre: "Cuentas bancarias", icono: "🏦", href: "/cuentas" });
+        }
+        if (yoManeja) {
+          seccionGeneral.push({ nombre: "Movimientos por cuenta", icono: "📒", href: "/cuentas/movimientos" });
+        }
         if (sorteosHabilitado && yoManeja) {
           seccionGeneral.push({ nombre: "Sorteo", icono: "🎟", href: "/sorteo" });
         }

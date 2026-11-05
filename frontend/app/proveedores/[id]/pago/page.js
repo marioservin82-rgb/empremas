@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago } from "@/lib/cuentasPago";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 
@@ -32,6 +34,9 @@ export default function PagoProveedor() {
   const [incluirSaldoSinFactura, setIncluirSaldoSinFactura] = useState(false);
   const [monto, setMonto] = useState("");
   const [formaPago, setFormaPago] = useState("");
+  const { cuentas, principalId } = useCuentasPago();
+  const [cuentaId, setCuentaId] = useState("");
+  const [nroOperacion, setNroOperacion] = useState("");
   const [fechaPago, setFechaPago] = useState(hoy());
   const [numeroRecibo, setNumeroRecibo] = useState("");
   const [error, setError] = useState("");
@@ -113,6 +118,7 @@ export default function PagoProveedor() {
     Number(monto) > 0 &&
     Number(monto) <= Number(proveedor.saldo) &&
     formaPago &&
+    !(formaPago === "transferencia" && cuentas.length > 0 && !cuentaId) &&
     (totalSeleccionable === 0 || hayEleccion);
 
   async function confirmar() {
@@ -124,6 +130,7 @@ export default function PagoProveedor() {
         body: JSON.stringify({
           monto: Number(monto),
           formaPago,
+          ...(formaPago === "transferencia" ? { cuentaId: cuentaId || undefined, nroOperacion: nroOperacion.trim() || undefined } : {}),
           fechaPago,
           numeroRecibo: numeroRecibo || undefined,
           compraIds: compraIdsSeleccionadas,
@@ -132,6 +139,8 @@ export default function PagoProveedor() {
       });
       setExito(`Pago registrado — Gs ${formatoGs.format(pago.monto)}. Saldo restante: Gs ${formatoGs.format(pago.saldoRestante)}`);
       setFormaPago("");
+      setCuentaId("");
+      setNroOperacion("");
       setFechaPago(hoy());
       setNumeroRecibo("");
       await cargarTodo();
@@ -257,7 +266,11 @@ export default function PagoProveedor() {
               {FORMAS_PAGO.map((f) => (
                 <button
                   key={f.valor}
-                  onClick={() => setFormaPago(f.valor)}
+                  onClick={() => {
+                    setFormaPago(f.valor);
+                    setCuentaId(f.valor === "transferencia" ? principalId : "");
+                    setNroOperacion("");
+                  }}
                   className={`rounded-xl py-3 font-semibold transition ${
                     formaPago === f.valor ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
@@ -266,6 +279,19 @@ export default function PagoProveedor() {
                 </button>
               ))}
             </div>
+
+            {formaPago === "transferencia" && (
+              <div className="mb-4">
+                <SelectorCuenta
+                  cuentas={cuentas}
+                  cuentaId={cuentaId}
+                  onCuentaId={setCuentaId}
+                  nroOperacion={nroOperacion}
+                  onNroOperacion={setNroOperacion}
+                  etiqueta="¿De qué cuenta salió el pago?"
+                />
+              </div>
+            )}
 
             <label className="mb-1 block text-sm font-medium text-slate-700">Fecha de pago</label>
             <input

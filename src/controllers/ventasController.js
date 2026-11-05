@@ -16,6 +16,7 @@ import {
     ErrorConector,
 } from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 import {
     sorteoVigente,
     clienteParaSorteo,
@@ -761,6 +762,7 @@ export async function crearVenta(req, res) {
             // Se guardan tambien en credito si hubo entrega inicial (ver
             // arriba) - sin esto, esa plata no aparecia en la reconciliacion
             // de caja (efectivoEsperadoDeTurno suma venta_pagos).
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
             for (const p of pagos || []) {
                 let origenAnticipoId = null;
                 // Una linea de pago puede venir de un anticipo ya cobrado
@@ -781,9 +783,15 @@ export async function crearVenta(req, res) {
                     await cliente.query(`UPDATE anticipos SET estado = 'aplicado' WHERE id = $1`, [p.anticipoId]);
                     origenAnticipoId = p.anticipoId;
                 }
+                // La cuenta de una transferencia se pide al cobrar; un anticipo ya
+                // la registro el dia que se recibio, no se vuelve a pedir.
+                const { cuentaId, nroOperacion } = origenAnticipoId
+                    ? { cuentaId: null, nroOperacion: null }
+                    : cuentaDePago(ctxCuentas, p.formaPago, p.cuentaId, p.nroOperacion);
                 await cliente.query(
-                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto, origen_anticipo_id) VALUES ($1, $2, $3, $4, $5)`,
-                    [empresaId, ventaId, p.formaPago, p.monto, origenAnticipoId]
+                    `INSERT INTO venta_pagos (empresa_id, venta_id, forma_pago, monto, origen_anticipo_id, cuenta_id, nro_operacion)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [empresaId, ventaId, p.formaPago, p.monto, origenAnticipoId, cuentaId, nroOperacion]
                 );
             }
 

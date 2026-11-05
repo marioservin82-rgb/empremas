@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { tienePermiso } from '../utils/permisos.js';
 
@@ -17,7 +18,7 @@ const ORIGENES = [
 // genera (ver ventasController.js: crearVenta).
 export async function crearAnticipo(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { clienteId, monto, formaPago, presupuestoId, internacionId, reparacionId, nota } = req.body;
+    const { clienteId, monto, formaPago, presupuestoId, internacionId, reparacionId, nota, cuentaId: cuentaIdBody, nroOperacion: nroOperacionBody } = req.body;
 
     if (!clienteId) {
         return res.status(400).json({ error: 'Falta el cliente' });
@@ -46,15 +47,17 @@ export async function crearAnticipo(req, res) {
             }
 
             const turnoId = await turnoAbiertoDe(cliente, usuarioId);
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
+            const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, formaPago, cuentaIdBody, nroOperacionBody);
 
             const resultado = await cliente.query(
                 `INSERT INTO anticipos
                     (empresa_id, cliente_id, presupuesto_id, internacion_id, reparacion_id,
-                     monto, forma_pago, turno_id, usuario_id, nota)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                     monto, forma_pago, turno_id, usuario_id, nota, cuenta_id, nro_operacion)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                  RETURNING *`,
                 [empresaId, clienteId, presupuestoId || null, internacionId || null, reparacionId || null,
-                    monto, formaPago, turnoId, usuarioId, nota || null]
+                    monto, formaPago, turnoId, usuarioId, nota || null, cuentaId, nroOperacion]
             );
             return resultado.rows[0];
         });

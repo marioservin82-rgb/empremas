@@ -3,6 +3,7 @@ import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { turnoAbiertoDe } from './turnosController.js';
 import { calcularCodigoVerificacion } from '../utils/verificacionRecibo.js';
 import { tienePermiso } from '../utils/permisos.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -109,10 +110,13 @@ export async function crearCobro(req, res) {
             );
             const cobroId = cobroInsertado.rows[0].id;
 
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
             for (const p of pagos) {
+                const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, p.formaPago, p.cuentaId, p.nroOperacion);
                 await cliente.query(
-                    `INSERT INTO cobro_pagos (empresa_id, cobro_id, forma_pago, monto) VALUES ($1, $2, $3, $4)`,
-                    [empresaId, cobroId, p.formaPago, p.monto]
+                    `INSERT INTO cobro_pagos (empresa_id, cobro_id, forma_pago, monto, cuenta_id, nro_operacion)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [empresaId, cobroId, p.formaPago, p.monto, cuentaId, nroOperacion]
                 );
             }
 

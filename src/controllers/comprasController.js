@@ -1,5 +1,6 @@
 import { transaccionDeEmpresa, consultaDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 
 const FORMAS_PAGO = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
@@ -182,11 +183,14 @@ export async function crearCompra(req, res) {
             const compraId = compraInsertada.rows[0].id;
 
             if (tipoPago === 'contado') {
+                const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
                 for (const p of pagos) {
                     const origen = p.formaPago === 'efectivo' && p.origen === 'caja' ? 'caja' : 'administracion';
+                    const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, p.formaPago, p.cuentaId, p.nroOperacion);
                     await cliente.query(
-                        `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen) VALUES ($1, $2, $3, $4, $5)`,
-                        [empresaId, compraId, p.formaPago, p.monto, origen]
+                        `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen, cuenta_id, nro_operacion)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                        [empresaId, compraId, p.formaPago, p.monto, origen, cuentaId, nroOperacion]
                     );
                     if (origen === 'caja') {
                         await generarRetiroPorPagoDeCompra(cliente, {
@@ -466,11 +470,14 @@ export async function editarCompra(req, res) {
                     nuevoSaldoPendiente = 0;
                     validarPagos(b.pagos, Number(actual.total));
                     await cliente.query(`DELETE FROM compra_pagos WHERE compra_id = $1`, [id]);
+                    const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
                     for (const p of b.pagos) {
                         const origen = p.formaPago === 'efectivo' && p.origen === 'caja' ? 'caja' : 'administracion';
+                        const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, p.formaPago, p.cuentaId, p.nroOperacion);
                         await cliente.query(
-                            `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen) VALUES ($1, $2, $3, $4, $5)`,
-                            [empresaId, id, p.formaPago, p.monto, origen]
+                            `INSERT INTO compra_pagos (empresa_id, compra_id, forma_pago, monto, origen, cuenta_id, nro_operacion)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                            [empresaId, id, p.formaPago, p.monto, origen, cuentaId, nroOperacion]
                         );
                         if (origen === 'caja') {
                             await generarRetiroPorPagoDeCompra(cliente, {

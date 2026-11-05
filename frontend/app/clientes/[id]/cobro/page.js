@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import SelectorCuenta from "@/components/SelectorCuenta";
+import { useCuentasPago, nombreDeCuenta } from "@/lib/cuentasPago";
 import ReciboCobro from "./ReciboCobro";
 import ComprobanteInternoCuenta from "./ComprobanteInternoCuenta";
 
@@ -41,6 +43,9 @@ export default function CobroCliente() {
   const [pagos, setPagos] = useState([]);
   const [nuevoPagoForma, setNuevoPagoForma] = useState("");
   const [nuevoPagoMonto, setNuevoPagoMonto] = useState("");
+  const { cuentas, principalId } = useCuentasPago();
+  const [nuevoPagoCuenta, setNuevoPagoCuenta] = useState("");
+  const [nuevoPagoNro, setNuevoPagoNro] = useState("");
 
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -111,6 +116,8 @@ export default function CobroCliente() {
 
   function elegirFormaNuevoPago(valor) {
     setNuevoPagoForma(valor);
+    setNuevoPagoCuenta(valor === "transferencia" ? principalId : "");
+    setNuevoPagoNro("");
     if (!nuevoPagoMonto) {
       // Si no hay nada para elegir (ni facturas ni saldo sin factura
       // detectado - no deberia pasar si el saldo es > 0, pero por las
@@ -122,11 +129,25 @@ export default function CobroCliente() {
     }
   }
 
+  // Con cuentas cargadas, una transferencia no se puede agregar sin elegir cuenta.
+  const faltaCuenta = nuevoPagoForma === "transferencia" && cuentas.length > 0 && !nuevoPagoCuenta;
+
   function agregarPago() {
-    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0)) return;
-    setPagos((actual) => [...actual, { formaPago: nuevoPagoForma, monto: Number(nuevoPagoMonto) }]);
+    if (!nuevoPagoForma || !(Number(nuevoPagoMonto) > 0) || faltaCuenta) return;
+    const esTransferencia = nuevoPagoForma === "transferencia";
+    setPagos((actual) => [
+      ...actual,
+      {
+        formaPago: nuevoPagoForma,
+        monto: Number(nuevoPagoMonto),
+        ...(esTransferencia && nuevoPagoCuenta ? { cuentaId: nuevoPagoCuenta } : {}),
+        ...(esTransferencia && nuevoPagoNro.trim() ? { nroOperacion: nuevoPagoNro.trim() } : {}),
+      },
+    ]);
     setNuevoPagoForma("");
     setNuevoPagoMonto("");
+    setNuevoPagoCuenta("");
+    setNuevoPagoNro("");
   }
 
   function quitarPago(indice) {
@@ -318,7 +339,14 @@ export default function CobroCliente() {
             <div className="mb-3 flex flex-col gap-2">
               {pagos.map((p, indice) => (
                 <div key={indice} className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-2">
-                  <span className="font-semibold text-slate-700">{ETIQUETA_FORMA_PAGO[p.formaPago]}</span>
+                  <span className="flex items-center gap-2 font-semibold text-slate-700">
+                    {ETIQUETA_FORMA_PAGO[p.formaPago]}
+                    {p.cuentaId && (
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {nombreDeCuenta(cuentas, p.cuentaId)}
+                      </span>
+                    )}
+                  </span>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold text-slate-700">Gs {formatoGs.format(p.monto)}</span>
                     <button onClick={() => quitarPago(indice)} className="text-red-500 hover:text-red-700">
@@ -354,9 +382,19 @@ export default function CobroCliente() {
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 placeholder="0"
               />
+              {nuevoPagoForma === "transferencia" && (
+                <SelectorCuenta
+                  cuentas={cuentas}
+                  cuentaId={nuevoPagoCuenta}
+                  onCuentaId={setNuevoPagoCuenta}
+                  nroOperacion={nuevoPagoNro}
+                  onNroOperacion={setNuevoPagoNro}
+                  etiqueta="¿A qué cuenta entró?"
+                />
+              )}
               <button
                 onClick={agregarPago}
-                disabled={!(Number(nuevoPagoMonto) > 0)}
+                disabled={!(Number(nuevoPagoMonto) > 0) || faltaCuenta}
                 className="mt-3 w-full rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-light disabled:opacity-50"
               >
                 Agregar {ETIQUETA_FORMA_PAGO[nuevoPagoForma].toLowerCase()}

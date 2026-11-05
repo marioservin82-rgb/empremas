@@ -1,6 +1,7 @@
 import pool, { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { rangoDelMes } from '../utils/rangoDelMes.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
 
 const CATEGORIAS_VALIDAS = [
     'servicios_fijos', 'software_suscripciones', 'personal',
@@ -85,7 +86,7 @@ export async function listarGastos(req, res) {
 
 export async function crearGasto(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { categoria, descripcion, monto, fechaGasto, ordenProduccionId, formaPago, origen } = req.body;
+    const { categoria, descripcion, monto, fechaGasto, ordenProduccionId, formaPago, origen, cuentaId: cuentaIdBody, nroOperacion: nroOperacionBody } = req.body;
 
     if (!validarCategoria(categoria)) {
         return res.status(400).json({ error: 'Categoría inválida' });
@@ -103,11 +104,13 @@ export async function crearGasto(req, res) {
 
     try {
         const gasto = await transaccionDeEmpresa(empresaId, async (cliente) => {
+            const ctxCuentas = await contextoCuentas(cliente.query.bind(cliente));
+            const { cuentaId, nroOperacion } = cuentaDePago(ctxCuentas, formaPago, cuentaIdBody, nroOperacionBody);
             const gastoInsertado = await cliente.query(
-                `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id, orden_produccion_id, forma_pago, origen)
-                 VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7, $8, $9)
+                `INSERT INTO gastos (empresa_id, categoria, descripcion, monto, fecha_gasto, usuario_id, orden_produccion_id, forma_pago, origen, cuenta_id, nro_operacion)
+                 VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7, $8, $9, $10, $11)
                  RETURNING *`,
-                [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId, ordenProduccionId || null, formaPago, origenFinal]
+                [empresaId, categoria, descripcion.trim(), monto, fechaGasto || null, usuarioId, ordenProduccionId || null, formaPago, origenFinal, cuentaId, nroOperacion]
             );
             const nuevoGasto = gastoInsertado.rows[0];
 
