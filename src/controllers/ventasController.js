@@ -225,7 +225,7 @@ export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
-        reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones,
+        reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones, ventaOrigenId,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -437,6 +437,27 @@ export async function crearVenta(req, res) {
                 }
             }
 
+            // Reutilizar una venta anulada: los precios de sus items se pueden
+            // mantener. Solo se acepta un precio enviado si coincide con el que
+            // tenia esa venta para ese producto, y solo si la venta esta
+            // anulada y es de esta empresa (RLS) - asi ventaOrigenId no sirve
+            // para fijar un precio inventado.
+            let preciosVentaOrigen = null;
+            if (ventaOrigenId) {
+                const origen = await cliente.query(`SELECT anulada FROM ventas WHERE id = $1`, [ventaOrigenId]);
+                if (origen.rows[0]?.anulada) {
+                    const itemsOrigen = await cliente.query(
+                        `SELECT producto_id, precio_unitario FROM venta_items WHERE venta_id = $1`,
+                        [ventaOrigenId]
+                    );
+                    preciosVentaOrigen = new Map();
+                    for (const r of itemsOrigen.rows) {
+                        if (!preciosVentaOrigen.has(r.producto_id)) preciosVentaOrigen.set(r.producto_id, new Set());
+                        preciosVentaOrigen.get(r.producto_id).add(Number(r.precio_unitario));
+                    }
+                }
+            }
+
             // FOR UPDATE: bloquea la fila de stock (de esta sucursal) hasta
             // que termine la transaccion, asi dos ventas al mismo tiempo no
             // descuentan el mismo stock dos veces sin verlo.
@@ -533,7 +554,10 @@ export async function crearVenta(req, res) {
                 // reservada viene congelado de antes - nunca se recalcula
                 // con el precio de catalogo actual (que puede haber
                 // cambiado desde entonces).
-                const precioYaCongelado = (presupuestoId || citaId) && precioDelPresupuesto != null;
+                const precioDeVentaOrigen =
+                    precioDelPresupuesto != null &&
+                    !!preciosVentaOrigen?.get(productoId)?.has(Number(precioDelPresupuesto));
+                const precioYaCongelado = ((presupuestoId || citaId) && precioDelPresupuesto != null) || precioDeVentaOrigen;
                 const usaMayoristaPorItem =
                     tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !precioYaCongelado;
                 let precioUnitario = precioYaCongelado

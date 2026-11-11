@@ -92,6 +92,8 @@ export default function Vender() {
   const [tipoPago, setTipoPago] = useState("contado");
   const [tipoComprobante, setTipoComprobante] = useState("ticket_comun");
   const [presupuestoId, setPresupuestoId] = useState(null);
+  // Venta anulada de la que se reutilizo la carga (permite mantener sus precios).
+  const [ventaOrigenId, setVentaOrigenId] = useState(null);
   const [citaId, setCitaId] = useState(null);
   const [reparacionId, setReparacionId] = useState(null);
   const [internacionId, setInternacionId] = useState(null);
@@ -261,6 +263,7 @@ export default function Vender() {
         setTipoPago(datos.tipoPago ?? "contado");
         setTipoComprobante(datos.tipoComprobante ?? "ticket_comun");
         setPresupuestoId(datos.presupuestoId ?? null);
+        setVentaOrigenId(datos.ventaOrigenId ?? null);
         setCitaId(datos.citaId ?? null);
         setReparacionId(datos.reparacionId ?? null);
         setInternacionId(datos.internacionId ?? null);
@@ -342,11 +345,11 @@ export default function Vender() {
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
-        tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
+        tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
       })
     );
   }, [
-    restaurado, tipoPago, tipoComprobante, presupuestoId, citaId, reparacionId, internacionId, remisionId, cliente,
+    restaurado, tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, citaId, reparacionId, internacionId, remisionId, cliente,
     carrito, pagos, vendedorId,
   ]);
 
@@ -729,6 +732,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           tipoPago,
           tipoComprobante,
           presupuestoId,
+          ventaOrigenId,
           citaId,
           reparacionId,
           internacionId,
@@ -833,6 +837,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
     setTipoPago("contado");
     setTipoComprobante("ticket_comun");
     setPresupuestoId(null);
+    setVentaOrigenId(null);
     // citaId no se limpiaba acá (quedaba en memoria hasta el proximo reload
     // completo, aunque localStorage ya estuviera limpio) - se corrige de
     // paso, mismo criterio que presupuestoId/remisionId.

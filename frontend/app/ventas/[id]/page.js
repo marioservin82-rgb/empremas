@@ -25,6 +25,11 @@ export default function DetalleVenta() {
   const [pinAnulacion, setPinAnulacion] = useState("");
   const [enviandoAnulacion, setEnviandoAnulacion] = useState(false);
   const [errorAnulacion, setErrorAnulacion] = useState("");
+  // Reutilizar la carga de esta venta en una venta nueva (opcional, nunca automatico).
+  const [reutilizar, setReutilizar] = useState(false);
+  const [tipoReuso, setTipoReuso] = useState("contado");
+  const [preciosReuso, setPreciosReuso] = useState("originales");
+  const [yendoAVender, setYendoAVender] = useState(false);
 
   function cargar() {
     return Promise.all([apiFetch(`/api/ventas/${id}`), apiFetch("/api/empresas/actual")])
@@ -50,6 +55,54 @@ export default function DetalleVenta() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
+  // Arma el carrito de Vender con los productos, el cliente y (opcionalmente)
+  // los precios de esta venta, y abre Vender. Mismo mecanismo que "Convertir a
+  // venta" de un presupuesto (clave empremas_venta_en_curso). No lleva los pagos.
+  async function irAVender() {
+    const clienteReal = venta.cliente_id && !venta.cliente_es_generico;
+    const cliente = clienteReal ? await apiFetch(`/api/clientes/${venta.cliente_id}`) : null;
+    const originales = preciosReuso === "originales";
+    const carrito = venta.items.map((i) => {
+      const precio = Number(i.precio_unitario);
+      return {
+        productoId: i.producto_id,
+        nombre: i.producto_nombre,
+        unidadMedida: i.unidad_medida,
+        cantidad: Number(i.cantidad),
+        // Con precios actuales Vender refresca estos valores contra el catalogo al abrir.
+        precios: { contado: precio, credito: precio, mayorista: precio },
+        esMayorista: !!i.es_mayorista,
+        descuentoMonto: Number(i.descuento_monto || 0),
+        descuentoMotivo: i.descuento_motivo || null,
+        ...(originales ? { precioFijo: precio } : {}),
+      };
+    });
+    localStorage.setItem(
+      "empremas_venta_en_curso",
+      JSON.stringify({
+        tipoPago: tipoReuso,
+        tipoComprobante: venta.tipo_comprobante || "ticket_comun",
+        ventaOrigenId: originales ? venta.id : null,
+        cliente,
+        carrito,
+        pagos: [],
+        vendedorId: venta.vendedor_id || "",
+      })
+    );
+    router.push("/vender");
+  }
+
+  async function reutilizarSinAnular() {
+    setErrorAnulacion("");
+    setYendoAVender(true);
+    try {
+      await irAVender();
+    } catch (err) {
+      setErrorAnulacion(err.message);
+      setYendoAVender(false);
+    }
+  }
+
   async function confirmarAnulacion() {
     if (!motivoAnulacion.trim()) {
       setErrorAnulacion("Indicá el motivo de la anulación");
@@ -58,10 +111,20 @@ export default function DetalleVenta() {
     setErrorAnulacion("");
     setEnviandoAnulacion(true);
     try {
-      await apiFetch(`/api/ventas/${id}/anular`, {
+      const resultado = await apiFetch(`/api/ventas/${id}/anular`, {
         method: "POST",
         body: JSON.stringify({ motivo: motivoAnulacion, pin: pinAnulacion || undefined }),
       });
+      // Solo si la anulacion salio bien se reutiliza la carga (si algo fallo, el
+      // catch de abajo muestra el error y no se toca Vender).
+      if (reutilizar) {
+        const sifen = resultado?.cancelacionSifen;
+        if (sifen?.aplicable && !sifen.ok) {
+          window.alert(`La venta se anuló, pero SIFEN no pudo cancelar la factura: ${sifen.mensaje}\nPodés reintentar la cancelación desde el detalle de esta venta.`);
+        }
+        await irAVender();
+        return;
+      }
       setAnulando(false);
       setMotivoAnulacion("");
       setPinAnulacion("");
@@ -248,6 +311,20 @@ export default function DetalleVenta() {
                   Si sos cajero, pedile el PIN a un dueño o encargado.
                 </p>
 
+                <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input type="checkbox" checked={reutilizar} onChange={(e) => setReutilizar(e.target.checked)} />
+                  Reutilizar los productos en una nueva venta
+                </label>
+                {reutilizar && (
+                  <PanelReuso
+                    clienteReal={!!venta.cliente_id && !venta.cliente_es_generico}
+                    tipo={tipoReuso}
+                    setTipo={setTipoReuso}
+                    precios={preciosReuso}
+                    setPrecios={setPreciosReuso}
+                  />
+                )}
+
                 {errorAnulacion && (
                   <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorAnulacion}</p>
                 )}
@@ -256,6 +333,7 @@ export default function DetalleVenta() {
                   <button
                     onClick={() => {
                       setAnulando(false);
+                      setReutilizar(false);
                       setErrorAnulacion("");
                     }}
                     className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
@@ -267,7 +345,52 @@ export default function DetalleVenta() {
                     disabled={enviandoAnulacion}
                     className="flex-1 rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
                   >
-                    {enviandoAnulacion ? "Anulando..." : "Confirmar anulación"}
+                    {enviandoAnulacion ? "Anulando..." : reutilizar ? "Anular y reutilizar" : "Confirmar anulación"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {venta.anulada && (
+          <div className="mt-2 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            {!reutilizar ? (
+              <button
+                onClick={() => setReutilizar(true)}
+                className="w-full rounded-xl bg-slate-100 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Reutilizar en una nueva venta
+              </button>
+            ) : (
+              <div>
+                <p className="mb-3 font-semibold text-slate-700">Reutilizar esta venta</p>
+                <p className="mb-3 text-xs text-slate-400">
+                  Se abre Vender con el mismo cliente y los mismos productos. Esta venta ya está anulada y no se toca.
+                </p>
+                <PanelReuso
+                  clienteReal={!!venta.cliente_id && !venta.cliente_es_generico}
+                  tipo={tipoReuso}
+                  setTipo={setTipoReuso}
+                  precios={preciosReuso}
+                  setPrecios={setPreciosReuso}
+                />
+                {errorAnulacion && (
+                  <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorAnulacion}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setReutilizar(false)}
+                    className="flex-1 rounded-xl bg-slate-100 py-3 font-semibold text-slate-600 hover:bg-slate-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={reutilizarSinAnular}
+                    disabled={yendoAVender}
+                    className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
+                  >
+                    {yendoAVender ? "Abriendo Vender..." : "Ir a Vender"}
                   </button>
                 </div>
               </div>
@@ -276,6 +399,53 @@ export default function DetalleVenta() {
         )}
       </div>
     </main>
+  );
+}
+
+// Opciones al reutilizar una venta: como se cobra la nueva y con que precios.
+// El tipo se elige aca (y no despues en Vender) porque cambiar el tipo de
+// venta en Vender borra el cliente cargado.
+function PanelReuso({ clienteReal, tipo, setTipo, precios, setPrecios }) {
+  const tipos = [
+    { v: "contado", t: "Contado" },
+    { v: "credito", t: "Crédito" },
+    { v: "mayorista", t: "Mayorista" },
+  ];
+  return (
+    <div className="mb-3 rounded-xl bg-slate-50 p-3">
+      <p className="mb-1 text-sm font-medium text-slate-600">La nueva venta es</p>
+      <div className="mb-1 flex gap-2">
+        {tipos.map((o) => {
+          const bloqueado = o.v === "credito" && !clienteReal;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              disabled={bloqueado}
+              onClick={() => setTipo(o.v)}
+              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
+                tipo === o.v ? "bg-navy text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              } disabled:opacity-40`}
+            >
+              {o.t}
+            </button>
+          );
+        })}
+      </div>
+      {!clienteReal && (
+        <p className="mb-2 text-xs text-slate-400">Para vender a crédito la venta necesita un cliente (no Consumidor Final).</p>
+      )}
+
+      <p className="mb-1 mt-3 text-sm font-medium text-slate-600">Precios</p>
+      <label className="mb-1 flex cursor-pointer items-start gap-2 text-sm text-slate-700">
+        <input type="radio" name="precios-reuso" checked={precios === "originales"} onChange={() => setPrecios("originales")} className="mt-1" />
+        <span>Mantener los precios de la venta original</span>
+      </label>
+      <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700">
+        <input type="radio" name="precios-reuso" checked={precios === "actuales"} onChange={() => setPrecios("actuales")} className="mt-1" />
+        <span>Usar los precios actuales del catálogo (según el tipo de venta elegido)</span>
+      </label>
+    </div>
   );
 }
 
