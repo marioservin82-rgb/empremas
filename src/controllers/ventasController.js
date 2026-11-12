@@ -17,7 +17,7 @@ import {
 } from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
 import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
-import { SQL_HOY_PY } from '../utils/membresias.js';
+import { SQL_HOY_PY, estadoDeMembresia } from '../utils/membresias.js';
 import {
     sorteoVigente,
     clienteParaSorteo,
@@ -398,6 +398,34 @@ export async function crearVenta(req, res) {
                 }
             }
 
+            // Membresia vigente del cliente (modulo Membresias): mientras este activa
+            // o en gracia, sus servicios llevan el descuento del plan. No aplica a la
+            // venta de la propia cuota. Lo calcula el servidor, nunca lo manda el
+            // cliente HTTP, y no pide PIN.
+            let membresiaDescuento = null;
+            if (!membresiaId) {
+                const mq = await cliente.query(
+                    `SELECT mp.nombre, mp.descuento_servicios_pct, mp.dias_gracia, (v.vence - ${SQL_HOY_PY}) AS dias
+                       FROM membresias m
+                       JOIN membresia_planes mp ON mp.id = m.plan_id
+                       JOIN empresas e ON e.id = m.empresa_id AND e.membresias_habilitadas = true
+                       LEFT JOIN LATERAL (
+                           SELECT max(x.periodo_hasta) AS vence FROM membresia_pagos x
+                            WHERE x.membresia_id = m.id AND x.anulado = false
+                       ) v ON true
+                      WHERE m.cliente_id = $1 AND m.cancelada = false`,
+                    [clienteIdFinal]
+                );
+                const f = mq.rows[0];
+                if (f) {
+                    const estado = estadoDeMembresia({ cancelada: false, dias: f.dias, diasGracia: f.dias_gracia });
+                    const pct = Number(f.descuento_servicios_pct);
+                    if ((estado === 'activa' || estado === 'gracia') && pct > 0) {
+                        membresiaDescuento = { nombre: f.nombre, pct };
+                    }
+                }
+            }
+
             // Vendedor por comision (modulo opcional): prioridad al vendedor
             // asignado al cliente (protege su comision aunque el cliente
             // compre sin pasar por el) - un vendedorId mandado por el cajero
@@ -597,17 +625,28 @@ export async function crearVenta(req, res) {
                 // congelado de presupuesto, redondeado a guarani entero
                 // (moneda sin decimales en la practica, igual que el resto
                 // de los precios de la app).
-                if (!precioYaCongelado && beneficios.descuentoPct > 0) {
+                // Descuento de membresia: solo a servicios, y no se suma al de
+                // categoria - se aplica el mayor de los dos (un precio congelado de
+                // cita o presupuesto nunca recibe el de categoria, asi que ahi gana
+                // la membresia). Ver lib/preciosVenta.js, el espejo del frente.
+                const aplicaMembresia =
+                    !!membresiaDescuento &&
+                    !!producto.es_servicio &&
+                    !esItemCuota &&
+                    membresiaDescuento.pct > (!precioYaCongelado ? beneficios.descuentoPct : 0);
+                if (!precioYaCongelado && beneficios.descuentoPct > 0 && !aplicaMembresia) {
                     precioUnitario = Math.round(precioUnitario * (1 - beneficios.descuentoPct / 100));
                 }
                 const subtotalBruto = precioUnitario * cantidad;
+                const descuentoMembresiaMonto = aplicaMembresia ? Math.round((subtotalBruto * membresiaDescuento.pct) / 100) : 0;
                 // Descuento manual (ver arriba, tieneDescuento/descuentoAutorizadoPor)
                 // - a diferencia del descuento automatico de categoria, este
                 // SI puede aplicarse sobre un precio ya congelado de
                 // presupuesto/cita: es una decision puntual del cajero/dueno
                 // en el momento, no un beneficio que corre solo. Nunca puede
                 // superar el valor de la linea (evita un subtotal negativo).
-                const descuentoAplicado = Math.min(Number(descuentoMonto) || 0, subtotalBruto);
+                const descuentoManual = Number(descuentoMonto) || 0;
+                const descuentoAplicado = Math.min(descuentoManual + descuentoMembresiaMonto, subtotalBruto);
                 // Guarani sin centavos: cada linea se redondea a entero (misma
                 // regla que el conector SIFEN, ver utils/redondeo.js) y el total
                 // es la suma de lineas enteras.
@@ -647,7 +686,15 @@ export async function crearVenta(req, res) {
                     esMayorista: usaMayoristaPorItem,
                     comisionMonto,
                     descuentoMonto: descuentoAplicado,
-                    descuentoMotivo: descuentoAplicado > 0 ? String(descuentoMotivo).trim() : null,
+                    descuentoMotivo:
+                        descuentoAplicado > 0
+                            ? [
+                                  descuentoManual > 0 ? String(descuentoMotivo ?? '').trim() : null,
+                                  descuentoMembresiaMonto > 0 ? `Membresía ${membresiaDescuento.nombre} (${membresiaDescuento.pct}%)` : null,
+                              ]
+                                  .filter(Boolean)
+                                  .join(' + ') || null
+                            : null,
                     subtotal,
                     nombre: producto.nombre,
                     tasa_iva: producto.tasa_iva,

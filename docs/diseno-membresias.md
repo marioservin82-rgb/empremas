@@ -1,6 +1,8 @@
 # Diseño: Membresías para salones y barberías
 
-> **Estado: solo diseño, sin implementar.** Se programa cuando Mario lo pida.
+> **Estado:** tanda 1 (control de pagos) y tanda 2 (descuento automático en servicios) implementadas. Falta la tanda 3 (reportes y extras).
+>
+> Reglas aplicadas en la tanda 2: el descuento de membresía y el de categoría de cliente no se suman (se aplica el mayor); un descuento manual se suma al de membresía; el servidor lo calcula sin pedir PIN; la comisión del profesional se calcula sobre el precio sin descuento.
 
 ## Qué problema resuelve
 

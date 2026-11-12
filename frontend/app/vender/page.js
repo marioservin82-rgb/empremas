@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import { redondearGs } from "@/lib/redondeo";
+import { precioDe, subtotalDe, descuentoMembresiaDe } from "@/lib/preciosVenta";
 import CampoCantidad from "@/components/CampoCantidad";
 import SelectorCuenta from "@/components/SelectorCuenta";
 import InsigniaMembresia from "@/components/InsigniaMembresia";
@@ -52,40 +53,6 @@ function colorSaldo(disponible, linea) {
   return "text-emerald-600";
 }
 
-// Un item que llegó de convertir un presupuesto trae su propio precio
-// cotizado (posiblemente editado a mano) — ese precio se respeta en vez de
-// recalcular con el precio de catálogo actual. Fuera de ese caso, un item
-// marcado a mano como mayorista (o el beneficio automático de la categoría
-// de fidelización del cliente elegido) usa ese precio en vez del de la
-// lista general de la venta - pero solo si la venta es al contado (en
-// crédito no aplica). Mismo cálculo que hace el servidor en crearVenta -
-// se repite acá para que el cajero vea el total real ANTES de confirmar
-// (necesita saber cuánto cobrar, no enterarse después del hecho).
-function precioDe(item, tipoPago, beneficios) {
-  if (item.precioFijo != null) return item.precioFijo;
-  const usaMayorista =
-    tipoPago === "contado" && (item.esMayorista || beneficios?.beneficioMayoristaAutomatico);
-  let precio = usaMayorista ? item.precios.mayorista : item.precios[tipoPago];
-  const descuentoPct = beneficios?.beneficioDescuentoAdicionalPct || 0;
-  if (descuentoPct > 0) {
-    precio = Math.round(precio * (1 - descuentoPct / 100));
-  }
-  return precio;
-}
-
-// Subtotal de una línea, restando el descuento manual (ver botón
-// "Descuento" en el carrito) - a diferencia del descuento automático de
-// categoría, este SÍ se le puede aplicar a un item con precioFijo (una
-// cita/presupuesto), es una decisión puntual del cajero/dueño, no un
-// beneficio que corre solo. Nunca queda negativo.
-function subtotalDe(item, tipoPago, beneficios) {
-  // La cantidad se guarda con 3 decimales (igual que el servidor).
-  const bruto = precioDe(item, tipoPago, beneficios) * (Math.round(item.cantidad * 1000) / 1000);
-  // Guaraní sin centavos: cada línea se redondea a entero, igual que el
-  // servidor (ver lib/redondeo.js), para que el total mostrado sea el que se guarda.
-  return redondearGs(Math.max(bruto - (Number(item.descuentoMonto) || 0), 0));
-}
-
 export default function Vender() {
   const router = useRouter();
   const [listo, setListo] = useState(false);
@@ -105,6 +72,11 @@ export default function Vender() {
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [resultadosCliente, setResultadosCliente] = useState([]);
   const [cliente, setCliente] = useState(null);
+  // Beneficios del cliente para el precio: categoria de fidelizacion + descuento en
+  // servicios de su membresia (0 si no tiene, esta vencida o es el cobro de la cuota).
+  const beneficiosCliente = cliente
+    ? { ...(cliente.categoriaCliente || {}), membresiaPct: membresiaId ? 0 : cliente.membresia?.descuentoServiciosPct || 0 }
+    : null;
   const [buscandoClienteOpcional, setBuscandoClienteOpcional] = useState(false);
   // Stop antes de emitir una Factura Legal sin cliente: guarda los pagos
   // pendientes hasta que el cajero decida (agregar cliente o emitir igual).
@@ -243,6 +215,7 @@ export default function Vender() {
                     mayorista: Number(p.precio_mayorista),
                   },
                   esMayorista: false,
+                  esServicio: !!p.es_servicio,
                 };
               })
               .filter(Boolean),
@@ -290,6 +263,30 @@ export default function Vender() {
     setRestaurado(true);
     setListo(true);
   }, [router]);
+
+  // Un carrito que viene de otra pantalla (presupuesto, remision, venta anulada...)
+  // puede no traer la marca de servicio de cada item: si el cliente tiene descuento
+  // de membresia hace falta saberla para calcular el total igual que el servidor.
+  useEffect(() => {
+    const pct = cliente?.membresia?.descuentoServiciosPct || 0;
+    if (!(pct > 0) || membresiaId) return;
+    const faltan = carrito.filter((i) => i.esServicio === undefined);
+    if (faltan.length === 0) return;
+    Promise.all(
+      faltan.map((i) =>
+        apiFetch(`/api/productos/${i.productoId}`)
+          .then((p) => ({ id: i.productoId, esServicio: !!p.es_servicio }))
+          .catch(() => ({ id: i.productoId, esServicio: false }))
+      )
+    ).then((resultados) =>
+      setCarrito((actual) =>
+        actual.map((i) => {
+          const r = resultados.find((x) => x.id === i.productoId);
+          return r && i.esServicio === undefined ? { ...i, esServicio: r.esServicio } : i;
+        })
+      )
+    );
+  }, [carrito, cliente, membresiaId]);
 
   // Modulo de Vendedores por comision: lista de vendedores activos para
   // que el cajero elija a quien atribuir la venta cuando el cliente no
@@ -540,6 +537,7 @@ export default function Vender() {
             mayorista: Number(p.precio_mayorista),
           },
           esMayorista: false,
+          esServicio: !!p.es_servicio,
         },
         ...actual,
       ];
@@ -602,7 +600,7 @@ export default function Vender() {
   }
 
   function marcarComoRegalo(item) {
-    setDescuentoMontoTexto(String(Math.round(precioDe(item, tipoPago, cliente?.categoriaCliente) * item.cantidad)));
+    setDescuentoMontoTexto(String(Math.round(precioDe(item, tipoPago, beneficiosCliente) * item.cantidad)));
     setDescuentoMotivoTexto((actual) => actual || "Regalo");
   }
 
@@ -626,7 +624,7 @@ export default function Vender() {
   }
 
   const total = carrito.reduce(
-    (acumulado, i) => acumulado + subtotalDe(i, tipoPago, cliente?.categoriaCliente),
+    (acumulado, i) => acumulado + subtotalDe(i, tipoPago, beneficiosCliente),
     0
   );
 
@@ -773,11 +771,20 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           productoId: i.productoId,
           nombre: i.nombre,
           cantidad: i.cantidad,
-          precioUnitario: precioDe(i, tipoPago, cliente?.categoriaCliente),
+          precioUnitario: precioDe(i, tipoPago, beneficiosCliente),
           unidadMedida: i.unidadMedida,
           esMayorista: tipoPago === "contado" && !!i.esMayorista,
-          descuentoMonto: i.descuentoMonto || 0,
-          descuentoMotivo: i.descuentoMotivo || null,
+          // El ticket muestra tambien el descuento de membresia (como una linea de descuento).
+          descuentoMonto: (i.descuentoMonto || 0) + descuentoMembresiaDe(i, tipoPago, beneficiosCliente),
+          descuentoMotivo:
+            [
+              i.descuentoMonto > 0 ? i.descuentoMotivo : null,
+              descuentoMembresiaDe(i, tipoPago, beneficiosCliente) > 0
+                ? `Membresía ${cliente.membresia.plan} (${beneficiosCliente.membresiaPct}%)`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" + ") || null,
         })),
       });
     } catch (err) {
@@ -1252,7 +1259,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                       <div className="flex-1">
                         <p className="font-semibold text-slate-800">{i.nombre}</p>
                         <p className="text-sm text-slate-400">
-                          Gs {formatoGs.format(precioDe(i, tipoPago, cliente?.categoriaCliente))} / {i.unidadMedida}
+                          Gs {formatoGs.format(precioDe(i, tipoPago, beneficiosCliente))} / {i.unidadMedida}
                           {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -1280,6 +1287,11 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                         {i.descuentoMonto > 0 && i.descuentoMotivo && (
                           <p className="mt-0.5 text-xs text-slate-400">Motivo: {i.descuentoMotivo}</p>
                         )}
+                        {descuentoMembresiaDe(i, tipoPago, beneficiosCliente) > 0 && (
+                          <p className="mt-0.5 text-xs font-semibold text-emerald-600">
+                            ⭐ Membresía {cliente.membresia.plan}: −Gs {formatoGs.format(descuentoMembresiaDe(i, tipoPago, beneficiosCliente))}
+                          </p>
+                        )}
                       </div>
                       <CampoCantidad
                         value={i.cantidad}
@@ -1287,7 +1299,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                         className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-lg"
                       />
                       <p className="w-28 text-right font-bold text-slate-800">
-                        Gs {formatoGs.format(subtotalDe(i, tipoPago, cliente?.categoriaCliente))}
+                        Gs {formatoGs.format(subtotalDe(i, tipoPago, beneficiosCliente))}
                       </p>
                       <button
                         onClick={() => quitarDelCarrito(i.productoId)}

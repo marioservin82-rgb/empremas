@@ -116,6 +116,7 @@ export default function Citas() {
         unidadMedida: c.unidad_medida || "unidad",
         cantidad: 1,
         precioFijo: Number(c.precio_unitario),
+        esServicio: true,
         precios: {
           contado: Number(c.precio_unitario),
           credito: Number(c.precio_unitario),
