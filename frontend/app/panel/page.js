@@ -47,6 +47,7 @@ export default function Panel() {
   const [reparacionesHabilitada, setReparacionesHabilitada] = useState(false);
   const [mascotasHabilitadas, setMascotasHabilitadas] = useState(false);
   const [sorteosHabilitado, setSorteosHabilitado] = useState(false);
+  const [membresiasHabilitadas, setMembresiasHabilitadas] = useState(false);
   const [accesoRapidoFavorito, setAccesoRapidoFavorito] = useState("");
   const [sucursales, setSucursales] = useState([]);
   const [sucursalActivaId, setSucursalActivaId] = useState("");
@@ -72,6 +73,7 @@ export default function Panel() {
         setReparacionesHabilitada(!!e.reparaciones_habilitadas);
         setMascotasHabilitadas(!!e.mascotas_habilitadas);
         setSorteosHabilitado(!!e.sorteos_habilitado);
+        setMembresiasHabilitadas(!!e.membresias_habilitadas);
         setAccesoRapidoFavorito(e.acceso_rapido_favorito || "");
       })
       .catch(() => {});
@@ -375,6 +377,9 @@ export default function Panel() {
         }
         if (yoManeja) {
           seccionGeneral.push({ nombre: "Movimientos por cuenta", icono: "📒", href: "/cuentas/movimientos" });
+        }
+        if (membresiasHabilitadas && yoManeja) {
+          seccionGeneral.push({ nombre: "Membresías", icono: "⭐", href: "/membresias" });
         }
         if (sorteosHabilitado && yoManeja) {
           seccionGeneral.push({ nombre: "Sorteo", icono: "🎟", href: "/sorteo" });

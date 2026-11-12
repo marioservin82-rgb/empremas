@@ -46,7 +46,9 @@ export async function listarServiciosPublico(req, res) {
     const servicios = await consultaDeEmpresa(
         empresa.id,
         `SELECT id, nombre, precio_contado, duracion_minutos
-         FROM productos WHERE es_servicio = true AND activo = true ORDER BY nombre`,
+         FROM productos WHERE es_servicio = true AND activo = true
+           AND NOT EXISTS (SELECT 1 FROM membresia_planes mp WHERE mp.producto_id = productos.id)
+         ORDER BY nombre`,
         []
     );
     const fotos = await consultaDeEmpresa(

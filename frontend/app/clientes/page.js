@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import InsigniaMembresia from "@/components/InsigniaMembresia";
 import { useDebounced } from "@/lib/useDebounced";
 import { linkWhatsapp } from "@/lib/whatsapp";
 import { construirMensajeRecordatorio, ETIQUETA_CATEGORIA_RECORDATORIO } from "@/lib/recordatorios";
@@ -173,6 +174,7 @@ export default function Clientes() {
                             {c.categoriaCliente.nombre}
                           </span>
                         )}
+                        <InsigniaMembresia membresia={c.membresia} />
                       </p>
                       <p className="text-sm text-slate-400">
                         {[c.documento || "sin documento", c.telefono, c.celular].filter(Boolean).join(" · ")}

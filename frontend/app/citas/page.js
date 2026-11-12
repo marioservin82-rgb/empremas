@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import InsigniaMembresia from "@/components/InsigniaMembresia";
 import { linkWhatsapp } from "@/lib/whatsapp";
 
 const CLAVE_VENTA_EN_CURSO = "empremas_venta_en_curso";
@@ -251,6 +252,11 @@ export default function Citas() {
                     </p>
                     <p className="text-sm text-slate-400">
                       {c.cliente_nombre} · {c.profesional_nombre} · {c.duracion_minutos} min
+                      {c.membresia && (
+                        <span className="ml-2">
+                          <InsigniaMembresia membresia={c.membresia} />
+                        </span>
+                      )}
                       {!c.usuario_id && (
                         <span className="ml-2 rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">
                           🌐 Reservada online

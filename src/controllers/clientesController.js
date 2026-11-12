@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
+import { joinMembresiaVigente, COLUMNAS_MEMBRESIA, separarMembresia } from '../utils/membresias.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
 import { numeroLocal } from '../utils/numeroLocal.js';
 import { fechaLocal } from '../utils/fechaLocal.js';
@@ -30,11 +31,14 @@ export async function categoriaYVolumenDeCliente(ejecutarConsulta, empresaId, cl
     return { volumenMes, categoria };
 }
 
-function conSaldoDisponibleYCategoria(cliente, categoria) {
+function conSaldoDisponibleYCategoria(clienteConMembresia, categoria) {
+    const { resto: cliente, membresia } = separarMembresia(clienteConMembresia);
     const lineaCreditoEfectiva = Number(cliente.linea_credito) + Number(categoria?.beneficio_linea_credito_extra || 0);
     const { vendedor_nombre_join, ...resto } = cliente;
     return {
         ...resto,
+        // Membresia vigente (modulo Membresias): insignia + descuento en servicios.
+        membresia,
         // Se manda tambien el beneficio de mayorista/descuento (no solo el
         // nombre) para que Vender pueda mostrar el precio ya con el
         // beneficio aplicado ANTES de confirmar la venta - el cajero
@@ -78,12 +82,12 @@ export async function listarClientes(req, res) {
     // vez, aparte, y la clasificacion de cada fila se resuelve en JS.
     const columnasVentaUrgente = `v.numero_ticket AS recordatorio_numero,
               v.saldo_pendiente AS recordatorio_monto, v.vencimiento AS recordatorio_vencimiento,
-              vend.nombre AS vendedor_nombre_join,
+              vend.nombre AS vendedor_nombre_join, ${COLUMNAS_MEMBRESIA},
               COALESCE((
                   SELECT SUM(total) FROM ventas
                   WHERE cliente_id = c.id AND anulada = false AND creado_en >= date_trunc('month', now())
               ), 0) AS volumen_mes`;
-    const vendedorJoin = `LEFT JOIN vendedores vend ON vend.id = c.vendedor_id`;
+    const vendedorJoin = `LEFT JOIN vendedores vend ON vend.id = c.vendedor_id ${joinMembresiaVigente('c.id')}`;
 
     const [resultado, categorias] = await Promise.all([
         q
@@ -128,8 +132,9 @@ export async function obtenerCliente(req, res) {
 
     const resultado = await consultaDeEmpresa(
         empresaId,
-        `SELECT c.*, vend.nombre AS vendedor_nombre_join FROM clientes c
+        `SELECT c.*, vend.nombre AS vendedor_nombre_join, ${COLUMNAS_MEMBRESIA} FROM clientes c
          LEFT JOIN vendedores vend ON vend.id = c.vendedor_id
+         ${joinMembresiaVigente('c.id')}
          WHERE c.id = $1`,
         [id]
     );

@@ -33,6 +33,8 @@ export async function listarProductos(req, res) {
     // Solo la pantalla de Stock lo manda, con el toggle "Ver desactivados",
     // para poder encontrar de nuevo un producto dado de baja y reactivarlo.
     const condicionActivo = incluirInactivos === 'true' ? '' : 'AND p.activo = true';
+    // El servicio de cobro de una membresia se maneja desde Membresias, no se vende suelto.
+    const condicionSinCuotas = 'AND NOT EXISTS (SELECT 1 FROM membresia_planes mp WHERE mp.producto_id = p.id)';
 
     // LEFT JOIN: un producto sin fila todavia en producto_stock para esta
     // sucursal (ej. recien creado en otra sucursal) muestra 0, no se cae.
@@ -42,7 +44,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $3
-               WHERE (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios}
+               WHERE (p.codigo_barras = $1 OR unaccent(lower(p.nombre)) LIKE unaccent(lower($2))) ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios} ${condicionSinCuotas}
                ORDER BY p.nombre LIMIT 50`,
               [q, `%${q}%`, sucursalId]
           )
@@ -59,7 +61,7 @@ export async function listarProductos(req, res) {
               `SELECT p.*, COALESCE(ps.stock, 0) AS stock
                FROM productos p
                LEFT JOIN producto_stock ps ON ps.producto_id = p.id AND ps.sucursal_id = $1
-               WHERE true ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
+               WHERE true ${condicionActivo} ${condicionInsumo} ${condicionCompuesto} ${condicionServicio} ${condicionSoloServicios} ${condicionSinCuotas} ORDER BY p.nombre LIMIT $2 OFFSET $3`,
               [sucursalId, limit ? Number(limit) : 5000, offset ? Number(offset) : 0]
           );
 

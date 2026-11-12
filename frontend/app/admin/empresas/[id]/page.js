@@ -457,6 +457,12 @@ export default function AdminEmpresaDetalle() {
             activo={!!empresa.sorteos_habilitado}
             onCambiar={(v) => guardarModulo("sorteosHabilitado", v)}
           />
+          <ModuloToggle
+            titulo="Módulo de Membresías"
+            descripcion="Salones y barberías: el cliente paga una cuota mensual y, mientras esté al día, tiene descuento en servicios y una insignia de miembro. Controla vencimientos, días de gracia y recordatorios por WhatsApp."
+            activo={!!empresa.membresias_habilitadas}
+            onCambiar={(v) => guardarModulo("membresiasHabilitadas", v)}
+          />
         </div>
 
         <div className="mb-6 rounded-2xl bg-white p-6 shadow shadow-slate-200">

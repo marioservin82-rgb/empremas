@@ -9,6 +9,7 @@ import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import { redondearGs } from "@/lib/redondeo";
 import CampoCantidad from "@/components/CampoCantidad";
 import SelectorCuenta from "@/components/SelectorCuenta";
+import InsigniaMembresia from "@/components/InsigniaMembresia";
 import { useCuentasPago, nombreDeCuenta } from "@/lib/cuentasPago";
 import Recibo from "./Recibo";
 
@@ -94,6 +95,8 @@ export default function Vender() {
   const [presupuestoId, setPresupuestoId] = useState(null);
   // Venta anulada de la que se reutilizo la carga (permite mantener sus precios).
   const [ventaOrigenId, setVentaOrigenId] = useState(null);
+  // Cobro de la cuota de una membresia (modulo Membresias).
+  const [membresiaId, setMembresiaId] = useState(null);
   const [citaId, setCitaId] = useState(null);
   const [reparacionId, setReparacionId] = useState(null);
   const [internacionId, setInternacionId] = useState(null);
@@ -264,6 +267,7 @@ export default function Vender() {
         setTipoComprobante(datos.tipoComprobante ?? "ticket_comun");
         setPresupuestoId(datos.presupuestoId ?? null);
         setVentaOrigenId(datos.ventaOrigenId ?? null);
+        setMembresiaId(datos.membresiaId ?? null);
         setCitaId(datos.citaId ?? null);
         setReparacionId(datos.reparacionId ?? null);
         setInternacionId(datos.internacionId ?? null);
@@ -345,11 +349,11 @@ export default function Vender() {
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
-        tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
+        tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
       })
     );
   }, [
-    restaurado, tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, citaId, reparacionId, internacionId, remisionId, cliente,
+    restaurado, tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, cliente,
     carrito, pagos, vendedorId,
   ]);
 
@@ -630,7 +634,8 @@ export default function Vender() {
   const restante = total - totalPagado;
 
   // Cupones del sorteo que sumaria esta compra (solo contado, campana vigente).
-  const sorteoVigente = tipoPago === "contado" && sorteoInfo.sorteo?.vigenteHoy ? sorteoInfo.sorteo : null;
+  // La cuota de una membresia no suma cupones del sorteo.
+  const sorteoVigente = tipoPago === "contado" && !membresiaId && sorteoInfo.sorteo?.vigenteHoy ? sorteoInfo.sorteo : null;
   const cuponesProyectados = sorteoVigente
     ? Math.floor(((cliente ? sorteoInfo.pendiente : 0) + total) / sorteoVigente.montoPorCupon)
     : 0;
@@ -733,6 +738,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           tipoComprobante,
           presupuestoId,
           ventaOrigenId,
+          membresiaId,
           citaId,
           reparacionId,
           internacionId,
@@ -838,6 +844,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
     setTipoComprobante("ticket_comun");
     setPresupuestoId(null);
     setVentaOrigenId(null);
+    setMembresiaId(null);
     // citaId no se limpiaba acá (quedaba en memoria hasta el proximo reload
     // completo, aunque localStorage ya estuviera limpio) - se corrige de
     // paso, mismo criterio que presupuestoId/remisionId.
@@ -933,6 +940,13 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           <div className="mb-4 rounded-2xl border border-navy/30 bg-navy/5 px-5 py-3 text-sm font-semibold text-navy">
             Estás facturando una Nota de Remisión — la mercadería ya salió, esto no vuelve a
             descontar stock.
+          </div>
+        )}
+
+        {membresiaId && (
+          <div className="mb-4 rounded-2xl border border-brand/30 bg-brand/5 px-5 py-3 text-sm font-semibold text-navy">
+            Cobrando la cuota de la membresía de {cliente?.nombre || "el cliente"} — pagala al contado o por
+            transferencia; al confirmar se renueva el vencimiento.
           </div>
         )}
 
@@ -1100,6 +1114,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                       {cliente.categoriaCliente.nombre}
                     </span>
                   )}
+                  <InsigniaMembresia membresia={cliente.membresia} />
                 </p>
                 {empresaInfo?.comisiones_habilitadas &&
                   (cliente.vendedorAsignado ? (
@@ -1355,6 +1370,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                                   {cliente.categoriaCliente.nombre}
                                 </span>
                               )}
+                              <InsigniaMembresia membresia={cliente.membresia} />
                             </p>
                             {empresaInfo?.comisiones_habilitadas &&
                               (cliente.vendedorAsignado ? (

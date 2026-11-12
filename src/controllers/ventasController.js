@@ -17,6 +17,7 @@ import {
 } from '../services/conectorSifen.js';
 import { categoriaYVolumenDeCliente } from './clientesController.js';
 import { contextoCuentas, cuentaDePago } from '../utils/cuentasPago.js';
+import { SQL_HOY_PY } from '../utils/membresias.js';
 import {
     sorteoVigente,
     clienteParaSorteo,
@@ -225,7 +226,7 @@ export async function crearVenta(req, res) {
     const { empresaId, usuarioId, sucursalId, rol } = req.usuario;
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
-        reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones, ventaOrigenId,
+        reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones, ventaOrigenId, membresiaId,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -323,12 +324,36 @@ export async function crearVenta(req, res) {
             // porque los beneficios de categoria de fidelizacion, calculados
             // acá mismo, tienen que estar listos antes de calcular el precio
             // de cada item.
+            // Cobro de la cuota de una membresia: solo al contado/transferencia, al
+            // cliente de la membresia y como unico item (la cuota del plan). El
+            // periodo se registra mas abajo, en esta misma transaccion.
+            let membresiaCuota = null;
+            if (membresiaId) {
+                if (tipoPago !== 'contado') {
+                    throw new ErrorNegocio('La cuota de la membresía se cobra al contado o por transferencia');
+                }
+                const m = await cliente.query(
+                    `SELECT m.id, m.cliente_id, m.cancelada, mp.producto_id, mp.precio_mensual
+                       FROM membresias m JOIN membresia_planes mp ON mp.id = m.plan_id
+                      WHERE m.id = $1 FOR UPDATE OF m`,
+                    [membresiaId]
+                );
+                const f = m.rows[0];
+                if (!f) throw new ErrorNegocio('La membresía no existe');
+                if (f.cancelada) throw new ErrorNegocio('Esa membresía está cancelada');
+                if (clienteId !== f.cliente_id) throw new ErrorNegocio('La cuota tiene que cobrarse al cliente de la membresía');
+                if (items.length !== 1 || items[0].productoId !== f.producto_id || Number(items[0].cantidad) !== 1) {
+                    throw new ErrorNegocio('La cuota de la membresía se cobra sola: un único ítem, la cuota del plan');
+                }
+                membresiaCuota = f;
+            }
+
             // Sorteo con cupones (modulo por empresa): solo compras al contado.
             // El participante se resuelve antes (puede crear/completar un
             // cliente) para que la venta quede a su nombre.
             let sorteoActivo = null;
             let participante = null;
-            if (tipoPago === 'contado' && !sinCupones) {
+            if (tipoPago === 'contado' && !sinCupones && !membresiaId) {
                 sorteoActivo = await sorteoVigente(cliente, empresaId);
                 if (sorteoActivo) {
                     if (clienteSorteo && (clienteSorteo.nombre || clienteSorteo.celular)) {
@@ -557,11 +582,14 @@ export async function crearVenta(req, res) {
                 const precioDeVentaOrigen =
                     precioDelPresupuesto != null &&
                     !!preciosVentaOrigen?.get(productoId)?.has(Number(precioDelPresupuesto));
-                const precioYaCongelado = ((presupuestoId || citaId) && precioDelPresupuesto != null) || precioDeVentaOrigen;
+                // El item de la cuota de una membresia siempre va al precio del plan
+                // (sin mayorista ni descuento de categoria).
+                const esItemCuota = !!membresiaCuota && productoId === membresiaCuota.producto_id;
+                const precioYaCongelado = ((presupuestoId || citaId) && precioDelPresupuesto != null) || precioDeVentaOrigen || esItemCuota;
                 const usaMayoristaPorItem =
                     tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !precioYaCongelado;
                 let precioUnitario = precioYaCongelado
-                    ? Number(precioDelPresupuesto)
+                    ? Number(esItemCuota ? membresiaCuota.precio_mensual : precioDelPresupuesto)
                     : usaMayoristaPorItem
                     ? Number(producto.precio_mayorista)
                     : Number(producto.precio);
@@ -748,6 +776,21 @@ export async function crearVenta(req, res) {
                 ]
             );
             const ventaId = ventaInsertada.rows[0].id;
+
+            // Cuota de membresia: el periodo arranca cuando termina el actual (si
+            // sigue vigente) o hoy (si ya vencio / primer pago) y dura 30 dias.
+            if (membresiaCuota) {
+                await cliente.query(
+                    `INSERT INTO membresia_pagos (empresa_id, membresia_id, venta_id, periodo_desde, periodo_hasta, monto)
+                     SELECT $1, $2, $3, d.desde, d.desde + 30, $4
+                       FROM (
+                           SELECT CASE WHEN v.vence IS NOT NULL AND v.vence >= ${SQL_HOY_PY} THEN v.vence ELSE ${SQL_HOY_PY} END AS desde
+                             FROM (SELECT max(periodo_hasta) AS vence FROM membresia_pagos
+                                    WHERE membresia_id = $2 AND anulado = false) v
+                       ) d`,
+                    [empresaId, membresiaCuota.id, ventaId, total]
+                );
+            }
 
             // Cupones del sorteo. Sin participante identificado la venta no
             // suma; si igual le tocaria algun cupon (total >= monto por cupon)
@@ -1669,6 +1712,8 @@ export async function anularVenta(req, res) {
             );
             // Si participaba del sorteo, sus cupones dejan de valer.
             await anularCuponesDeVenta(cliente, id);
+            // Si era la cuota de una membresia, ese periodo deja de valer.
+            await cliente.query(`UPDATE membresia_pagos SET anulado = true WHERE venta_id = $1`, [id]);
 
             return { id, anuladaPor: autorizadaPor };
         });

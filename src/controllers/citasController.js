@@ -1,5 +1,6 @@
 import { consultaDeEmpresa, transaccionDeEmpresa } from '../config/db.js';
 import { ErrorNegocio } from '../utils/errorNegocio.js';
+import { joinMembresiaVigente, COLUMNAS_MEMBRESIA, separarMembresia } from '../utils/membresias.js';
 import { tienePermiso } from '../utils/permisos.js';
 
 // Agenda del dia (Agenda de citas, modulo opcional). Cajero ve la agenda de
@@ -34,9 +35,10 @@ export async function listarCitas(req, res) {
         empresaId,
         `SELECT c.*, cl.nombre AS cliente_nombre, cl.celular AS cliente_celular,
                 p.nombre AS producto_nombre, pr.nombre AS profesional_nombre,
-                m.nombre AS mascota_nombre
+                m.nombre AS mascota_nombre, ${COLUMNAS_MEMBRESIA}
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
+         ${joinMembresiaVigente('cl.id')}
          JOIN productos p ON p.id = c.producto_id
          JOIN profesionales pr ON pr.id = c.profesional_id
          LEFT JOIN mascotas m ON m.id = c.mascota_id
@@ -45,7 +47,13 @@ export async function listarCitas(req, res) {
         valores
     );
 
-    res.json(resultado.rows);
+    // Insignia de membresia en la agenda (modulo Membresias).
+    res.json(
+        resultado.rows.map((fila) => {
+            const { resto, membresia } = separarMembresia(fila);
+            return { ...resto, membresia };
+        })
+    );
 }
 
 export async function obtenerCita(req, res) {

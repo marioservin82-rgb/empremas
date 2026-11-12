@@ -243,6 +243,7 @@ export async function crearNota(req, res) {
                 );
                 // Una venta anulada por NC total deja de participar del sorteo.
                 await anularCuponesDeVenta(cliente, venta.id);
+                await cliente.query(`UPDATE membresia_pagos SET anulado = true WHERE venta_id = $1`, [venta.id]);
             }
             return id;
         });
