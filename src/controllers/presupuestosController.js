@@ -222,7 +222,7 @@ export async function obtenerPresupuesto(req, res) {
 
     const items = await consultaDeEmpresa(
         empresaId,
-        `SELECT pi.*, pr.nombre AS producto_nombre, pr.unidad_medida
+        `SELECT pi.*, pr.nombre AS producto_nombre, pr.unidad_medida, pr.peso_kg
          FROM presupuesto_items pi
          JOIN productos pr ON pr.id = pi.producto_id
          WHERE pi.presupuesto_id = $1`,

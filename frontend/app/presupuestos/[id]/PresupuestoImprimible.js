@@ -8,6 +8,7 @@ import { obtenerNumeroSoportePlataforma } from "@/lib/soportePlataforma";
 import { lineasPiePublicidadEmpremas } from "@/lib/piePublicidadEmpremas";
 import PiePublicidadEmpremas from "@/components/PiePublicidadEmpremas";
 import { logoParaTicket } from "@/lib/logoEmpresa";
+import { pesoDeLinea, pesoTotal, formatoPeso } from "@/lib/pesoCarga";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
 // Ver mismo comentario en Recibo.js: sin esto, una cantidad entera sale
@@ -36,10 +37,19 @@ function lineasPresupuesto(empresa, presupuesto, fecha, numeroSoportePlataforma,
       { texto: `${formatoCantidad.format(Number(i.cantidad))} ${i.unidad_medida ?? ""} x ${i.producto_nombre}`.replace(/\s+/g, " ") },
       { texto: `Gs ${formatoGs.format(i.precio_unitario)} c/u   Gs ${formatoGs.format(i.subtotal)}` }
     );
+    const pesoLinea = pesoDeLinea(i.cantidad, i.peso_kg);
+    if (pesoLinea !== null) lineas.push({ texto: `Peso: ${formatoPeso(pesoLinea)}` });
   }
+  const peso = pesoTotal(presupuesto.items.map((i) => ({ cantidad: i.cantidad, pesoKg: i.peso_kg })));
   lineas.push(
     SEPARADOR,
     { texto: `Total: Gs ${formatoGs.format(presupuesto.total)}`, negrita: true },
+    ...(peso.totalKg > 0
+      ? [
+          { texto: `PESO TOTAL: ${formatoPeso(peso.totalKg)}`, negrita: true },
+          ...(peso.sinPeso > 0 ? [{ texto: `(${peso.sinPeso} ítem(s) sin peso cargado)` }] : []),
+        ]
+      : []),
     SEPARADOR,
     ...(presupuesto.forma_pago ? [{ texto: `Forma de pago: ${presupuesto.forma_pago}`, negrita: true }] : []),
     ...(presupuesto.observacion ? [{ texto: `Obs.: ${presupuesto.observacion}` }] : []),
@@ -92,6 +102,7 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
   }
 
   const esA4 = formato === "a4";
+  const peso = pesoTotal(presupuesto.items.map((i) => ({ cantidad: i.cantidad, pesoKg: i.peso_kg })));
   const fecha = new Date(presupuesto.creado_en);
 
   return (
@@ -158,6 +169,9 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
               <span>Gs {formatoGs.format(i.precio_unitario)} c/u</span>
               <span className="font-semibold text-slate-800">Gs {formatoGs.format(i.subtotal)}</span>
             </div>
+            {pesoDeLinea(i.cantidad, i.peso_kg) !== null && (
+              <p className="text-sm text-slate-500">Peso: {formatoPeso(pesoDeLinea(i.cantidad, i.peso_kg))}</p>
+            )}
           </div>
         ))}
 
@@ -167,6 +181,17 @@ export default function PresupuestoImprimible({ empresa, presupuesto, accionesEx
           <span>Total</span>
           <span>Gs {formatoGs.format(presupuesto.total)}</span>
         </div>
+        {peso.totalKg > 0 && (
+          <>
+            <div className="mt-1 flex justify-between text-lg font-bold">
+              <span>Peso total</span>
+              <span>{formatoPeso(peso.totalKg)}</span>
+            </div>
+            {peso.sinPeso > 0 && (
+              <p className="text-xs text-slate-500">({peso.sinPeso} ítem(s) sin peso cargado, no incluidos)</p>
+            )}
+          </>
+        )}
 
         <div className="my-2 border-t-2 border-dashed border-slate-300" />
 

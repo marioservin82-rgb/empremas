@@ -25,6 +25,7 @@ const vacio = {
   receta: [],
   esServicio: false,
   duracionMinutos: "",
+  pesoKg: "",
 };
 
 export default function NuevoProducto() {
@@ -133,6 +134,7 @@ export default function NuevoProducto() {
             ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
             : undefined,
           duracionMinutos: form.esServicio ? Number(form.duracionMinutos) || undefined : undefined,
+          pesoKg: Number(form.pesoKg) || undefined,
         }),
       });
       router.push("/stock");
@@ -181,6 +183,17 @@ export default function NuevoProducto() {
 
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} placeholder="unidad, kilo, metro, caja..." />
+
+          <label className={etiqueta}>Peso por {form.unidadMedida || "unidad"} (kg)</label>
+          <CampoCantidad
+            value={form.pesoKg}
+            onChange={(valor) => setForm({ ...form, pesoKg: valor })}
+            className={campo}
+            placeholder="Opcional · ej. 50 para una bolsa de 50 kg"
+          />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">
+            Sirve para que el presupuesto muestre el peso total del pedido y saber qué camión hace falta.
+          </p>
 
           {produccionHabilitada && (
             <>

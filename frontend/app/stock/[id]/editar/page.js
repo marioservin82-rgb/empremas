@@ -60,6 +60,8 @@ export default function EditarProducto() {
           esCompuesto: p.es_compuesto,
           esServicio: p.es_servicio,
           duracionMinutos: p.duracion_minutos ?? "",
+          // Number(): Postgres devuelve "50.000" y el punto se leería como miles.
+          pesoKg: p.peso_kg ? Number(p.peso_kg) : "",
           receta: (p.receta || []).map((r) => ({
             insumoId: r.insumo_id,
             nombre: r.nombre,
@@ -263,6 +265,8 @@ export default function EditarProducto() {
             ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
             : undefined,
           duracionMinutos: form.esServicio ? Number(form.duracionMinutos) || undefined : undefined,
+          // null = borrar el peso; el servidor lo deja sin peso.
+          pesoKg: Number(form.pesoKg) > 0 ? Number(form.pesoKg) : null,
         }),
       });
       router.push("/stock");
@@ -397,6 +401,17 @@ export default function EditarProducto() {
 
           <label className={etiqueta}>Unidad de medida</label>
           <input value={form.unidadMedida} onChange={actualizar("unidadMedida")} className={campo} />
+
+          <label className={etiqueta}>Peso por {form.unidadMedida || "unidad"} (kg)</label>
+          <CampoCantidad
+            value={form.pesoKg}
+            onChange={(valor) => setForm({ ...form, pesoKg: valor })}
+            className={campo}
+            placeholder="Opcional · ej. 50 para una bolsa de 50 kg"
+          />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">
+            Sirve para que el presupuesto muestre el peso total del pedido y saber qué camión hace falta.
+          </p>
 
           {produccionHabilitada && (
             <>

@@ -2486,3 +2486,6 @@ ALTER TABLE membresia_pagos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE membresia_pagos FORCE ROW LEVEL SECURITY;
 CREATE POLICY membresia_pagos_aislamiento ON membresia_pagos
         USING (empresa_id = current_setting('app.empresa_actual', true)::uuid);
+
+-- Peso por unidad de venta (kg) para calcular el peso total de un presupuesto.
+ALTER TABLE productos ADD COLUMN peso_kg NUMERIC(12,3) CHECK (peso_kg IS NULL OR peso_kg > 0);

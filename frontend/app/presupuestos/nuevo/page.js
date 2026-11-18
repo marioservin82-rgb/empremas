@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 import { redondearGs } from "@/lib/redondeo";
+import { pesoDeLinea, pesoTotal, formatoPeso } from "@/lib/pesoCarga";
 import CampoCantidad from "@/components/CampoCantidad";
 
 const formatoGs = new Intl.NumberFormat("es-PY");
@@ -140,6 +141,7 @@ export default function NuevoPresupuesto() {
           unidadMedida: p.unidad_medida,
           cantidad: 1,
           precioUnitario: Number(p[`precio_${listaPrecio}`]),
+          pesoKg: p.peso_kg ? Number(p.peso_kg) : null,
         },
         ...actual,
       ];
@@ -160,6 +162,7 @@ export default function NuevoPresupuesto() {
     setCarrito((actual) => actual.filter((i) => i.productoId !== productoId));
   }
 
+  const pesoDelPedido = pesoTotal(carrito);
   const total = carrito.reduce((acumulado, i) => acumulado + redondearGs(i.precioUnitario * i.cantidad), 0);
 
   async function guardarPresupuesto() {
@@ -358,7 +361,14 @@ export default function NuevoPresupuesto() {
                 <div key={i.productoId} className="flex flex-wrap items-center gap-3 py-3">
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800">{i.nombre}</p>
-                    <p className="text-sm text-slate-400">{i.unidadMedida}</p>
+                    <p className="text-sm text-slate-400">
+                      {i.unidadMedida}
+                      {pesoDeLinea(i.cantidad, i.pesoKg) !== null && (
+                        <span className="ml-2 text-slate-500">
+                          · {formatoPeso(i.pesoKg)} c/u → {formatoPeso(pesoDeLinea(i.cantidad, i.pesoKg))}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <CampoCantidad
                     value={i.cantidad}
@@ -391,6 +401,18 @@ export default function NuevoPresupuesto() {
                 <p className="text-lg font-semibold text-slate-600">Total</p>
                 <p className="text-3xl font-extrabold text-navy">Gs {formatoGs.format(total)}</p>
               </div>
+
+              {pesoDelPedido.totalKg > 0 && (
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-600">⚖️ Peso total del pedido</p>
+                  <p className="text-lg font-bold text-slate-800">{formatoPeso(pesoDelPedido.totalKg)}</p>
+                </div>
+              )}
+              {pesoDelPedido.totalKg > 0 && pesoDelPedido.sinPeso > 0 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  {pesoDelPedido.sinPeso} producto{pesoDelPedido.sinPeso === 1 ? "" : "s"} sin peso cargado: el total no los incluye.
+                </p>
+              )}
 
               {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

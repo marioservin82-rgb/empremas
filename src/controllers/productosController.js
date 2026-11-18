@@ -295,6 +295,16 @@ async function guardarRecetaCompuesto(cliente, empresaId, productoId, receta) {
     return costoTotal;
 }
 
+// Peso por unidad de venta (kg): undefined/''/null/0 -> null (sin peso), numero > 0
+// -> ese numero redondeado a 3 decimales, cualquier otra cosa -> false (invalido).
+function normalizarPeso(valor) {
+    if (valor === undefined || valor === null || valor === '') return null;
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n < 0) return false;
+    if (n === 0) return null;
+    return Math.round(n * 1000) / 1000;
+}
+
 export async function crearProducto(req, res) {
     const { empresaId, sucursalId } = req.usuario;
     const {
@@ -316,6 +326,7 @@ export async function crearProducto(req, res) {
         esServicio,
         duracionMinutos,
         categoriaRotacionManual,
+        pesoKg,
     } = req.body;
 
     if (!nombre) {
@@ -326,6 +337,10 @@ export async function crearProducto(req, res) {
     }
     if (categoriaRotacionManual !== undefined && !['alta', 'media', 'baja'].includes(categoriaRotacionManual)) {
         return res.status(400).json({ error: 'Categoría de rotación inválida' });
+    }
+    const pesoNuevo = normalizarPeso(pesoKg);
+    if (pesoNuevo === false) {
+        return res.status(400).json({ error: 'El peso debe ser un número mayor a 0 (en kg)' });
     }
     // Un insumo de produccion nunca se vende directo - no tiene sentido
     // exigirle un precio de venta.
@@ -351,9 +366,9 @@ export async function crearProducto(req, res) {
                     empresa_id, codigo_barras, nombre, unidad_medida,
                     precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
                     es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto,
-                    es_servicio, duracion_minutos, categoria_rotacion_manual
+                    es_servicio, duracion_minutos, categoria_rotacion_manual, peso_kg
                  )
-                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16, $17)
+                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16, $17, $18)
                  RETURNING *`,
                 [
                     empresaId,
@@ -373,6 +388,7 @@ export async function crearProducto(req, res) {
                     esServicio,
                     duracionMinutos || null,
                     categoriaRotacionManual || null,
+                    pesoNuevo,
                 ]
             );
             let nuevoProducto = productoInsertado.rows[0];
@@ -429,6 +445,7 @@ export async function actualizarProducto(req, res) {
         esServicio,
         duracionMinutos,
         categoriaRotacionManual,
+        pesoKg,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
@@ -445,6 +462,12 @@ export async function actualizarProducto(req, res) {
     }
     if (categoriaRotacionManual !== undefined && !['alta', 'media', 'baja'].includes(categoriaRotacionManual)) {
         return res.status(400).json({ error: 'Categoría de rotación inválida' });
+    }
+    // pesoKg: no viene = no se toca; vacio/0 = se borra; numero = se guarda.
+    const tocaPeso = pesoKg !== undefined;
+    const pesoNuevo = normalizarPeso(pesoKg);
+    if (pesoNuevo === false) {
+        return res.status(400).json({ error: 'El peso debe ser un número mayor a 0 (en kg)' });
     }
 
     try {
@@ -473,7 +496,8 @@ export async function actualizarProducto(req, res) {
                     es_compuesto = COALESCE($15, es_compuesto),
                     es_servicio = COALESCE($16, es_servicio),
                     duracion_minutos = COALESCE($17, duracion_minutos),
-                    categoria_rotacion_manual = COALESCE($18, categoria_rotacion_manual)
+                    categoria_rotacion_manual = COALESCE($18, categoria_rotacion_manual),
+                    peso_kg = CASE WHEN $19::boolean THEN $20::numeric ELSE peso_kg END
                  WHERE id = $1 AND empresa_id = $2
                  RETURNING *`,
                 [
@@ -495,6 +519,8 @@ export async function actualizarProducto(req, res) {
                     esServicio,
                     duracionMinutos,
                     categoriaRotacionManual,
+                    tocaPeso,
+                    pesoNuevo,
                 ]
             );
 
