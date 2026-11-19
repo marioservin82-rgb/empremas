@@ -119,6 +119,11 @@ export default function Proveedores() {
                     <p className="text-sm text-slate-400">
                       {p.documento || "sin documento"} {p.telefono ? `· ${p.telefono}` : ""}
                     </p>
+                    {(p.vendedor_nombre || p.vendedor_celular) && (
+                      <p className="text-sm text-slate-500">
+                        Vendedor: {p.vendedor_nombre || "—"} {p.vendedor_celular ? `· ${p.vendedor_celular}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className={`text-2xl font-extrabold ${Number(p.saldo) > 0 ? "text-amber-600" : "text-slate-400"}`}>

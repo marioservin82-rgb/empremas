@@ -41,9 +41,15 @@ export async function obtenerProveedor(req, res) {
     res.json(resultado.rows[0]);
 }
 
+// Texto libre opcional: vacio -> null, con tope de largo.
+function textoOpcional(valor, maximo) {
+    const t = String(valor ?? '').trim();
+    return t ? t.slice(0, maximo) : null;
+}
+
 export async function crearProveedor(req, res) {
     const { empresaId, usuarioId } = req.usuario;
-    const { nombre, documento, telefono, email, direccion, saldoInicial } = req.body;
+    const { nombre, documento, telefono, email, direccion, saldoInicial, vendedorNombre, vendedorCelular } = req.body;
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
@@ -57,10 +63,13 @@ export async function crearProveedor(req, res) {
     // como un ajuste dentro del mismo request.
     const proveedor = await transaccionDeEmpresa(empresaId, async (db) => {
         const insertado = await db.query(
-            `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo)
-             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 0::numeric))
+            `INSERT INTO proveedores (empresa_id, nombre, documento, telefono, email, direccion, saldo, vendedor_nombre, vendedor_celular)
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 0::numeric), $8, $9)
              RETURNING *`,
-            [empresaId, nombre, documento || null, telefono || null, email || null, direccion || null, saldoInicial]
+            [
+                empresaId, nombre, documento || null, telefono || null, email || null, direccion || null, saldoInicial,
+                textoOpcional(vendedorNombre, 120), textoOpcional(vendedorCelular, 40),
+            ]
         );
         const nuevoProveedor = insertado.rows[0];
 
@@ -259,7 +268,7 @@ export async function historialAjustesSaldo(req, res) {
 export async function actualizarProveedor(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
-    const { nombre, documento, telefono, email, direccion, activo } = req.body;
+    const { nombre, documento, telefono, email, direccion, activo, vendedorNombre, vendedorCelular } = req.body;
 
     const resultado = await consultaDeEmpresa(
         empresaId,
@@ -269,10 +278,17 @@ export async function actualizarProveedor(req, res) {
             telefono = COALESCE($5, telefono),
             email = COALESCE($6, email),
             direccion = COALESCE($7, direccion),
-            activo = COALESCE($8, activo)
+            activo = COALESCE($8, activo),
+            -- Vendedor: si no viene no se toca; si viene vacio se borra.
+            vendedor_nombre = CASE WHEN $9::boolean THEN $10 ELSE vendedor_nombre END,
+            vendedor_celular = CASE WHEN $11::boolean THEN $12 ELSE vendedor_celular END
          WHERE id = $1 AND empresa_id = $2
          RETURNING *`,
-        [id, empresaId, nombre, documento, telefono, email, direccion, activo]
+        [
+            id, empresaId, nombre, documento, telefono, email, direccion, activo,
+            vendedorNombre !== undefined, textoOpcional(vendedorNombre, 120),
+            vendedorCelular !== undefined, textoOpcional(vendedorCelular, 40),
+        ]
     );
 
     if (!resultado.rows[0]) {
@@ -439,7 +455,7 @@ export async function listaPedido(req, res) {
     const { empresaId } = req.usuario;
     const { id } = req.params;
 
-    const proveedor = await consultaDeEmpresa(empresaId, `SELECT id, nombre, telefono FROM proveedores WHERE id = $1`, [id]);
+    const proveedor = await consultaDeEmpresa(empresaId, `SELECT id, nombre, telefono, vendedor_nombre, vendedor_celular FROM proveedores WHERE id = $1`, [id]);
     if (!proveedor.rows[0]) {
         return res.status(404).json({ error: 'Proveedor no encontrado' });
     }

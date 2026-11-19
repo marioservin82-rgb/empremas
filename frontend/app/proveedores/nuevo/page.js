@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { avanzarConEnter } from "@/lib/avanzarConEnter";
 
-const vacio = { nombre: "", documento: "", telefono: "", email: "", direccion: "", saldoInicial: "" };
+const vacio = { nombre: "", documento: "", telefono: "", email: "", direccion: "", saldoInicial: "", vendedorNombre: "", vendedorCelular: "" };
 
 export default function NuevoProveedor() {
   const router = useRouter();
@@ -114,6 +114,15 @@ export default function NuevoProveedor() {
 
           <label className={etiqueta}>Teléfono</label>
           <input value={form.telefono} onChange={actualizar("telefono")} className={campo} placeholder="Opcional" />
+
+          <label className={etiqueta}>Vendedor de contacto</label>
+          <input value={form.vendedorNombre} onChange={actualizar("vendedorNombre")} className={campo} placeholder="Opcional · ej. Juan Pérez" />
+
+          <label className={etiqueta}>WhatsApp del vendedor</label>
+          <input value={form.vendedorCelular} onChange={actualizar("vendedorCelular")} className={campo} placeholder="Opcional · ej. 0981 123 456" inputMode="tel" />
+          <p className="-mt-3 mb-4 text-xs text-slate-400">
+            Si lo cargás, "Enviar por WhatsApp" en el pedido le escribe directo al vendedor.
+          </p>
 
           <label className={etiqueta}>Email</label>
           <input type="email" value={form.email} onChange={actualizar("email")} className={campo} placeholder="Opcional" />

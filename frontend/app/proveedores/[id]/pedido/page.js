@@ -84,14 +84,19 @@ export default function ListaPedido() {
             >
               {descargando ? "Generando..." : "Descargar imagen"}
             </button>
-            {proveedor.telefono ? (
+            {proveedor.vendedor_celular || proveedor.telefono ? (
               <a
-                href={linkWhatsapp(proveedor.telefono, "Hola, te paso nuestro pedido (adjunto la imagen)")}
+                href={linkWhatsapp(
+                  proveedor.vendedor_celular || proveedor.telefono,
+                  `Hola${proveedor.vendedor_celular && proveedor.vendedor_nombre ? ` ${proveedor.vendedor_nombre}` : ""}, te paso nuestro pedido (adjunto la imagen)`
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"
               >
-                Enviar por WhatsApp
+                {proveedor.vendedor_celular && proveedor.vendedor_nombre
+                  ? `Enviar a ${proveedor.vendedor_nombre} por WhatsApp`
+                  : "Enviar por WhatsApp"}
               </a>
             ) : (
               <span
@@ -125,6 +130,7 @@ export default function ListaPedido() {
           <style>{"@page { size: A4; margin: 15mm; }"}</style>
           <div className="mb-4 hidden print:block">
             <p className="text-xl font-bold">Pedido a {proveedor.nombre}</p>
+            {proveedor.vendedor_nombre && <p className="text-sm text-slate-600">Atención: {proveedor.vendedor_nombre}</p>}
             <p className="text-sm text-slate-500">Emitido el {fecha(new Date())}</p>
           </div>
 

@@ -2489,3 +2489,7 @@ CREATE POLICY membresia_pagos_aislamiento ON membresia_pagos
 
 -- Peso por unidad de venta (kg) para calcular el peso total de un presupuesto.
 ALTER TABLE productos ADD COLUMN peso_kg NUMERIC(12,3) CHECK (peso_kg IS NULL OR peso_kg > 0);
+
+-- Vendedor de contacto del proveedor (nombre y WhatsApp).
+ALTER TABLE proveedores ADD COLUMN vendedor_nombre TEXT;
+ALTER TABLE proveedores ADD COLUMN vendedor_celular TEXT;
