@@ -227,6 +227,7 @@ export async function crearVenta(req, res) {
     const {
         clienteId, tipoPago, pagos, items, tipoComprobante, presupuestoId, vendedorId, remisionId, citaId,
         reparacionId, internacionId, pin, diasCredito, clienteSorteo, sinCupones, ventaOrigenId, membresiaId,
+        precioContadoEnCredito,
     } = req.body;
     const comprobante = tipoComprobante || 'ticket_comun';
 
@@ -314,7 +315,10 @@ export async function crearVenta(req, res) {
                 }
             }
 
-            const columnaPrecio = COLUMNA_PRECIO[tipoPago];
+            // Venta a credito con el precio de contado (opcional, ej. instituciones
+            // publicas): solo aplica a credito; el resto de las reglas no cambian.
+            const columnaPrecio =
+                tipoPago === 'credito' && precioContadoEnCredito === true ? COLUMNA_PRECIO.contado : COLUMNA_PRECIO[tipoPago];
             let total = 0;
             const itemsCalculados = [];
 

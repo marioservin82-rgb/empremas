@@ -68,14 +68,22 @@ export default function Vender() {
   const [reparacionId, setReparacionId] = useState(null);
   const [internacionId, setInternacionId] = useState(null);
   const [remisionId, setRemisionId] = useState(null);
+  // Venta a credito con los precios de contado (opcional). Sale prendida sola si el
+  // cliente esta marcado asi en su ficha (ej. instituciones publicas).
+  const [precioContadoCredito, setPrecioContadoCredito] = useState(false);
 
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [resultadosCliente, setResultadosCliente] = useState([]);
   const [cliente, setCliente] = useState(null);
   // Beneficios del cliente para el precio: categoria de fidelizacion + descuento en
   // servicios de su membresia (0 si no tiene, esta vencida o es el cobro de la cuota).
+  const usaPrecioContadoEnCredito = tipoPago === "credito" && !!cliente && precioContadoCredito;
   const beneficiosCliente = cliente
-    ? { ...(cliente.categoriaCliente || {}), membresiaPct: membresiaId ? 0 : cliente.membresia?.descuentoServiciosPct || 0 }
+    ? {
+        ...(cliente.categoriaCliente || {}),
+        membresiaPct: membresiaId ? 0 : cliente.membresia?.descuentoServiciosPct || 0,
+        precioContadoEnCredito: usaPrecioContadoEnCredito,
+      }
     : null;
   const [buscandoClienteOpcional, setBuscandoClienteOpcional] = useState(false);
   // Stop antes de emitir una Factura Legal sin cliente: guarda los pagos
@@ -245,6 +253,7 @@ export default function Vender() {
         setReparacionId(datos.reparacionId ?? null);
         setInternacionId(datos.internacionId ?? null);
         setRemisionId(datos.remisionId ?? null);
+        setPrecioContadoCredito(!!datos.precioContadoCredito);
         setCliente(datos.cliente ?? null);
         setCarrito(datos.carrito ?? []);
         setPagos(datos.pagos ?? []);
@@ -346,11 +355,11 @@ export default function Vender() {
     localStorage.setItem(
       CLAVE_VENTA_EN_CURSO,
       JSON.stringify({
-        tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, cliente, carrito, pagos, vendedorId,
+        tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, precioContadoCredito, cliente, carrito, pagos, vendedorId,
       })
     );
   }, [
-    restaurado, tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, cliente,
+    restaurado, tipoPago, tipoComprobante, presupuestoId, ventaOrigenId, membresiaId, citaId, reparacionId, internacionId, remisionId, precioContadoCredito, cliente,
     carrito, pagos, vendedorId,
   ]);
 
@@ -365,6 +374,7 @@ export default function Vender() {
     }
     setTipoPago(valor);
     setCliente(null);
+    setPrecioContadoCredito(false);
     setProductosFrecuentes([]);
     setBuscandoClienteOpcional(false);
     setVendedorId("");
@@ -452,6 +462,7 @@ export default function Vender() {
 
   function seleccionarCliente(c) {
     setCliente(c);
+    setPrecioContadoCredito(!!c.precio_contado_en_credito);
     setResultadosCliente([]);
     setBusquedaCliente("");
     setBuscandoClienteOpcional(false);
@@ -741,6 +752,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
           reparacionId,
           internacionId,
           remisionId,
+          precioContadoEnCredito: usaPrecioContadoEnCredito || undefined,
           clienteId: cliente?.id,
           clienteSorteo: opcionesSorteo?.clienteSorteo,
           sinCupones: opcionesSorteo?.sinCupones || undefined,
@@ -859,6 +871,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
     setReparacionId(null);
     setInternacionId(null);
     setRemisionId(null);
+    setPrecioContadoCredito(false);
     setError("");
   }
 
@@ -1172,6 +1185,18 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
               />
               <span className="text-xs text-slate-400">Vacío = default del cliente/empresa</span>
             </div>
+            <label className="mt-3 flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={precioContadoCredito}
+                onChange={(e) => setPrecioContadoCredito(e.target.checked)}
+                className="mt-0.5 h-5 w-5"
+              />
+              <span className="text-sm text-slate-600">
+                <span className="font-semibold text-slate-800">Usar precios de contado</span> aunque la venta sea a crédito
+                {cliente.precio_contado_en_credito && <span className="text-slate-400"> (este cliente está marcado así)</span>}
+              </span>
+            </label>
             {productosFrecuentes.length > 0 && (
               <div className="mt-3 rounded-xl bg-tint p-3">
                 <p className="mb-2 text-sm text-navy">Este cliente suele llevar:</p>
@@ -1216,7 +1241,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                   >
                     <span className="font-semibold">{p.nombre}</span>
                     <span className="text-right text-slate-500">
-                      <span className="block">Gs {formatoGs.format(p[`precio_${tipoPago}`])}</span>
+                      <span className="block">Gs {formatoGs.format(p[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}</span>
                       <span className="block text-xs">stock {formatoGs.format(p.stock)} {p.unidad_medida}</span>
                     </span>
                   </button>
@@ -1242,7 +1267,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                       onClick={() => agregarAlCarrito(a)}
                       className="rounded-xl border border-navy/30 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
                     >
-                      + {a.nombre} · Gs {formatoGs.format(a[`precio_${tipoPago}`])}
+                      + {a.nombre} · Gs {formatoGs.format(a[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}
                     </button>
                   ))}
                 </div>

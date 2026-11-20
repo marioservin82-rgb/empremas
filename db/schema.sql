@@ -2493,3 +2493,6 @@ ALTER TABLE productos ADD COLUMN peso_kg NUMERIC(12,3) CHECK (peso_kg IS NULL OR
 -- Vendedor de contacto del proveedor (nombre y WhatsApp).
 ALTER TABLE proveedores ADD COLUMN vendedor_nombre TEXT;
 ALTER TABLE proveedores ADD COLUMN vendedor_celular TEXT;
+
+-- Cliente al que se le factura a credito con el precio de contado (default de la casilla en Vender).
+ALTER TABLE clientes ADD COLUMN precio_contado_en_credito BOOLEAN NOT NULL DEFAULT false;

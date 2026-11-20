@@ -32,6 +32,7 @@ export default function EditarCliente() {
           fechaNacimiento: c.fecha_nacimiento ? c.fecha_nacimiento.slice(0, 10) : "",
           lineaCredito: c.linea_credito ?? "",
           cicloFacturacion: c.ciclo_facturacion || "mensual",
+          precioContadoEnCredito: !!c.precio_contado_en_credito,
           vendedorId: c.vendedorAsignado?.id || "",
         })
       )
@@ -130,6 +131,19 @@ export default function EditarCliente() {
               <option value="mensual">Mensual (usa el plazo de la empresa)</option>
               <option value="semanal">Semanal (7 días)</option>
             </select>
+
+            <label className="mb-1 flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={!!form.precioContadoEnCredito}
+                onChange={(e) => setForm({ ...form, precioContadoEnCredito: e.target.checked })}
+                className="mt-1 h-5 w-5"
+              />
+              <span className="text-sm font-medium text-slate-700">Facturar a crédito con precios de contado</span>
+            </label>
+            <p className="mb-4 ml-7 text-xs text-slate-400">
+              Para clientes como instituciones públicas, que no aceptan un precio mayor por ser a crédito. En Vender la casilla sale marcada sola, y la podés desmarcar en una venta puntual.
+            </p>
 
             {vendedores.length > 0 && (
               <>

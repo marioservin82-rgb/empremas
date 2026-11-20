@@ -6,7 +6,7 @@ import { redondearGs } from "./redondeo";
 // aca hay que cambiarla tambien en src/controllers/ventasController.js.
 //
 // `beneficios` = { beneficioMayoristaAutomatico, beneficioDescuentoAdicionalPct,
-// membresiaPct } (categoria de fidelizacion del cliente + descuento en
+// membresiaPct, precioContadoEnCredito } (categoria de fidelizacion del cliente + descuento en
 // servicios de su membresia vigente, 0 si no tiene o esta vencida).
 
 // Un item que llego de convertir un presupuesto (o de una cita) trae su propio
@@ -16,7 +16,9 @@ import { redondearGs } from "./redondeo";
 export function precioDe(item, tipoPago, beneficios) {
   if (item.precioFijo != null) return item.precioFijo;
   const usaMayorista = tipoPago === "contado" && (item.esMayorista || beneficios?.beneficioMayoristaAutomatico);
-  let precio = usaMayorista ? item.precios.mayorista : item.precios[tipoPago];
+  // Venta a credito con el precio de contado (casilla de Vender, opcional).
+  const lista = tipoPago === "credito" && beneficios?.precioContadoEnCredito ? "contado" : tipoPago;
+  let precio = usaMayorista ? item.precios.mayorista : item.precios[lista];
   const descuentoPct = beneficios?.beneficioDescuentoAdicionalPct || 0;
   if (descuentoPct > 0 && !membresiaGana(item, beneficios)) {
     precio = Math.round(precio * (1 - descuentoPct / 100));
