@@ -32,7 +32,8 @@ export function precioDe(item, tipoPago, beneficios) {
 // siempre gana.
 export function membresiaGana(item, beneficios) {
   const pct = beneficios?.membresiaPct || 0;
-  if (!(pct > 0) || !item.esServicio) return false;
+  // Un servicio con precio libre (flete) nunca recibe el descuento de membresia.
+  if (!(pct > 0) || !item.esServicio || item.precioLibre) return false;
   const categoriaPct = item.precioFijo != null ? 0 : beneficios?.beneficioDescuentoAdicionalPct || 0;
   return pct > categoriaPct;
 }

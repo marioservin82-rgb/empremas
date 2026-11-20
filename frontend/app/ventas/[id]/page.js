@@ -74,7 +74,14 @@ export default function DetalleVenta() {
         esMayorista: !!i.es_mayorista,
         descuentoMonto: Number(i.descuento_monto || 0),
         descuentoMotivo: i.descuento_motivo || null,
-        ...(originales ? { precioFijo: precio } : {}),
+        // Servicio con precio y costo libres (flete): el precio y el costo de esta venta
+        // vuelven cargados, se pueden corregir antes de cobrar. (El costo solo lo trae
+        // el servidor al dueño; para el resto queda vacío y se completa a mano.)
+        ...(i.precio_libre
+          ? { precioLibre: true, precioFijo: precio, costoLibre: i.costo_unitario != null ? Number(i.costo_unitario) : "" }
+          : originales
+          ? { precioFijo: precio }
+          : {}),
       };
     });
     localStorage.setItem(

@@ -2496,3 +2496,6 @@ ALTER TABLE proveedores ADD COLUMN vendedor_celular TEXT;
 
 -- Cliente al que se le factura a credito con el precio de contado (default de la casilla en Vender).
 ALTER TABLE clientes ADD COLUMN precio_contado_en_credito BOOLEAN NOT NULL DEFAULT false;
+
+-- Servicio con precio y costo libres (ej. flete): se cargan en cada venta, no salen del catalogo.
+ALTER TABLE productos ADD COLUMN precio_libre BOOLEAN NOT NULL DEFAULT false;

@@ -468,12 +468,24 @@ export async function crearVenta(req, res) {
             // o cajero con el permiso 'aplicar_descuentos' lo hacen directo,
             // el resto necesita el PIN de un dueno/encargado activo.
             const tieneDescuento = items.some((it) => Number(it.descuentoMonto) > 0);
+            // Servicio con precio y costo libres (ej. flete): el cajero escribe el
+            // precio y el costo en cada venta, asi que pide la misma autorizacion
+            // que un descuento (dueno/encargado, cajero con permiso, o PIN).
+            const idsProductos = items.map((it) => it.productoId).filter((x) => typeof x === 'string');
+            const libresResultado = idsProductos.length
+                ? await cliente.query(`SELECT id FROM productos WHERE id = ANY($1::uuid[]) AND precio_libre = true`, [idsProductos])
+                : { rows: [] };
+            const idsPrecioLibre = new Set(libresResultado.rows.map((r) => r.id));
             let descuentoAutorizadoPor = null;
-            if (tieneDescuento) {
+            if (tieneDescuento || idsPrecioLibre.size > 0) {
                 descuentoAutorizadoPor = usuarioId;
                 if (rol === 'cajero' && !(await tienePermiso(empresaId, usuarioId, 'aplicar_descuentos'))) {
                     if (!pin) {
-                        throw new ErrorNegocio('Necesitás el PIN de un dueño o encargado para aplicar un descuento');
+                        throw new ErrorNegocio(
+                            tieneDescuento
+                                ? 'Necesitás el PIN de un dueño o encargado para aplicar un descuento'
+                                : 'Necesitás el PIN de un dueño o encargado para cargar un precio libre'
+                        );
                     }
                     const supervisores = await cliente.query(
                         `SELECT id, pin_hash FROM usuarios
@@ -493,6 +505,9 @@ export async function crearVenta(req, res) {
                     descuentoAutorizadoPor = coincidencia;
                 }
             }
+            // ventas.descuento_autorizado_por es solo de descuentos: un precio libre
+            // sin descuento no lo completa.
+            if (!tieneDescuento) descuentoAutorizadoPor = null;
 
             // Reutilizar una venta anulada: los precios de sus items se pueden
             // mantener. Solo se acepta un precio enviado si coincide con el que
@@ -525,6 +540,8 @@ export async function crearVenta(req, res) {
                 esMayorista,
                 descuentoMonto,
                 descuentoMotivo,
+                precioLibre: precioLibreRecibido,
+                costoLibre: costoLibreRecibido,
             } of items) {
                 // La base guarda la cantidad con 3 decimales (NUMERIC(14,3)): se
                 // normaliza acá para que el subtotal, lo guardado y lo que se
@@ -540,6 +557,28 @@ export async function crearVenta(req, res) {
                 const producto = productoResultado.rows[0];
                 if (!producto) {
                     throw new ErrorNegocio('Uno de los productos ya no existe');
+                }
+
+                // Servicio con precio y costo libres (ej. flete): precio y costo
+                // vienen del cajero en esta venta (nunca del catalogo) y quedan
+                // congelados en la linea, asi la ganancia de la venta es la real.
+                // Un presupuesto que ya trae el precio cotizado lo reusa; el costo
+                // siempre hay que cargarlo. Solo vale para productos marcados asi.
+                const esPrecioLibre = idsPrecioLibre.has(productoId);
+                let precioLibreNum = null;
+                let costoLibreNum = null;
+                if (esPrecioLibre) {
+                    precioLibreNum = Math.round(Number(precioLibreRecibido ?? precioDelPresupuesto));
+                    if (!Number.isFinite(precioLibreNum) || precioLibreNum <= 0) {
+                        throw new ErrorNegocio(`Cargá el precio de "${producto.nombre}"`);
+                    }
+                    costoLibreNum =
+                        costoLibreRecibido === undefined || costoLibreRecibido === null || costoLibreRecibido === ''
+                            ? NaN
+                            : Math.round(Number(costoLibreRecibido));
+                    if (!Number.isFinite(costoLibreNum) || costoLibreNum < 0) {
+                        throw new ErrorNegocio(`Cargá el costo de "${producto.nombre}" (puede ser 0 si no te cuesta)`);
+                    }
                 }
 
                 // Producto compuesto (ej. Sandwich): nunca tiene stock
@@ -619,8 +658,10 @@ export async function crearVenta(req, res) {
                 const esItemCuota = !!membresiaCuota && productoId === membresiaCuota.producto_id;
                 const precioYaCongelado = ((presupuestoId || citaId) && precioDelPresupuesto != null) || precioDeVentaOrigen || esItemCuota;
                 const usaMayoristaPorItem =
-                    tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !precioYaCongelado;
-                let precioUnitario = precioYaCongelado
+                    tipoPago === 'contado' && (!!esMayorista || beneficios.mayoristaAutomatico) && !precioYaCongelado && !esPrecioLibre;
+                let precioUnitario = esPrecioLibre
+                    ? precioLibreNum
+                    : precioYaCongelado
                     ? Number(esItemCuota ? membresiaCuota.precio_mensual : precioDelPresupuesto)
                     : usaMayoristaPorItem
                     ? Number(producto.precio_mayorista)
@@ -637,8 +678,9 @@ export async function crearVenta(req, res) {
                     !!membresiaDescuento &&
                     !!producto.es_servicio &&
                     !esItemCuota &&
+                    !esPrecioLibre &&
                     membresiaDescuento.pct > (!precioYaCongelado ? beneficios.descuentoPct : 0);
-                if (!precioYaCongelado && beneficios.descuentoPct > 0 && !aplicaMembresia) {
+                if (!precioYaCongelado && !esPrecioLibre && beneficios.descuentoPct > 0 && !aplicaMembresia) {
                     precioUnitario = Math.round(precioUnitario * (1 - beneficios.descuentoPct / 100));
                 }
                 const subtotalBruto = precioUnitario * cantidad;
@@ -686,7 +728,7 @@ export async function crearVenta(req, res) {
                     // venta (ver venta_items.costo_unitario en el schema) -
                     // si el costo cambia despues, el margen de esta venta ya
                     // vendida no se mueve retroactivamente.
-                    costoUnitario: Number(producto.precio_costo),
+                    costoUnitario: esPrecioLibre ? costoLibreNum : Number(producto.precio_costo),
                     esMayorista: usaMayoristaPorItem,
                     comisionMonto,
                     descuentoMonto: descuentoAplicado,
@@ -1629,7 +1671,7 @@ export async function obtenerVenta(req, res) {
 
     const items = await consultaDeEmpresa(
         empresaId,
-        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida, p.tasa_iva, p.es_servicio
+        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida, p.tasa_iva, p.es_servicio, p.precio_libre
          FROM venta_items vi
          JOIN productos p ON p.id = vi.producto_id
          WHERE vi.venta_id = $1`,

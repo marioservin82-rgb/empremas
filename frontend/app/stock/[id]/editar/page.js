@@ -62,6 +62,7 @@ export default function EditarProducto() {
           duracionMinutos: p.duracion_minutos ?? "",
           // Number(): Postgres devuelve "50.000" y el punto se leería como miles.
           pesoKg: p.peso_kg ? Number(p.peso_kg) : "",
+          precioLibre: !!p.precio_libre,
           receta: (p.receta || []).map((r) => ({
             insumoId: r.insumo_id,
             nombre: r.nombre,
@@ -244,7 +245,7 @@ export default function EditarProducto() {
         return;
       }
     }
-    if (form.esServicio && !(Number(form.duracionMinutos) > 0)) {
+    if (form.esServicio && !form.precioLibre && !(Number(form.duracionMinutos) > 0)) {
       setError("Un servicio necesita una duración en minutos mayor a 0");
       return;
     }
@@ -264,7 +265,8 @@ export default function EditarProducto() {
           receta: form.esCompuesto
             ? form.receta.map((r) => ({ insumoId: r.insumoId, cantidad: Number(r.cantidad) || 0 }))
             : undefined,
-          duracionMinutos: form.esServicio ? Number(form.duracionMinutos) || undefined : undefined,
+          duracionMinutos: form.esServicio && !form.precioLibre ? Number(form.duracionMinutos) || undefined : undefined,
+          precioLibre: !!form.precioLibre,
           // null = borrar el peso; el servidor lo deja sin peso.
           pesoKg: Number(form.pesoKg) > 0 ? Number(form.pesoKg) : null,
         }),
@@ -446,7 +448,31 @@ export default function EditarProducto() {
             </>
           )}
 
-          {citasHabilitada && (
+          <label className="mb-1 flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={!!form.precioLibre}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  precioLibre: e.target.checked,
+                  // Marcarlo lo vuelve servicio sin agenda; desmarcarlo lo devuelve a producto comun.
+                  esServicio: e.target.checked,
+                  ...(e.target.checked ? { esCompuesto: false, esInsumo: false } : {}),
+                })
+              }
+              className="mt-1 h-5 w-5"
+            />
+            <span className="text-sm font-medium text-slate-700">
+              Servicio con precio y costo libres (ej. flete o envío: se cargan en cada venta)
+            </span>
+          </label>
+          <p className="mb-4 ml-7 text-xs text-slate-400">
+            Para algo que cambia en cada venta, como el envío según la distancia y el camión. Al venderlo escribís cuánto le
+            cobrás al cliente y cuánto te cuesta a vos, y la ganancia de esa venta sale exacta.
+          </p>
+
+          {citasHabilitada && !form.precioLibre && (
             <>
               <label className="mb-4 flex items-center gap-2">
                 <input type="checkbox" checked={form.esServicio} onChange={actualizar("esServicio")} className="h-5 w-5" />
@@ -604,14 +630,22 @@ export default function EditarProducto() {
             </div>
           )}
 
-          <label className={etiqueta}>Precio contado (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioContado} onChange={actualizar("precioContado")} className={campo} />
+          {form.precioLibre ? (
+            <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              No tiene precio ni costo fijos: los escribís al venderlo, en cada venta.
+            </p>
+          ) : (
+            <>
+              <label className={etiqueta}>Precio contado (Gs, IVA incluido)</label>
+              <input type="number" min="0" value={form.precioContado} onChange={actualizar("precioContado")} className={campo} />
 
-          <label className={etiqueta}>Precio crédito (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioCredito} onChange={actualizar("precioCredito")} className={campo} />
+              <label className={etiqueta}>Precio crédito (Gs, IVA incluido)</label>
+              <input type="number" min="0" value={form.precioCredito} onChange={actualizar("precioCredito")} className={campo} />
 
-          <label className={etiqueta}>Precio mayorista (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioMayorista} onChange={actualizar("precioMayorista")} className={campo} />
+              <label className={etiqueta}>Precio mayorista (Gs, IVA incluido)</label>
+              <input type="number" min="0" value={form.precioMayorista} onChange={actualizar("precioMayorista")} className={campo} />
+            </>
+          )}
 
           <label className={etiqueta}>Tasa de IVA</label>
           <select value={form.tasaIva} onChange={actualizar("tasaIva")} className={campo}>

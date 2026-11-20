@@ -27,7 +27,9 @@ export async function listarProductos(req, res) {
     // Idem para un servicio (Agenda de citas): tampoco tiene stock propio.
     const condicionServicio = excluirServicios === 'true' ? 'AND p.es_servicio = false' : '';
     // Nueva cita: solo interesan los productos marcados como servicio.
-    const condicionSoloServicios = soloServicios === 'true' ? 'AND p.es_servicio = true' : '';
+    // Un servicio con precio libre (flete) no es un servicio de agenda: no tiene
+    // duracion ni se reserva.
+    const condicionSoloServicios = soloServicios === 'true' ? 'AND p.es_servicio = true AND p.precio_libre = false' : '';
     // Por defecto solo activos (ningun otro lugar de la app - Vender,
     // Compras, etc. - manda incluirInactivos, asi que ahi no cambia nada).
     // Solo la pantalla de Stock lo manda, con el toggle "Ver desactivados",
@@ -327,10 +329,17 @@ export async function crearProducto(req, res) {
         duracionMinutos,
         categoriaRotacionManual,
         pesoKg,
+        precioLibre,
     } = req.body;
 
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+    // Servicio con precio y costo libres (ej. flete): se cargan al vender. Es
+    // siempre un servicio (sin stock) y no necesita precio de catalogo ni duracion.
+    const esPrecioLibre = precioLibre === true;
+    if (esPrecioLibre && (esCompuesto || esInsumo)) {
+        return res.status(400).json({ error: 'Un servicio con precio libre no puede ser compuesto ni insumo' });
     }
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
@@ -344,7 +353,7 @@ export async function crearProducto(req, res) {
     }
     // Un insumo de produccion nunca se vende directo - no tiene sentido
     // exigirle un precio de venta.
-    if (!esInsumo && !(Number(precioContado) > 0)) {
+    if (!esInsumo && !esPrecioLibre && !(Number(precioContado) > 0)) {
         return res.status(400).json({ error: 'El precio contado (precio de venta) es obligatorio y debe ser mayor a 0' });
     }
     if (esCompuesto && esInsumo) {
@@ -355,7 +364,7 @@ export async function crearProducto(req, res) {
     if (esServicio && (esCompuesto || esInsumo)) {
         return res.status(400).json({ error: 'Un servicio no puede ser a la vez compuesto o insumo' });
     }
-    if (esServicio && !(Number(duracionMinutos) > 0)) {
+    if (esServicio && !esPrecioLibre && !(Number(duracionMinutos) > 0)) {
         return res.status(400).json({ error: 'Un servicio necesita una duración en minutos mayor a 0' });
     }
 
@@ -366,9 +375,9 @@ export async function crearProducto(req, res) {
                     empresa_id, codigo_barras, nombre, unidad_medida,
                     precio_costo, precio_contado, precio_credito, precio_mayorista, tasa_iva, stock_minimo,
                     es_insumo, unidad_compra, equivalencia_unidad_compra, es_compuesto,
-                    es_servicio, duracion_minutos, categoria_rotacion_manual, peso_kg
+                    es_servicio, duracion_minutos, categoria_rotacion_manual, peso_kg, precio_libre
                  )
-                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16, $17, $18)
+                 VALUES ($1, $2, $3, COALESCE($4, 'unidad'), COALESCE($5, 0::numeric), COALESCE($6, 0::numeric), COALESCE($7, 0::numeric), COALESCE($8, 0::numeric), COALESCE($9, 10::smallint), $10, COALESCE($11, false), $12, $13, COALESCE($14, false), COALESCE($15, false), $16, $17, $18, $19)
                  RETURNING *`,
                 [
                     empresaId,
@@ -385,10 +394,11 @@ export async function crearProducto(req, res) {
                     unidadCompra || null,
                     equivalenciaUnidadCompra || null,
                     esCompuesto,
-                    esServicio,
+                    esPrecioLibre ? true : esServicio,
                     duracionMinutos || null,
                     categoriaRotacionManual || null,
                     pesoNuevo,
+                    esPrecioLibre,
                 ]
             );
             let nuevoProducto = productoInsertado.rows[0];
@@ -446,18 +456,26 @@ export async function actualizarProducto(req, res) {
         duracionMinutos,
         categoriaRotacionManual,
         pesoKg,
+        precioLibre,
     } = req.body;
 
     if (tasaIva !== undefined && ![0, 5, 10].includes(tasaIva)) {
         return res.status(400).json({ error: 'La tasa de IVA debe ser 0, 5 o 10' });
     }
+    // Servicio con precio y costo libres (ver crearProducto): marcarlo lo vuelve
+    // servicio; si se desmarca como servicio, deja de ser de precio libre.
+    if (precioLibre === true && (esCompuesto || esInsumo)) {
+        return res.status(400).json({ error: 'Un servicio con precio libre no puede ser compuesto ni insumo' });
+    }
+    const precioLibreFinal = esServicio === false ? false : typeof precioLibre === 'boolean' ? precioLibre : null;
+    const esServicioFinal = precioLibre === true ? true : esServicio;
     if (esCompuesto && esInsumo) {
         return res.status(400).json({ error: 'Un producto compuesto no puede ser a la vez un insumo de Producción' });
     }
     if (esServicio && (esCompuesto || esInsumo)) {
         return res.status(400).json({ error: 'Un servicio no puede ser a la vez compuesto o insumo' });
     }
-    if (esServicio && duracionMinutos !== undefined && !(Number(duracionMinutos) > 0)) {
+    if (esServicio && precioLibre !== true && duracionMinutos !== undefined && !(Number(duracionMinutos) > 0)) {
         return res.status(400).json({ error: 'Un servicio necesita una duración en minutos mayor a 0' });
     }
     if (categoriaRotacionManual !== undefined && !['alta', 'media', 'baja'].includes(categoriaRotacionManual)) {
@@ -497,7 +515,8 @@ export async function actualizarProducto(req, res) {
                     es_servicio = COALESCE($16, es_servicio),
                     duracion_minutos = COALESCE($17, duracion_minutos),
                     categoria_rotacion_manual = COALESCE($18, categoria_rotacion_manual),
-                    peso_kg = CASE WHEN $19::boolean THEN $20::numeric ELSE peso_kg END
+                    peso_kg = CASE WHEN $19::boolean THEN $20::numeric ELSE peso_kg END,
+                    precio_libre = COALESCE($21::boolean, precio_libre)
                  WHERE id = $1 AND empresa_id = $2
                  RETURNING *`,
                 [
@@ -516,11 +535,12 @@ export async function actualizarProducto(req, res) {
                     unidadCompra || null,
                     equivalenciaUnidadCompra || null,
                     esCompuesto,
-                    esServicio,
+                    esServicioFinal,
                     duracionMinutos,
                     categoriaRotacionManual,
                     tocaPeso,
                     pesoNuevo,
+                    precioLibreFinal,
                 ]
             );
 

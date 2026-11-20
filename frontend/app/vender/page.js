@@ -297,6 +297,31 @@ export default function Vender() {
     );
   }, [carrito, cliente, membresiaId]);
 
+  // Un carrito que viene de otra pantalla (presupuesto, remision, venta anulada...)
+  // no sabe si un producto es un servicio con precio y costo libres (flete): se
+  // consulta una vez por item para mostrar los campos de precio y costo.
+  useEffect(() => {
+    const faltan = carrito.filter((i) => i.precioLibre === undefined);
+    if (faltan.length === 0) return;
+    Promise.all(
+      faltan.map((i) =>
+        apiFetch(`/api/productos/${i.productoId}`)
+          .then((p) => ({ id: i.productoId, libre: !!p.precio_libre }))
+          .catch(() => ({ id: i.productoId, libre: false }))
+      )
+    ).then((resultados) =>
+      setCarrito((actual) =>
+        actual.map((i) => {
+          const r = resultados.find((x) => x.id === i.productoId);
+          if (!r || i.precioLibre !== undefined) return i;
+          return r.libre
+            ? { ...i, precioLibre: true, precioFijo: i.precioFijo ?? 0, costoLibre: i.costoLibre ?? "" }
+            : { ...i, precioLibre: false };
+        })
+      )
+    );
+  }, [carrito]);
+
   // Modulo de Vendedores por comision: lista de vendedores activos para
   // que el cajero elija a quien atribuir la venta cuando el cliente no
   // tiene uno propio asignado (ver seleccionarCliente).
@@ -549,6 +574,8 @@ export default function Vender() {
           },
           esMayorista: false,
           esServicio: !!p.es_servicio,
+          // Servicio con precio y costo libres (flete): el cajero los escribe en la linea.
+          ...(p.precio_libre ? { precioLibre: true, precioFijo: 0, costoLibre: "" } : { precioLibre: false }),
         },
         ...actual,
       ];
@@ -578,6 +605,21 @@ export default function Vender() {
     setCarrito((actual) =>
       actual.map((i) => (i.productoId === productoId ? { ...i, cantidad: Number(cantidad) || 0 } : i))
     );
+  }
+
+  // Servicio con precio y costo libres (flete): precio y costo por unidad que
+  // escribe el cajero en esta venta. El precio usa precioFijo (igual que un precio
+  // cotizado), el costo queda como texto hasta enviar.
+  function cambiarPrecioLibre(productoId, valor) {
+    setError("");
+    setCarrito((actual) =>
+      actual.map((i) => (i.productoId === productoId ? { ...i, precioFijo: Math.max(Number(valor) || 0, 0) } : i))
+    );
+  }
+
+  function cambiarCostoLibre(productoId, valor) {
+    setError("");
+    setCarrito((actual) => actual.map((i) => (i.productoId === productoId ? { ...i, costoLibre: valor } : i)));
   }
 
   // Marca/desmarca un producto puntual del carrito para venderlo a precio
@@ -698,6 +740,18 @@ export default function Vender() {
   // estado, todavia veria los pagos de antes de ese agregado (setState
   // es asincrono, no se refleja en el mismo tick).
   async function confirmarVenta(pagosParaEnviar = pagos, forzarSinNombre = false, opcionesSorteo = null) {
+    // Servicio con precio y costo libres (flete): sin precio o sin costo no se cierra.
+    for (const i of carrito) {
+      if (!i.precioLibre) continue;
+      if (!(Number(i.precioFijo) > 0)) {
+        setError(`Cargá el precio de "${i.nombre}"`);
+        return;
+      }
+      if (i.costoLibre === "" || i.costoLibre == null || !(Number(i.costoLibre) >= 0)) {
+        setError(`Cargá el costo de "${i.nombre}" (poné 0 si no te cuesta nada)`);
+        return;
+      }
+    }
     // Stop: una Factura Legal sin cliente sale a "Consumidor Final" y no se
     // le puede hacer Nota de Crédito después. Se frena para que el cajero
     // decida en vez de emitirla sin querer.
@@ -764,6 +818,7 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
             productoId: i.productoId,
             cantidad: i.cantidad,
             precioUnitario: i.precioFijo,
+            ...(i.precioLibre ? { precioLibre: Number(i.precioFijo), costoLibre: Number(i.costoLibre) } : {}),
             esMayorista: i.esMayorista,
             descuentoMonto: i.descuentoMonto || 0,
             descuentoMotivo: i.descuentoMotivo || undefined,
@@ -1241,8 +1296,14 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                   >
                     <span className="font-semibold">{p.nombre}</span>
                     <span className="text-right text-slate-500">
-                      <span className="block">Gs {formatoGs.format(p[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}</span>
-                      <span className="block text-xs">stock {formatoGs.format(p.stock)} {p.unidad_medida}</span>
+                      {p.precio_libre ? (
+                        <span className="block text-xs font-semibold text-navy">Precio y costo libres</span>
+                      ) : (
+                        <>
+                          <span className="block">Gs {formatoGs.format(p[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}</span>
+                          <span className="block text-xs">stock {formatoGs.format(p.stock)} {p.unidad_medida}</span>
+                        </>
+                      )}
                     </span>
                   </button>
                 ))}
@@ -1267,7 +1328,8 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                       onClick={() => agregarAlCarrito(a)}
                       className="rounded-xl border border-navy/30 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
                     >
-                      + {a.nombre} · Gs {formatoGs.format(a[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}
+                      + {a.nombre}
+                      {!a.precio_libre && <> · Gs {formatoGs.format(a[`precio_${usaPrecioContadoEnCredito ? "contado" : tipoPago}`])}</>}
                     </button>
                   ))}
                 </div>
@@ -1283,10 +1345,14 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <p className="font-semibold text-slate-800">{i.nombre}</p>
-                        <p className="text-sm text-slate-400">
-                          Gs {formatoGs.format(precioDe(i, tipoPago, beneficiosCliente))} / {i.unidadMedida}
-                          {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
-                        </p>
+                        {i.precioLibre ? (
+                          <p className="text-sm text-slate-400">Servicio con precio y costo libres</p>
+                        ) : (
+                          <p className="text-sm text-slate-400">
+                            Gs {formatoGs.format(precioDe(i, tipoPago, beneficiosCliente))} / {i.unidadMedida}
+                            {i.precioFijo != null && <span className="ml-1 text-navy">(precio cotizado)</span>}
+                          </p>
+                        )}
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {tipoPago === "contado" && i.precioFijo == null && (
                             <button
@@ -1333,6 +1399,49 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                         ✕
                       </button>
                     </div>
+
+                    {i.precioLibre && (
+                      <div className="mt-2 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+                        <div>
+                          <label className="mb-0.5 block text-xs font-medium text-slate-500">Precio al cliente (Gs)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            value={i.precioFijo || ""}
+                            onChange={(e) => cambiarPrecioLibre(i.productoId, e.target.value)}
+                            placeholder="0"
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-xs font-medium text-slate-500">Costo para vos (Gs)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            value={i.costoLibre ?? ""}
+                            onChange={(e) => cambiarCostoLibre(i.productoId, e.target.value)}
+                            placeholder="0"
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                          />
+                        </div>
+                        <p className="col-span-2 text-xs text-slate-400">
+                          Por cada {i.unidadMedida || "unidad"}. Ganancia:{" "}
+                          <span
+                            className={
+                              i.costoLibre !== "" && i.costoLibre != null && Number(i.precioFijo) - Number(i.costoLibre) < 0
+                                ? "font-semibold text-red-600"
+                                : "font-semibold text-slate-600"
+                            }
+                          >
+                            {i.costoLibre !== "" && i.costoLibre != null
+                              ? `Gs ${formatoGs.format((Number(i.precioFijo) - Number(i.costoLibre)) * i.cantidad)}`
+                              : "cargá el costo"}
+                          </span>
+                        </p>
+                      </div>
+                    )}
 
                     {descuentoAbierto === i.productoId && (
                       <div className="mt-2 rounded-xl bg-slate-50 p-3">
@@ -1772,10 +1881,10 @@ Queda fiado a ${nombre}: Gs ${formatoGs.format(total - entrega)}.
                   </p>
                 )}
 
-                {carrito.some((i) => i.descuentoMonto > 0) && yo?.rol === "cajero" && (
+                {carrito.some((i) => i.descuentoMonto > 0 || i.precioLibre) && yo?.rol === "cajero" && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <label className="mb-1 block text-sm font-medium text-slate-500">
-                      PIN de autorización del descuento (dueño/encargado)
+                      PIN de autorización {carrito.some((i) => i.descuentoMonto > 0) ? "del descuento" : "del precio libre"} (dueño/encargado)
                     </label>
                     <input
                       value={pinDescuento}

@@ -118,11 +118,11 @@ export async function crearCitaCore(empresaId, {
             }
 
             const productoResultado = await cliente.query(
-                `SELECT precio_contado, duracion_minutos, es_servicio, activo FROM productos WHERE id = $1`,
+                `SELECT precio_contado, duracion_minutos, es_servicio, activo, precio_libre FROM productos WHERE id = $1`,
                 [productoId]
             );
             const producto = productoResultado.rows[0];
-            if (!producto || !producto.es_servicio || !producto.activo) {
+            if (!producto || !producto.es_servicio || !producto.activo || producto.precio_libre) {
                 throw new ErrorNegocio('El servicio elegido ya no existe o no está disponible');
             }
 

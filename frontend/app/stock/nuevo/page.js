@@ -26,6 +26,7 @@ const vacio = {
   esServicio: false,
   duracionMinutos: "",
   pesoKg: "",
+  precioLibre: false,
 };
 
 export default function NuevoProducto() {
@@ -98,7 +99,7 @@ export default function NuevoProducto() {
   async function enviar(e) {
     e.preventDefault();
     setError("");
-    if (!form.esInsumo && !(Number(form.precioContado) > 0)) {
+    if (!form.esInsumo && !form.precioLibre && !(Number(form.precioContado) > 0)) {
       setError("El precio contado (precio de venta) es obligatorio y debe ser mayor a 0");
       return;
     }
@@ -266,8 +267,30 @@ export default function NuevoProducto() {
             </>
           )}
 
+          <label className="mb-1 flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={form.precioLibre}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  precioLibre: e.target.checked,
+                  ...(e.target.checked ? { esCompuesto: false, esInsumo: false, esServicio: false } : {}),
+                })
+              }
+              className="mt-1 h-5 w-5"
+            />
+            <span className="text-sm font-medium text-slate-700">
+              Servicio con precio y costo libres (ej. flete o envío: se cargan en cada venta)
+            </span>
+          </label>
+          <p className="mb-4 ml-7 text-xs text-slate-400">
+            Para algo que cambia en cada venta, como el envío según la distancia y el camión. Al venderlo escribís cuánto le
+            cobrás al cliente y cuánto te cuesta a vos, y la ganancia de esa venta sale exacta.
+          </p>
+
           <label className="mb-4 flex items-center gap-2">
-            <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} className="h-5 w-5" />
+            <input type="checkbox" checked={form.esCompuesto} onChange={actualizar("esCompuesto")} disabled={form.precioLibre} className="h-5 w-5" />
             <span className="text-sm font-medium text-slate-700">
               Producto compuesto o combo (se arma con su receta al vender — ej. sándwich, torta casera, Combo Pintor)
             </span>
@@ -345,34 +368,42 @@ export default function NuevoProducto() {
             </div>
           )}
 
-          {form.esCompuesto ? (
-            <p className="mb-4 text-sm text-slate-400">
-              Precio de costo: se calcula solo, sumando el costo de cada ingrediente de la receta.
+          {form.precioLibre ? (
+            <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              No tiene precio ni costo fijos: los escribís al venderlo, en cada venta.
             </p>
           ) : (
             <>
-              <label className={etiqueta}>Precio de costo (Gs, lo que pagaste)</label>
-              <input type="number" min="0" value={form.precioCosto} onChange={actualizar("precioCosto")} className={campo} placeholder="0" />
+              {form.esCompuesto ? (
+                <p className="mb-4 text-sm text-slate-400">
+                  Precio de costo: se calcula solo, sumando el costo de cada ingrediente de la receta.
+                </p>
+              ) : (
+                <>
+                  <label className={etiqueta}>Precio de costo (Gs, lo que pagaste)</label>
+                  <input type="number" min="0" value={form.precioCosto} onChange={actualizar("precioCosto")} className={campo} placeholder="0" />
+                </>
+              )}
+
+              <label className={etiqueta}>Precio contado (Gs, IVA incluido){form.esInsumo && " — opcional para un insumo"}</label>
+              <input
+                required={!form.esInsumo}
+                name="precioContado"
+                type="number"
+                min="0"
+                value={form.precioContado}
+                onChange={actualizar("precioContado")}
+                className={campo}
+                placeholder="0"
+              />
+
+              <label className={etiqueta}>Precio crédito (Gs, IVA incluido)</label>
+              <input type="number" min="0" value={form.precioCredito} onChange={actualizar("precioCredito")} className={campo} placeholder="0" />
+
+              <label className={etiqueta}>Precio mayorista (Gs, IVA incluido)</label>
+              <input type="number" min="0" value={form.precioMayorista} onChange={actualizar("precioMayorista")} className={campo} placeholder="0" />
             </>
           )}
-
-          <label className={etiqueta}>Precio contado (Gs, IVA incluido){form.esInsumo && " — opcional para un insumo"}</label>
-          <input
-            required={!form.esInsumo}
-            name="precioContado"
-            type="number"
-            min="0"
-            value={form.precioContado}
-            onChange={actualizar("precioContado")}
-            className={campo}
-            placeholder="0"
-          />
-
-          <label className={etiqueta}>Precio crédito (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioCredito} onChange={actualizar("precioCredito")} className={campo} placeholder="0" />
-
-          <label className={etiqueta}>Precio mayorista (Gs, IVA incluido)</label>
-          <input type="number" min="0" value={form.precioMayorista} onChange={actualizar("precioMayorista")} className={campo} placeholder="0" />
 
           <label className={etiqueta}>Tasa de IVA</label>
           <select value={form.tasaIva} onChange={actualizar("tasaIva")} className={campo}>
@@ -381,7 +412,7 @@ export default function NuevoProducto() {
             <option value={0}>Exento (0%)</option>
           </select>
 
-          {!form.esCompuesto && !form.esServicio && (
+          {!form.esCompuesto && !form.esServicio && !form.precioLibre && (
             <>
               <label className={etiqueta}>Stock inicial</label>
               <CampoCantidad value={form.stock} onChange={(valor) => setForm({ ...form, stock: valor })} className={campo} placeholder="0" />
