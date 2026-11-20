@@ -116,6 +116,19 @@ export default function NuevoProducto() {
       setError("Un servicio necesita una duración en minutos mayor a 0");
       return;
     }
+    // Un cero de más en el costo (106.000 -> 1.060.000) hace que cada venta
+    // figure como pérdida y arruina el resultado del período: se pregunta
+    // antes de guardar un costo mayor al precio de venta.
+    const costoCargado = Number(form.precioCosto) || 0;
+    const precioCargado = Number(form.precioContado) || 0;
+    if (!form.esInsumo && !form.esServicio && costoCargado > 0 && precioCargado > 0 && costoCargado > precioCargado) {
+      const seguro = window.confirm(
+        `⚠ El costo (Gs ${formatoGs.format(costoCargado)}) es MAYOR al precio de venta (Gs ${formatoGs.format(precioCargado)}).\n\n` +
+          "Si lo guardás así, cada venta de este producto figurará como pérdida y va a distorsionar tus resultados.\n\n" +
+          "¿Revisaste los ceros? Aceptar = guardar igual · Cancelar = volver a corregir."
+      );
+      if (!seguro) return;
+    }
     setGuardando(true);
     try {
       await apiFetch("/api/productos", {
