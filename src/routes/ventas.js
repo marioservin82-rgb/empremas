@@ -11,6 +11,7 @@ import {
     anularVenta,
     cancelarVentaEnSifen,
     reporteVentas,
+    reporteGanancia,
     reintentarSifen,
     descargarKudeVenta,
     obtenerQrSifenVenta,
@@ -24,6 +25,8 @@ router.use(autenticar);
 // /reporte, /resumen-dia y /facturas-electronicas antes de /:id para que
 // Express no las confunda con un id.
 router.get('/reporte', permitirRolesOPermiso(['dueno', 'encargado'], 'ver_reportes'), asyncHandler(reporteVentas));
+// Ganancia por venta: muestra costos, igual que el Balance del mes es solo del dueno.
+router.get('/ganancia', permitirRoles('dueno'), asyncHandler(reporteGanancia));
 // Sin permitirRoles: el alcance (todo vs. solo lo propio) se resuelve
 // adentro del controller, mismo criterio que listarRetirosDeTurno.
 router.get('/resumen-dia', asyncHandler(resumenDia));

@@ -263,6 +263,54 @@ export default function DetalleVenta() {
           }
         />
 
+        {venta.ganancia && (
+          <div className="mt-4 rounded-2xl bg-white p-5 shadow shadow-slate-200">
+            <p className="mb-3 font-semibold text-slate-700">
+              Ganancia de esta venta <span className="text-xs font-normal text-slate-400">(solo la ves vos)</span>
+            </p>
+            <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xs text-slate-400">Vendido</p>
+                <p className="font-bold text-navy">Gs {formatoGs.format(venta.ganancia.vendido)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Costo</p>
+                <p className="font-bold text-navy">Gs {formatoGs.format(venta.ganancia.costo)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Ganancia</p>
+                <p className={`font-extrabold ${venta.ganancia.ganancia < 0 ? "text-red-600" : "text-green-700"}`}>
+                  Gs {formatoGs.format(venta.ganancia.ganancia)}
+                  <span className="block text-xs font-medium text-slate-400">
+                    {new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1 }).format(venta.ganancia.margenPct)} %
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col divide-y divide-slate-100 text-sm">
+              {venta.items.map((i) => (
+                <div key={i.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0 truncate text-slate-700">
+                    {i.producto_nombre} <span className="text-slate-400">× {Number(i.cantidad)}</span>
+                    {Number(i.costo_unitario) === 0 && !i.es_servicio && (
+                      <span className="ml-1 text-amber-700">⚠ sin costo</span>
+                    )}
+                  </span>
+                  <span className={`shrink-0 font-semibold ${i.ganancia_linea < 0 ? "text-red-600" : "text-slate-700"}`}>
+                    {i.ganancia_linea < 0 ? "−" : ""}Gs {formatoGs.format(Math.abs(i.ganancia_linea))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {venta.ganancia.comision > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                Comisión del vendedor: Gs {formatoGs.format(venta.ganancia.comision)}
+              </p>
+            )}
+            {venta.anulada && <p className="mt-2 text-xs text-red-600">Esta venta está anulada: no cuenta en los reportes de ganancia.</p>}
+          </div>
+        )}
+
         {!venta.anulada && venta.tipo_comprobante === "factura_legal" && venta.de_estado === "aprobado" && (
           <GenerarRemision ventaId={id} direccionCliente={venta.cliente_direccion} />
         )}

@@ -1591,7 +1591,7 @@ export async function listarFacturasElectronicas(req, res) {
 // Para reimprimir/reenviar un comprobante: trae la venta con cliente,
 // items y pagos, con la misma forma que espera Recibo.js.
 export async function obtenerVenta(req, res) {
-    const { empresaId } = req.usuario;
+    const { empresaId, rol } = req.usuario;
     const { id } = req.params;
 
     const venta = await consultaDeEmpresa(
@@ -1629,12 +1629,44 @@ export async function obtenerVenta(req, res) {
 
     const items = await consultaDeEmpresa(
         empresaId,
-        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida, p.tasa_iva
+        `SELECT vi.*, p.nombre AS producto_nombre, p.unidad_medida, p.tasa_iva, p.es_servicio
          FROM venta_items vi
          JOIN productos p ON p.id = vi.producto_id
          WHERE vi.venta_id = $1`,
         [id]
     );
+
+    // El costo de la mercaderia y la ganancia son informacion del dueno (mismo
+    // criterio que el Balance del mes): cajero y encargado ven la venta sin
+    // costos, y el dueno ademas ve la ganancia de cada linea y de la venta.
+    const esDueno = rol === 'dueno';
+    let itemsVisibles = items.rows;
+    let ganancia = null;
+    if (esDueno) {
+        let vendido = 0;
+        let costo = 0;
+        let comision = 0;
+        let lineasSinCosto = 0;
+        itemsVisibles = items.rows.map((it) => {
+            const vendidoLinea = Number(it.subtotal);
+            const costoLinea = Number(it.cantidad) * Number(it.costo_unitario);
+            vendido += vendidoLinea;
+            costo += costoLinea;
+            comision += Number(it.comision_monto || 0);
+            if (Number(it.costo_unitario) === 0 && !it.es_servicio) lineasSinCosto += 1;
+            return { ...it, costo_total: costoLinea, ganancia_linea: vendidoLinea - costoLinea };
+        });
+        ganancia = {
+            vendido,
+            costo,
+            comision,
+            ganancia: vendido - costo,
+            margenPct: vendido > 0 ? ((vendido - costo) / vendido) * 100 : 0,
+            lineasSinCosto,
+        };
+    } else {
+        itemsVisibles = items.rows.map(({ costo_unitario, ...resto }) => resto);
+    }
 
     const pagos = await consultaDeEmpresa(
         empresaId,
@@ -1667,7 +1699,7 @@ export async function obtenerVenta(req, res) {
           WHERE c.venta_id = $1 ORDER BY c.numero`,
         [id]
     );
-    res.json({ ...f, items: items.rows, pagos: pagos.rows, intentos, desglose_iva: desgloseIva, cupones: cupones.rows });
+    res.json({ ...f, items: itemsVisibles, pagos: pagos.rows, intentos, desglose_iva: desgloseIva, cupones: cupones.rows, ganancia });
 }
 
 // Anula una venta: revierte el stock vendido y, si era fiado, el saldo que
@@ -1926,5 +1958,116 @@ export async function reporteVentas(req, res) {
         topProductos: topProductos.rows,
         porFormaPago: porFormaPago.rows,
         porTipoPago: porTipoPago.rows,
+    });
+}
+
+// Ganancia por venta de un periodo (solo dueno - ver la ruta). Ganancia bruta
+// = lo cobrado por cada linea (ya con descuentos) menos el costo que tenia el
+// producto AL MOMENTO de vender (venta_items.costo_unitario, mismo dato que usa
+// el Resultado operativo del Balance del mes). No resta gastos generales: esos
+// no se pueden asignar a una venta puntual, se ven en el Balance del mes.
+// Excluye ventas anuladas. Por defecto el periodo es "hoy".
+export async function reporteGanancia(req, res) {
+    const { empresaId } = req.usuario;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const desde = req.query.desde || hoy;
+    const hasta = req.query.hasta || hoy;
+    const { q } = req.query;
+
+    const valores = [desde, hasta];
+    const condiciones = [
+        'v.anulada = false',
+        'v.creado_en >= $1::date',
+        "v.creado_en < ($2::date + INTERVAL '1 day')",
+    ];
+    if (q) {
+        valores.push(`%${q}%`);
+        const n = valores.length;
+        condiciones.push(`(c.documento LIKE $${n} OR unaccent(lower(c.nombre)) LIKE unaccent(lower($${n})))`);
+    }
+    const where = condiciones.join(' AND ');
+
+    const LIMITE = 2000;
+    const filas = await consultaDeEmpresa(
+        empresaId,
+        `SELECT v.id, v.numero_ticket, v.creado_en, v.tipo_pago, v.saldo_pendiente,
+                c.nombre AS cliente_nombre, c.es_generico AS cliente_es_generico,
+                SUM(vi.subtotal) AS vendido,
+                SUM(vi.cantidad * vi.costo_unitario) AS costo,
+                SUM(vi.comision_monto) AS comision,
+                COUNT(*) FILTER (WHERE vi.costo_unitario = 0 AND NOT p.es_servicio) AS lineas_sin_costo
+         FROM ventas v
+         JOIN venta_items vi ON vi.venta_id = v.id
+         JOIN productos p ON p.id = vi.producto_id
+         LEFT JOIN clientes c ON c.id = v.cliente_id
+         WHERE ${where}
+         GROUP BY v.id, c.id
+         ORDER BY v.creado_en DESC
+         LIMIT ${LIMITE}`,
+        valores
+    );
+
+    const totales = await consultaDeEmpresa(
+        empresaId,
+        `SELECT COUNT(DISTINCT v.id) AS cantidad_ventas,
+                COALESCE(SUM(vi.subtotal), 0) AS vendido,
+                COALESCE(SUM(vi.cantidad * vi.costo_unitario), 0) AS costo,
+                COALESCE(SUM(vi.comision_monto), 0) AS comision,
+                COUNT(*) FILTER (WHERE vi.costo_unitario = 0 AND NOT p.es_servicio) AS lineas_sin_costo
+         FROM ventas v
+         JOIN venta_items vi ON vi.venta_id = v.id
+         JOIN productos p ON p.id = vi.producto_id
+         LEFT JOIN clientes c ON c.id = v.cliente_id
+         WHERE ${where}`,
+        valores
+    );
+    const pendiente = await consultaDeEmpresa(
+        empresaId,
+        `SELECT COALESCE(SUM(v.saldo_pendiente), 0) AS pendiente
+         FROM ventas v
+         LEFT JOIN clientes c ON c.id = v.cliente_id
+         WHERE ${where}`,
+        valores
+    );
+
+    const t = totales.rows[0];
+    const vendido = Number(t.vendido);
+    const costo = Number(t.costo);
+    const comision = Number(t.comision);
+    const margen = (v, c) => (v > 0 ? ((v - c) / v) * 100 : 0);
+
+    res.json({
+        desde,
+        hasta,
+        totales: {
+            cantidadVentas: Number(t.cantidad_ventas),
+            vendido,
+            costo,
+            ganancia: vendido - costo,
+            margenPct: margen(vendido, costo),
+            comision,
+            gananciaTrasComision: vendido - costo - comision,
+            pendienteDeCobro: Number(pendiente.rows[0].pendiente),
+            lineasSinCosto: Number(t.lineas_sin_costo),
+        },
+        truncado: Number(t.cantidad_ventas) > LIMITE,
+        ventas: filas.rows.map((f) => {
+            const v = Number(f.vendido);
+            const c = Number(f.costo);
+            return {
+                id: f.id,
+                numeroTicket: f.numero_ticket,
+                creadoEn: f.creado_en,
+                tipoPago: f.tipo_pago,
+                clienteNombre: f.cliente_es_generico ? null : f.cliente_nombre,
+                vendido: v,
+                costo: c,
+                ganancia: v - c,
+                margenPct: margen(v, c),
+                comision: Number(f.comision),
+                saldoPendiente: Number(f.saldo_pendiente),
+                lineasSinCosto: Number(f.lineas_sin_costo),
+            };
+        }),
     });
 }

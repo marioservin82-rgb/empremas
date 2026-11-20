@@ -39,6 +39,8 @@ export default function Ventas() {
   // gateada estricto a dueno/encargado en el backend (mismo criterio que
   // reintentar-sifen/cancelar-sifen), sin permiso extra que la habilite.
   const [esDuenoOEncargado, setEsDuenoOEncargado] = useState(false);
+  // La ganancia por venta muestra costos: solo el dueño la ve.
+  const [esDueno, setEsDueno] = useState(false);
 
   const buscar = useCallback(async (params) => {
     setCargando(true);
@@ -68,7 +70,10 @@ export default function Ventas() {
       .then(() => setPuedeVerReporte(true))
       .catch(() => {});
     apiFetch("/api/usuarios/yo")
-      .then((u) => setEsDuenoOEncargado(u.rol === "dueno" || u.rol === "encargado"))
+      .then((u) => {
+        setEsDuenoOEncargado(u.rol === "dueno" || u.rol === "encargado");
+        setEsDueno(u.rol === "dueno");
+      })
       .catch(() => {});
   }, [router]);
 
@@ -137,6 +142,11 @@ export default function Ventas() {
             {puedeVerReporte && (
               <Link href="/ventas/reporte" className="text-sm font-semibold text-navy hover:text-brand">
                 Reporte
+              </Link>
+            )}
+            {esDueno && (
+              <Link href="/ventas/ganancia" className="text-sm font-semibold text-navy hover:text-brand">
+                Ganancia
               </Link>
             )}
           </div>
