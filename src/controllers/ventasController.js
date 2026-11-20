@@ -1689,18 +1689,27 @@ export async function obtenerVenta(req, res) {
         let costo = 0;
         let comision = 0;
         let lineasSinCosto = 0;
+        // Todo sin IVA: el IVA de la venta se paga a la DNIT, no es ganancia (se
+        // supone que el costo cargado incluye IVA a la misma tasa que el precio).
+        let vendidoConIva = 0;
         itemsVisibles = items.rows.map((it) => {
-            const vendidoLinea = Number(it.subtotal);
-            const costoLinea = Number(it.cantidad) * Number(it.costo_unitario);
+            const factorIva = 1 + Number(it.tasa_iva || 0) / 100;
+            const vendidoLinea = Number(it.subtotal) / factorIva;
+            const costoLinea = (Number(it.cantidad) * Number(it.costo_unitario)) / factorIva;
+            vendidoConIva += Number(it.subtotal);
             vendido += vendidoLinea;
             costo += costoLinea;
             comision += Number(it.comision_monto || 0);
             if (Number(it.costo_unitario) === 0 && !it.es_servicio) lineasSinCosto += 1;
-            return { ...it, costo_total: costoLinea, ganancia_linea: vendidoLinea - costoLinea };
+            return { ...it, costo_total: Math.round(costoLinea), ganancia_linea: Math.round(vendidoLinea - costoLinea) };
         });
+        vendido = Math.round(vendido);
+        costo = Math.round(costo);
         ganancia = {
             vendido,
             costo,
+            vendidoConIva,
+            ivaDeLaVenta: vendidoConIva - vendido,
             comision,
             ganancia: vendido - costo,
             margenPct: vendido > 0 ? ((vendido - costo) / vendido) * 100 : 0,
@@ -2034,8 +2043,9 @@ export async function reporteGanancia(req, res) {
         empresaId,
         `SELECT v.id, v.numero_ticket, v.creado_en, v.tipo_pago, v.saldo_pendiente,
                 c.nombre AS cliente_nombre, c.es_generico AS cliente_es_generico,
-                SUM(vi.subtotal) AS vendido,
-                SUM(vi.cantidad * vi.costo_unitario) AS costo,
+                SUM(vi.subtotal) AS vendido_con_iva,
+                SUM(vi.subtotal / (1 + p.tasa_iva::numeric / 100)) AS vendido,
+                SUM(vi.cantidad * vi.costo_unitario / (1 + p.tasa_iva::numeric / 100)) AS costo,
                 SUM(vi.comision_monto) AS comision,
                 COUNT(*) FILTER (WHERE vi.costo_unitario = 0 AND NOT p.es_servicio) AS lineas_sin_costo
          FROM ventas v
@@ -2052,8 +2062,9 @@ export async function reporteGanancia(req, res) {
     const totales = await consultaDeEmpresa(
         empresaId,
         `SELECT COUNT(DISTINCT v.id) AS cantidad_ventas,
-                COALESCE(SUM(vi.subtotal), 0) AS vendido,
-                COALESCE(SUM(vi.cantidad * vi.costo_unitario), 0) AS costo,
+                COALESCE(SUM(vi.subtotal), 0) AS vendido_con_iva,
+                COALESCE(SUM(vi.subtotal / (1 + p.tasa_iva::numeric / 100)), 0) AS vendido,
+                COALESCE(SUM(vi.cantidad * vi.costo_unitario / (1 + p.tasa_iva::numeric / 100)), 0) AS costo,
                 COALESCE(SUM(vi.comision_monto), 0) AS comision,
                 COUNT(*) FILTER (WHERE vi.costo_unitario = 0 AND NOT p.es_servicio) AS lineas_sin_costo
          FROM ventas v
@@ -2073,8 +2084,12 @@ export async function reporteGanancia(req, res) {
     );
 
     const t = totales.rows[0];
-    const vendido = Number(t.vendido);
-    const costo = Number(t.costo);
+    // Todo sin IVA (el IVA de cada venta se paga a la DNIT, no es ganancia): cada
+    // linea se divide por (1 + su tasa). Se supone que el costo cargado tambien
+    // incluye IVA a la misma tasa que el precio de venta.
+    const vendido = Math.round(Number(t.vendido));
+    const costo = Math.round(Number(t.costo));
+    const vendidoConIva = Number(t.vendido_con_iva);
     const comision = Number(t.comision);
     const margen = (v, c) => (v > 0 ? ((v - c) / v) * 100 : 0);
 
@@ -2085,6 +2100,8 @@ export async function reporteGanancia(req, res) {
             cantidadVentas: Number(t.cantidad_ventas),
             vendido,
             costo,
+            vendidoConIva,
+            ivaDeLasVentas: vendidoConIva - vendido,
             ganancia: vendido - costo,
             margenPct: margen(vendido, costo),
             comision,
@@ -2094,14 +2111,15 @@ export async function reporteGanancia(req, res) {
         },
         truncado: Number(t.cantidad_ventas) > LIMITE,
         ventas: filas.rows.map((f) => {
-            const v = Number(f.vendido);
-            const c = Number(f.costo);
+            const v = Math.round(Number(f.vendido));
+            const c = Math.round(Number(f.costo));
             return {
                 id: f.id,
                 numeroTicket: f.numero_ticket,
                 creadoEn: f.creado_en,
                 tipoPago: f.tipo_pago,
                 clienteNombre: f.cliente_es_generico ? null : f.cliente_nombre,
+                vendidoConIva: Number(f.vendido_con_iva),
                 vendido: v,
                 costo: c,
                 ganancia: v - c,

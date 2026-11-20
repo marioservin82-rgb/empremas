@@ -277,11 +277,11 @@ export default function DetalleVenta() {
             </p>
             <div className="mb-3 grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-xs text-slate-400">Vendido</p>
+                <p className="text-xs text-slate-400">Vendido sin IVA</p>
                 <p className="font-bold text-navy">Gs {formatoGs.format(venta.ganancia.vendido)}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">Costo</p>
+                <p className="text-xs text-slate-400">Costo sin IVA</p>
                 <p className="font-bold text-navy">Gs {formatoGs.format(venta.ganancia.costo)}</p>
               </div>
               <div>
@@ -309,6 +309,12 @@ export default function DetalleVenta() {
                 </div>
               ))}
             </div>
+            {venta.ganancia.ivaDeLaVenta > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                Los montos son sin IVA: la venta de Gs {formatoGs.format(venta.ganancia.vendidoConIva)} incluye Gs{" "}
+                {formatoGs.format(venta.ganancia.ivaDeLaVenta)} de IVA, que se paga a la DNIT.
+              </p>
+            )}
             {venta.ganancia.comision > 0 && (
               <p className="mt-2 text-xs text-slate-500">
                 Comisión del vendedor: Gs {formatoGs.format(venta.ganancia.comision)}

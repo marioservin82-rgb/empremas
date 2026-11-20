@@ -100,8 +100,8 @@ export default function GananciaPorVentas() {
           </Link>
           <h1 className="text-2xl font-bold text-navy">Ganancia por ventas</h1>
           <p className="text-sm text-slate-500">
-            Lo cobrado en cada venta menos lo que costaba la mercadería cuando se vendió. No incluye gastos generales
-            (alquiler, sueldos): esos se ven en el Balance del mes.
+            Lo cobrado en cada venta menos lo que costaba la mercadería cuando se vendió, todo sin IVA (el IVA se paga a la
+            DNIT, no es ganancia). No incluye gastos generales (alquiler, sueldos): esos se ven en el Balance del mes.
           </p>
         </div>
 
@@ -178,8 +178,8 @@ export default function GananciaPorVentas() {
         ) : datos ? (
           <>
             <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Tarjeta titulo="Vendido" valor={`Gs ${formatoGs.format(t.vendido)}`} ayuda={`${t.cantidadVentas} ventas`} />
-              <Tarjeta titulo="Costo" valor={`Gs ${formatoGs.format(t.costo)}`} />
+              <Tarjeta titulo="Vendido sin IVA" valor={`Gs ${formatoGs.format(t.vendido)}`} ayuda={`${t.cantidadVentas} ventas`} />
+              <Tarjeta titulo="Costo sin IVA" valor={`Gs ${formatoGs.format(t.costo)}`} />
               <Tarjeta
                 titulo="Ganancia"
                 valor={`Gs ${formatoGs.format(t.ganancia)}`}
@@ -188,8 +188,16 @@ export default function GananciaPorVentas() {
               <Tarjeta titulo="Margen" valor={`${formatoPct.format(t.margenPct)} %`} ayuda="sobre lo vendido" />
             </div>
 
-            {(t.comision > 0 || t.pendienteDeCobro > 0) && (
+            {(t.ivaDeLasVentas > 0 || t.comision > 0 || t.pendienteDeCobro > 0) && (
               <div className="mb-3 rounded-2xl bg-white p-4 text-sm shadow shadow-slate-200">
+                {t.ivaDeLasVentas > 0 && (
+                  <p className="flex justify-between py-1 text-slate-600">
+                    <span>
+                      IVA incluido en las ventas <span className="text-slate-400">(Gs {formatoGs.format(t.vendidoConIva)} con IVA)</span>
+                    </span>
+                    <span className="font-semibold">Gs {formatoGs.format(t.ivaDeLasVentas)}</span>
+                  </p>
+                )}
                 {t.comision > 0 && (
                   <p className="flex justify-between py-1 text-slate-600">
                     <span>Comisiones a vendedores</span>
@@ -271,7 +279,7 @@ export default function GananciaPorVentas() {
                             {v.ganancia < 0 ? "−" : ""}Gs {formatoGs.format(Math.abs(v.ganancia))}
                           </p>
                           <p className="text-xs text-slate-400">
-                            vendido {formatoGs.format(v.vendido)} · costo {formatoGs.format(v.costo)} · {formatoPct.format(v.margenPct)} %
+                            sin IVA: vendido {formatoGs.format(v.vendido)} · costo {formatoGs.format(v.costo)} · {formatoPct.format(v.margenPct)} %
                           </p>
                         </div>
                       </Link>
